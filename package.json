@@ -1,0 +1,9 @@
+{
+  "name": "data-product-weekly-report",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@netlify/blobs": "^9.1.2",
+    "@vercel/blob": "^2.4.1"
+  }
+}

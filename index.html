@@ -1,0 +1,1569 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>数据产品部任务与周报工作台</title>
+  <style>
+    :root {
+      --ink: #202124;
+      --muted: #667085;
+      --line: #d7dbe2;
+      --paper: #fbfaf7;
+      --panel: #fff;
+      --field: #f7f8fa;
+      --accent: #0d9488;
+      --blue: #2563eb;
+      --red: #dc2626;
+      --amber: #d97706;
+      --green: #16a34a;
+      --shadow: 0 12px 36px rgba(33, 37, 41, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(32, 33, 36, 0.035) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(32, 33, 36, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      font-size: 13px;
+    }
+
+    button, input, textarea, select { font: inherit; }
+    button { border: 0; cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(251, 250, 247, 0.94);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .mark {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 800;
+    }
+    h1 { margin: 0; font-size: 17px; line-height: 1.2; }
+    .subtitle { margin-top: 2px; color: var(--muted); font-size: 12px; }
+
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+    .btn {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 0 10px;
+      border-radius: 7px;
+      background: var(--ink);
+      color: #fff;
+      white-space: nowrap;
+      transition: transform .15s ease, background .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.secondary { background: #e9edf2; color: var(--ink); }
+    .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+    .btn.danger { color: #fff; background: var(--red); }
+    .btn.small { min-height: 26px; padding: 0 8px; font-size: 12px; }
+
+    .sync-pill {
+      min-height: 30px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .sync-pill.ok { color: #0f766e; border-color: rgba(13,148,136,.35); background: rgba(13,148,136,.08); }
+    .sync-pill.warn { color: var(--amber); border-color: rgba(217,119,6,.35); background: rgba(217,119,6,.08); }
+
+    .page { padding: 14px; }
+    .toolbar, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(32,33,36,.06);
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+
+    label { display: block; margin-bottom: 3px; color: var(--muted); font-size: 11px; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--field);
+      color: var(--ink);
+      outline: none;
+    }
+    input, select { height: 30px; padding: 0 8px; }
+    textarea { min-height: 64px; padding: 7px 8px; resize: vertical; line-height: 1.45; }
+    input:focus, textarea:focus, select:focus { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(13,148,136,.12); }
+
+    .week-controls { display: grid; grid-template-columns: 180px 130px 130px; gap: 8px; align-items: end; }
+    .stats { display: grid; grid-template-columns: repeat(5, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+    .stat { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .stat strong { display: block; margin-top: 3px; font-size: 20px; line-height: 1; }
+
+    .workspace { display: grid; grid-template-columns: minmax(620px, 1fr) 360px; gap: 12px; align-items: start; }
+    .workspace.todo-only { grid-template-columns: 1fr; }
+    .board { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 10px; }
+    .column { min-height: 420px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.72); }
+    .column.drag-over { border-color: var(--accent); background: rgba(13,148,136,.08); }
+    .column-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 700; }
+    .column-title { display: inline-flex; align-items: center; gap: 6px; }
+    .count { color: var(--muted); font-weight: 400; }
+    .cards { display: grid; gap: 8px; }
+    .task-card {
+      position: relative;
+      padding: 9px;
+      border: 1px solid #e3e7ee;
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 4px 14px rgba(32,33,36,.06);
+    }
+    .task-card[draggable="true"] { cursor: grab; }
+    .task-card.dragging { opacity: .55; }
+    .task-card.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(13,148,136,.13); }
+    .select-box { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--muted); font-size: 11px; }
+    .task-title { font-weight: 700; line-height: 1.35; }
+    .task-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; color: var(--muted); font-size: 11px; }
+    .chip { padding: 2px 6px; border-radius: 999px; background: #eef1f4; }
+    .chip.p0 { background: rgba(220,38,38,.1); color: var(--red); }
+    .chip.p1 { background: rgba(217,119,6,.12); color: var(--amber); }
+    .chip.done { background: rgba(22,163,74,.12); color: var(--green); }
+
+    .detail { position: sticky; top: 72px; padding: 10px; }
+    .detail h2, .panel h2 { margin: 0 0 10px; font-size: 15px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .field-full { grid-column: 1 / -1; }
+    .logs { display: grid; gap: 8px; margin-top: 8px; }
+    .log-row { display: grid; grid-template-columns: 92px 1fr 28px; gap: 6px; align-items: start; }
+
+    .report-shell { display: grid; grid-template-columns: minmax(520px, 1fr) minmax(360px, 500px); gap: 12px; align-items: start; }
+    .report-editor { display: grid; gap: 10px; }
+    .module { padding: 10px; }
+    .module-head { display: grid; grid-template-columns: 1fr 90px; gap: 8px; margin-bottom: 8px; }
+    .section-grid { display: grid; gap: 8px; }
+    .preview-wrap {
+      position: sticky;
+      top: 72px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      max-height: calc(100vh - 90px);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #18191b;
+      color: #f8fafc;
+      box-shadow: var(--shadow);
+    }
+    .preview-head { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.12); background: #111214; }
+    .preview { margin: 0; padding: 16px; overflow: auto; white-space: pre-wrap; line-height: 1.75; font-family: inherit; }
+
+    .history-list { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .history-row { display: grid; grid-template-columns: 1fr 70px 92px 230px; gap: 8px; align-items: center; padding: 8px 10px; background: #fff; font-size: 12px; }
+    .row-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+
+    .goals-table-wrap {
+      width: 100%;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(32,33,36,.06);
+    }
+    .goals-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 12px;
+    }
+    .goals-table th,
+    .goals-table td {
+      border: 1px solid #8d96a3;
+      padding: 6px 7px;
+      vertical-align: middle;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #fff;
+    }
+    .goals-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #d9e2f3;
+      text-align: center;
+      font-weight: 700;
+    }
+    .goals-table td[contenteditable="true"]:focus {
+      outline: 2px solid rgba(13,148,136,.35);
+      outline-offset: -2px;
+      background: #f8fffd;
+    }
+    .goals-table .muted-row td { background: #bfbfbf; }
+    .goals-table .tag-yes,
+    .goals-table .tag-no,
+    .goals-table .tag-team {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 0 7px;
+      border-radius: 3px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .goals-table .tag-yes { background: #36b37e; }
+    .goals-table .tag-no { background: #de350b; }
+    .goals-table .tag-team { background: #3b82f6; }
+
+    .modal-mask {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(17, 18, 20, 0.42);
+    }
+    .modal {
+      width: min(760px, 100%);
+      max-height: min(680px, calc(100vh - 36px));
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .modal.wide { width: min(900px, 100%); }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      background: #f3f5f7;
+    }
+    .modal-body {
+      padding: 10px;
+      overflow: auto;
+    }
+    .import-row {
+      display: grid;
+      grid-template-columns: 1fr 110px 110px;
+      gap: 8px;
+      align-items: center;
+      padding: 9px 10px;
+      background: #fff;
+      font-size: 12px;
+    }
+    .import-preview-row {
+      display: grid;
+      grid-template-columns: 28px 1fr 86px 90px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      background: #fff;
+      font-size: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .import-preview-row.duplicate { color: var(--muted); background: #f3f5f7; }
+    .bulk-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(217,119,6,.35);
+      border-radius: 8px;
+      background: rgba(217,119,6,.08);
+    }
+
+    @media (max-width: 1120px) {
+      .workspace, .report-shell { grid-template-columns: 1fr; }
+      .detail, .preview-wrap { position: static; }
+      .board { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+    }
+    @media (max-width: 760px) {
+      .topbar, .toolbar { grid-template-columns: 1fr; align-items: stretch; }
+      .topbar { flex-direction: column; align-items: stretch; }
+      .week-controls, .stats, .board, .form-grid, .history-row { grid-template-columns: 1fr; }
+      .actions { justify-content: stretch; }
+      .actions .btn, .actions .sync-pill { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">周</div>
+      <div>
+        <h1>数据产品部任务与周报工作台</h1>
+        <div class="subtitle">先跟踪每日任务，再沉淀成每周汇报</div>
+      </div>
+    </div>
+    <div class="actions">
+      <span class="sync-pill" id="syncStatus">连接中...</span>
+      <button class="btn secondary" data-view="tasks">部门待办</button>
+      <button class="btn secondary" data-view="goals">部门目标</button>
+      <button class="btn secondary" data-view="report">周报</button>
+      <button class="btn secondary" id="authNavBtn">登录</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="toolbar">
+      <div class="week-controls" style="grid-template-columns: 220px;">
+        <div>
+          <label>当前周</label>
+          <select id="weekSelect"></select>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn secondary" id="importPreviousBtn">导入上周待办事项</button>
+        <button class="btn secondary" id="batchModeBtn">批量删除</button>
+        <button class="btn" id="generateReportBtn">生成本周完成情况</button>
+      </div>
+    </section>
+
+    <section id="tasksView">
+      <div class="stats" id="stats"></div>
+      <div class="workspace todo-only">
+        <div class="board" id="board"></div>
+      </div>
+    </section>
+
+    <section id="goalsView" hidden>
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0 0 4px;">部门目标</h2>
+          <div class="subtitle" id="goalsMeta">单元格可直接编辑，修改后自动保存。</div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="addGoalRowBtn">新增目标</button>
+          <button class="btn secondary" id="resetGoalsBtn">恢复初始目标</button>
+          <button class="btn" id="saveGoalsBtn">保存目标</button>
+        </div>
+      </div>
+      <div class="goals-table-wrap">
+        <table class="goals-table" id="goalsTable"></table>
+      </div>
+    </section>
+
+    <section id="reportView" hidden>
+      <div class="toolbar">
+        <div class="week-controls">
+          <div>
+            <label>开始日期</label>
+            <input id="weekStart" placeholder="2026/06/17" />
+          </div>
+          <div>
+            <label>结束日期</label>
+            <input id="weekEnd" placeholder="2026/06/23" />
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn secondary" id="createWeekBtn">新建周</button>
+          <button class="btn secondary" data-view="history">历史周报</button>
+          <button class="btn" id="copyReportBtn">复制周报</button>
+        </div>
+      </div>
+      <div class="report-shell">
+        <div class="report-editor" id="reportEditor"></div>
+        <aside class="preview-wrap">
+          <div class="preview-head">
+            <strong>周报文本预览</strong>
+            <button class="btn small secondary" id="saveReportBtn">保存归档</button>
+          </div>
+          <pre class="preview" id="reportPreview"></pre>
+        </aside>
+      </div>
+    </section>
+
+    <section id="historyView" class="panel" hidden>
+      <div style="padding:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+        <h2 style="margin:0;">历史周报</h2>
+        <button class="btn secondary" id="refreshReportsBtn">刷新</button>
+      </div>
+      <div class="history-list" id="historyList"></div>
+    </section>
+
+    <section id="profileView" class="panel" hidden>
+      <div style="padding:12px;">
+        <h2 style="margin:0 0 10px;">个人中心</h2>
+        <div id="profileSummary" class="subtitle" style="margin-bottom:12px;"></div>
+        <div class="actions" style="margin-top:12px;justify-content:flex-start;">
+          <button class="btn secondary" id="openAuthModalBtn">切换账号</button>
+          <button class="btn ghost" id="logoutBtn">退出登录</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-mask" id="importModal" hidden>
+    <section class="modal">
+      <div class="modal-head">
+        <strong>选择历史周报导入待办事项</strong>
+        <button class="btn small ghost" id="closeImportModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="subtitle" style="margin-bottom:8px;">先选择来源，再预览待导入任务。重复任务会自动标记并默认跳过。</div>
+        <div class="history-list" id="importWeekList"></div>
+        <div id="importPreview" style="margin-top:10px;"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-mask" id="taskModal" hidden>
+    <section class="modal wide">
+      <div class="modal-head">
+        <strong>任务详情 / 今日进展</strong>
+        <button class="btn small ghost" id="closeTaskModal">×</button>
+      </div>
+      <div class="modal-body" id="taskDetail"></div>
+    </section>
+  </div>
+
+  <div class="modal-mask" id="authModal" hidden>
+    <section class="modal">
+      <div class="modal-head">
+        <strong id="authModalTitle">登录</strong>
+        <button class="btn small ghost" id="closeAuthModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="actions" style="justify-content:flex-start;margin-bottom:10px;">
+          <button class="btn small secondary" id="showLoginBtn">登录</button>
+          <button class="btn small ghost" id="showRegisterBtn">注册</button>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>用户名</label>
+            <input id="authUsername" placeholder="例如 zhangsan" />
+          </div>
+          <div id="displayNameField">
+            <label>显示名称</label>
+            <input id="authDisplayName" placeholder="例如 张三" />
+          </div>
+          <div class="field-full">
+            <label>密码</label>
+            <input id="authPassword" type="password" placeholder="至少6位" />
+          </div>
+        </div>
+        <div class="actions" style="margin-top:12px;justify-content:flex-start;">
+          <button class="btn" id="submitAuthBtn">登录</button>
+          <span class="subtitle" id="authHint">首次使用请先注册。</span>
+        </div>
+        <div id="authMessage" class="subtitle" style="margin-top:10px;"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const modules = ["数据治理与经营分析", "AI+X项目", "财经共享", "其他"];
+    const statuses = ["待开始", "进行中", "已完成", "阻塞"];
+    const storageKey = "dp-weekly-workbench-v1";
+    const syncKeyStorageKey = `${storageKey}-sync-key`;
+
+    let weeks = [];
+    let currentWeek = null;
+    let tasks = [];
+    let selectedTaskId = "";
+    let reports = [];
+    let reportData = emptyReportData("", "");
+    let saveTimer = null;
+    let batchMode = false;
+    let selectedTaskIds = new Set();
+    let importCandidates = [];
+    let currentUser = JSON.parse(localStorage.getItem(`${storageKey}-user`) || "null");
+    let userToken = localStorage.getItem(`${storageKey}-user-token`) || "";
+    let authMode = "login";
+    let goalsRows = [];
+    let goalsSaveTimer = null;
+
+    const goalColumns = [
+      ["seq", "序号", 42],
+      ["level", "一级指标", 90],
+      ["name", "指标名称", 220],
+      ["definition", "指标定义", 230],
+      ["dimension", "统计维度", 180],
+      ["formula", "计算公式", 210],
+      ["logic", "统计口径和过程值说明", 300],
+      ["scope", "适用范围", 90],
+      ["productGroup", "数帆产品组", 76],
+      ["owner", "指标owner", 70],
+      ["systemCount", "是否支撑系统取数", 120],
+      ["current", "现状", 210],
+      ["target", "目标", 190],
+      ["remark", "备注", 150],
+    ];
+
+    const initialGoalsRows = [
+      { seq: "1", level: "降本增效", name: "集团核心指标线上化80个", definition: "集团及各事业部核心指标线上化（以GSA、KPI为核心）", dimension: "领域、组织", formula: "", logic: "数据中心已线上化的指标数量", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", current: "13", target: "80", remark: "集团：可线上化35，今年上线28个\n瓷砖：可线上化63，今年上线52个\n卫浴：待定\n目前已上线：12个" },
+      { seq: "2", level: "系统活跃率", name: "报表访问次数3W", definition: "描述数据中心报表访问次数", dimension: "月、季、年、业务领域", formula: "/", logic: "全公司具有数据中心权限的用户访问报表次数之和", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", current: "55000+", target: "60000+" },
+      { seq: "3", level: "降本增效", name: "数据处理效率", definition: "描述财务核心数据（收入成本、费用、应收）更新完成时间", dimension: "日", formula: "每日核心更新完成作业数/核心作业数", logic: "核心作业每日8小时内完成更新", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", current: "每天8点前完成", target: "每天8点前完成" },
+      { seq: "4", level: "系统活跃率", name: "数据AI接口调用次数", definition: "描述AI工具调用接口的次数", dimension: "日、月、季、年、agent", formula: "", logic: "agent开发调用api的次数统计", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", current: "暂无", target: "/", remark: "待定" },
+      { seq: "5", level: "降本增效", name: "AI降本500万", definition: "集团AI X项目整体降本金额达500万", dimension: "组织", formula: "Pending", logic: "Pending", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", current: "", target: "500万" },
+      { seq: "6", level: "系统活跃率", name: "AI智能体上线数量50个", definition: "Hiagent平台、本地化、或云端部署上线的总智能体数量", dimension: "组织", formula: "AI智能体上线数量 = 统计周期内正式上线的AI智能体数量合计", logic: "1. 统计范围为2026年度全公司各部门在HiAgent平台、本地化部署或云端部署环境等渠道正式上线的AI智能体。\n2. 正式上线指已完成开发、测试和发布，并已投入实际业务场景使用的智能体。\n3. 以单个可独立提供业务能力的智能体为统计单位。", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", current: "", target: "50个" },
+      { seq: "7", level: "系统活跃率", name: "Vibe Coding效率提升50%", definition: "代码交付量提升或需求处理交付速度提升", dimension: "组织", formula: "Vibe Coding效率提升率 =（使用Vibe Coding前平均需求全流程交付周期 - 使用Vibe Coding后平均需求全流程交付周期）/ 使用Vibe Coding前平均需求全流程交付周期 × 100%", logic: "1. 统计范围为2026年度IT部门使用Vibe Coding辅助完成需求分析、原型设计、开发、测试及交付上线等工作的效率提升情况。\n2. 需求全流程交付周期指从需求文档确认开始，到原型设计完成、开发完成、测试通过并完成交付上线为止的总耗时。\n3. 以前后实际交付数据为准。", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", current: "", target: "50%", remark: "以TAPD为准", muted: true },
+      { seq: "8", level: "降本增效", name: "月结效率48小时内", definition: "集团财经的应收应付、费用、库存、利润表等业务", dimension: "组织", formula: "数据公布时间-数据更新时间<=48小时", logic: "1. 统计范围为2026年度集团财经应收、应付、费用、库存、客户表等。\n2. 带数从业务数据更新开始，数据核对为过程，业务最终进行数据公布。\n3. 引入SOP标准作业流程，缩短业务数据分析时间和审核时间，保证在48小时内完成月结效率提交。", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", current: "48小时内", target: "48小时内" },
+      { seq: "9", level: "降本增效", name: "财经共享效率提升30%", definition: "应收应付、费用类审单效率提升", dimension: "组织", formula: "财经共享月度审单平均处理耗时（不含等待时间）", logic: "1. 统计范围：财经共享系统月度审单业务量，统计对象为不含等待时间的纯人工处理耗时。\n2. AI提效假设：引入AI辅助审单后，预计处理效率提升30%。\n3. 计算过程与折合工时按月度业务数据测算。", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", current: "月均审单数：23,747\n审单人数：14人\n人均审单数：1696单", target: "月均审单数：23747+23747*30%=30871\n人均审单数：1696+1696*30%=2204", remark: "效率提升主要体现在：\n1. 人均审单数增加\n2. 月均审单数增加\n3. 审单人员减少" },
+    ];
+
+    const $ = (id) => document.getElementById(id);
+    const syncStatusEl = $("syncStatus");
+
+    function setSyncStatus(text, tone = "") {
+      syncStatusEl.textContent = text;
+      syncStatusEl.className = `sync-pill ${tone}`.trim();
+    }
+
+    function getSyncKey(force = false) {
+      let key = localStorage.getItem(syncKeyStorageKey) || "";
+      if (!key || force) {
+        key = prompt("请输入周报协同口令") || "";
+        if (key) localStorage.setItem(syncKeyStorageKey, key);
+      }
+      return key;
+    }
+
+    async function authedFetch(url, options = {}) {
+      const key = getSyncKey();
+      if (!key) throw new Error("missing key");
+      const request = () => fetch(url, {
+        ...options,
+        headers: { ...(options.headers || {}), "x-report-key": key, ...(userToken ? { "x-user-token": userToken } : {}) },
+      });
+      let response = await request();
+      if (response.status === 401) {
+        localStorage.removeItem(syncKeyStorageKey);
+        const nextKey = getSyncKey(true);
+        if (!nextKey) throw new Error("unauthorized");
+        response = await fetch(url, {
+          ...options,
+          headers: { ...(options.headers || {}), "x-report-key": nextKey, ...(userToken ? { "x-user-token": userToken } : {}) },
+        });
+      }
+      return response;
+    }
+
+    function todayIso() {
+      const date = new Date();
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function weekRange(date = new Date()) {
+      const day = date.getDay() || 7;
+      const start = new Date(date);
+      start.setDate(date.getDate() - day + 1);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      const iso = (d) => d.toISOString().slice(0, 10);
+      return { startDate: iso(start), endDate: iso(end), id: `${iso(start)}_${iso(end)}` };
+    }
+
+    function formatDate(value) {
+      if (!value) return "";
+      const [year, month, day] = value.split("-");
+      return `${year}/${month}/${day}`;
+    }
+
+    function displayDate(value) {
+      return String(value || "").replaceAll("-", "/");
+    }
+
+    function weekLabel(week) {
+      if (!week?.startDate) return "本周";
+      const [, month, day] = week.startDate.split("-");
+      return `${Number(month)}月第${Math.ceil(Number(day) / 7)}周`;
+    }
+
+    function normalizeDate(value) {
+      return String(value || "").trim().replaceAll("/", "-");
+    }
+
+    function escapeHtml(value) {
+      return String(value || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+    }
+
+    function normalizeText(value) {
+      return String(value || "").trim().replace(/\s+/g, "");
+    }
+
+    function taskDuplicateKey(task) {
+      return `${normalizeText(task.module)}::${normalizeText(task.title)}`;
+    }
+
+    function existingTaskKeys() {
+      return {
+        sourceIds: new Set(tasks.map((task) => task.sourceTaskId).filter(Boolean)),
+        titleKeys: new Set(tasks.map(taskDuplicateKey)),
+      };
+    }
+
+    function markImportDuplicates(rows) {
+      const existing = existingTaskKeys();
+      const seen = new Set();
+      return rows.map((task, index) => {
+        const key = taskDuplicateKey(task);
+        const duplicate = existing.sourceIds.has(task.sourceTaskId) || existing.titleKeys.has(key) || seen.has(key);
+        seen.add(key);
+        return { ...task, importId: `import_${index}`, duplicate, selected: !duplicate };
+      });
+    }
+
+    function emptyReportData(startDate, endDate) {
+      return {
+        title: "数据产品部周重点工作汇报",
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        modules: modules.map((title) => ({
+          title,
+          status: title === "数据治理与经营分析" ? "🔵" : title === "其他" ? "⚪" : "🟡",
+          sections: [
+            { title: "本周进展", items: [""] },
+            { title: "当前风险", items: [""] },
+            { title: "下周重点", items: [""] },
+          ],
+        })),
+      };
+    }
+
+    async function apiJson(url, options = {}) {
+      const response = await authedFetch(url, options);
+      if (!response.ok) {
+        let message = `${response.status}`;
+        try {
+          const errorBody = await response.json();
+          message = errorBody.error || message;
+        } catch {}
+        throw new Error(message);
+      }
+      return response.json();
+    }
+
+    async function loadWeeks() {
+      const result = await apiJson("/api/weeks");
+      weeks = result.weeks || [];
+      if (!weeks.length) {
+        const range = weekRange();
+        const created = await apiJson("/api/weeks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(range),
+        });
+        weeks = [created.week];
+      }
+      const saved = localStorage.getItem(`${storageKey}-week-id`);
+      currentWeek = weeks.find((week) => week.id === saved) || weeks[0];
+      renderWeekControls();
+      await loadWeek(currentWeek.id);
+    }
+
+    async function loadGoals() {
+      try {
+        const result = await apiJson("/api/goals");
+        goalsRows = Array.isArray(result.rows) ? result.rows : JSON.parse(JSON.stringify(initialGoalsRows));
+        renderGoals();
+        renderGoalsMeta(result);
+      } catch {
+        goalsRows = JSON.parse(JSON.stringify(initialGoalsRows));
+        renderGoals();
+        setSyncStatus("目标读取失败", "warn");
+      }
+    }
+
+    function renderGoalsMeta(result = {}) {
+      const updater = result.updatedBy?.displayName || result.updatedBy?.username || "";
+      const time = result.updatedAt ? new Date(result.updatedAt).toLocaleString() : "";
+      $("goalsMeta").textContent = time ? `单元格可直接编辑，已保存于 ${time}${updater ? `，更新人：${updater}` : ""}` : "单元格可直接编辑，修改后自动保存。";
+    }
+
+    function renderGoals() {
+      $("goalsTable").innerHTML = `
+        <colgroup>
+          ${goalColumns.map(([, , width]) => `<col style="width:${width}px;">`).join("")}
+        </colgroup>
+        <thead><tr>${goalColumns.map(([, label]) => `<th>${label}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${goalsRows.map((row, rowIndex) => `
+            <tr class="${row.muted ? "muted-row" : ""}">
+              ${goalColumns.map(([key]) => `
+                <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="${key}">${formatGoalCell(row[key], key)}</td>
+              `).join("")}
+            </tr>
+          `).join("")}
+        </tbody>
+      `;
+    }
+
+    function formatGoalCell(value, key) {
+      const text = escapeHtml(value || "");
+      if (key === "productGroup" && text) return `<span class="tag-team">${text}</span>`;
+      if (key === "systemCount" && text === "是") return `<span class="tag-yes">是</span>`;
+      if (key === "systemCount" && text === "否") return `<span class="tag-no">否</span>`;
+      return text;
+    }
+
+    async function saveGoalsNow() {
+      const result = await apiJson("/api/goals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: goalsRows }),
+      });
+      renderGoalsMeta(result);
+      setSyncStatus("目标已保存", "ok");
+    }
+
+    function scheduleGoalsSave() {
+      clearTimeout(goalsSaveTimer);
+      setSyncStatus("目标待保存", "warn");
+      goalsSaveTimer = setTimeout(() => {
+        goalsSaveTimer = null;
+        saveGoalsNow().catch(() => setSyncStatus("目标保存失败", "warn"));
+      }, 800);
+    }
+
+    async function loadWeek(weekId) {
+      const result = await apiJson(`/api/week/${encodeURIComponent(weekId)}/tasks`);
+      currentWeek = result.week;
+      tasks = result.tasks || [];
+      selectedTaskId = tasks[0]?.id || "";
+      localStorage.setItem(`${storageKey}-week-id`, currentWeek.id);
+      reportData = emptyReportData(currentWeek.startDate, currentWeek.endDate);
+      renderAll();
+      await autoRolloverFromPrevious();
+    }
+
+    function previousWeekFor(weekId) {
+      const sorted = [...weeks].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+      const index = sorted.findIndex((week) => week.id === weekId);
+      return index > 0 ? sorted[index - 1] : null;
+    }
+
+    function renderImportWeekList() {
+      const candidates = [...weeks]
+        .filter((week) => week.id !== currentWeek?.id)
+        .sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)));
+      const weekRows = candidates.map((week) => `
+        <div class="import-row">
+          <div>
+            <strong>任务周：${escapeHtml(displayDate(week.startDate))} — ${escapeHtml(displayDate(week.endDate))}</strong>
+            <div class="subtitle">来源周期 ID：${escapeHtml(week.id)}</div>
+          </div>
+          <span>${week.updatedAt ? new Date(week.updatedAt).toLocaleDateString() : "-"}</span>
+          <button class="btn small" data-import-week="${week.id}">导入</button>
+        </div>
+      `);
+      const reportRows = reports.map((report) => `
+        <div class="import-row">
+          <div>
+            <strong>历史周报：${escapeHtml(displayDate(report.startDate || "未填"))} — ${escapeHtml(displayDate(report.endDate || "未填"))}</strong>
+            <div class="subtitle">${escapeHtml(report.title || "数据产品部周重点工作汇报")}</div>
+          </div>
+          <span>${report.status === "final" ? "已定稿" : "编辑中"}</span>
+          <button class="btn small" data-import-report="${report.id}">导入</button>
+        </div>
+      `);
+      $("importWeekList").innerHTML = [...weekRows, ...reportRows].join("") || `<div class="import-row"><span>暂无可导入的历史周期或历史周报</span></div>`;
+    }
+
+    async function openImportModal() {
+      $("importWeekList").innerHTML = `<div class="import-row"><span>正在读取历史数据...</span></div>`;
+      $("importModal").hidden = false;
+      try {
+        await loadReports();
+      } catch {
+        setSyncStatus("周报读取失败", "warn");
+      }
+      renderImportWeekList();
+    }
+
+    function closeImportModal() {
+      $("importModal").hidden = true;
+      importCandidates = [];
+      $("importPreview").innerHTML = "";
+    }
+
+    async function autoRolloverFromPrevious() {
+      const source = previousWeekFor(currentWeek?.id);
+      if (!source) return;
+      await importPreviousTodos(source, false);
+    }
+
+    async function importPreviousTodos(source, showEmptyMessage = true) {
+      try {
+        const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/rollover`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceWeekId: source.id }),
+        });
+        if (result.tasks?.length) {
+          tasks = [...result.tasks, ...tasks];
+          selectedTaskId = tasks[0]?.id || "";
+          renderAll();
+          setSyncStatus(`已自动带入${result.tasks.length}项`, "ok");
+        } else if (showEmptyMessage) {
+          setSyncStatus("无可导入事项", "ok");
+        }
+      } catch {
+        setSyncStatus("导入失败", "warn");
+      }
+    }
+
+    async function previewTasksFromWeek(source) {
+      const result = await apiJson(`/api/week/${encodeURIComponent(source.id)}/tasks`);
+      const rows = (result.tasks || [])
+        .filter((task) => task.status !== "已完成" || task.carryToNextWeek || task.status === "阻塞" || task.blocker)
+        .map((task) => ({
+          title: task.title,
+          module: modules.includes(task.module) ? task.module : "其他",
+          owner: task.owner || "",
+          priority: task.priority || "P1",
+          status: "待开始",
+          dueDate: task.dueDate || "",
+          includeInReport: task.includeInReport !== false,
+          carryToNextWeek: false,
+          blocker: task.blocker || "",
+          sourceWeekId: source.id,
+          sourceTaskId: task.id,
+        }));
+      renderImportPreview(markImportDuplicates(rows), `任务周：${displayDate(source.startDate)} — ${displayDate(source.endDate)}`);
+    }
+
+    function extractTodosFromReport(reportData, reportId) {
+      const rows = [];
+      (reportData.modules || []).forEach((mod) => {
+        (mod.sections || []).forEach((section) => {
+          if (section.title !== "下周重点") return;
+          (section.items || []).map((item) => String(item || "").trim()).filter(Boolean).forEach((item, index) => {
+            rows.push({
+              title: item.replace(/^\*\s*/, ""),
+              module: modules.includes(mod.title) ? mod.title : "其他",
+              status: "待开始",
+              priority: "P1",
+              includeInReport: true,
+              carryToNextWeek: false,
+              sourceWeekId: reportId,
+              sourceTaskId: `report-${reportId}-${mod.title}-${index}`,
+            });
+          });
+        });
+      });
+      return rows;
+    }
+
+    async function importTodosFromReport(reportId) {
+      const result = await apiJson(`/api/report/${encodeURIComponent(reportId)}`);
+      renderImportPreview(markImportDuplicates(extractTodosFromReport(result.report?.data || {}, reportId)), `历史周报：${result.report?.data?.startDate || ""} — ${result.report?.data?.endDate || ""}`);
+    }
+
+    function renderImportPreview(rows, title) {
+      importCandidates = rows;
+      const selectedCount = rows.filter((row) => row.selected).length;
+      $("importPreview").innerHTML = `
+        <div class="panel" style="padding:10px;">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px;">
+            <strong>${escapeHtml(title)} · 待导入预览</strong>
+            <span class="subtitle">可导入 ${selectedCount} 项，重复 ${rows.filter((row) => row.duplicate).length} 项</span>
+          </div>
+          <div class="history-list">
+            ${rows.map((row) => `
+              <div class="import-preview-row ${row.duplicate ? "duplicate" : ""}">
+                <input type="checkbox" data-import-check="${row.importId}" ${row.selected ? "checked" : ""} ${row.duplicate ? "disabled" : ""} />
+                <div>
+                  <strong>${escapeHtml(row.title)}</strong>
+                  <div class="subtitle">${escapeHtml(row.module)} ${row.owner ? "· " + escapeHtml(row.owner) : ""}</div>
+                </div>
+                <span>${escapeHtml(row.priority || "P1")}</span>
+                <span>${row.duplicate ? "已存在" : "待导入"}</span>
+              </div>
+            `).join("") || `<div class="import-preview-row"><span>没有可导入事项</span></div>`}
+          </div>
+          <div class="actions" style="margin-top:10px;">
+            <button class="btn secondary" id="selectAllImportBtn">全选可导入</button>
+            <button class="btn" id="confirmImportBtn">确认导入</button>
+          </div>
+        </div>
+      `;
+    }
+
+    async function confirmImportCandidates() {
+      const pending = importCandidates.filter((task) => task.selected && !task.duplicate);
+      if (!pending.length) {
+        setSyncStatus("无可导入事项", "ok");
+        return;
+      }
+      const created = [];
+      for (const task of pending) {
+        const response = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task }),
+        });
+        created.push(response.task);
+      }
+      tasks = [...created, ...tasks];
+      selectedTaskId = tasks[0]?.id || "";
+      renderAll();
+      setSyncStatus(`已导入${created.length}项`, "ok");
+    }
+
+    function renderWeekControls() {
+      $("weekSelect").innerHTML = weeks.map((week) => `<option value="${week.id}" ${week.id === currentWeek?.id ? "selected" : ""}>${weekLabel(week)}</option>`).join("");
+      $("weekStart").value = displayDate(currentWeek?.startDate || weekRange().startDate);
+      $("weekEnd").value = displayDate(currentWeek?.endDate || weekRange().endDate);
+    }
+
+    function taskCounts() {
+      return {
+        total: tasks.length,
+        todo: tasks.filter((task) => task.status === "待开始").length,
+        doing: tasks.filter((task) => task.status === "进行中").length,
+        done: tasks.filter((task) => task.status === "已完成").length,
+        blocked: tasks.filter((task) => task.status === "阻塞").length,
+        carry: tasks.filter((task) => task.status !== "已完成" || task.carryToNextWeek).length,
+      };
+    }
+
+    function renderStats() {
+      const counts = taskCounts();
+      $("stats").innerHTML = [
+        ["本周任务", counts.total],
+        ["已完成", counts.done],
+        ["进行中", counts.doing],
+        ["阻塞", counts.blocked],
+        ["待带入下周", counts.carry],
+      ].map(([label, value]) => `<div class="stat"><span>${label}</span><strong>${value}</strong></div>`).join("");
+    }
+
+    function latestLog(task) {
+      return [...(task.dailyLogs || [])].reverse().find((log) => log.progress?.trim());
+    }
+
+    function renderBoard() {
+      const bulkBar = batchMode ? `
+        <div class="bulk-bar" style="grid-column:1 / -1;">
+          <span>已选择 ${selectedTaskIds.size} 项</span>
+          <div class="actions">
+            <button class="btn small secondary" id="cancelBatchBtn">取消</button>
+            <button class="btn small danger" id="deleteSelectedBtn">删除所选</button>
+          </div>
+        </div>
+      ` : "";
+      $("board").innerHTML = bulkBar + statuses.map((status) => {
+        const rows = tasks.filter((task) => task.status === status);
+        return `
+          <section class="column" data-drop-status="${status}">
+            <div class="column-head">
+              <span class="column-title">${status}<button class="btn small ghost" title="新增${status}任务" data-add-status="${status}">＋</button></span>
+              <span class="count">${rows.length}</span>
+              ${batchMode ? `<button class="btn small ghost" data-select-status="${status}">全选</button>` : ""}
+            </div>
+            <div class="cards">
+              ${rows.map((task) => `
+                <article class="task-card ${task.id === selectedTaskId ? "active" : ""}" data-task-id="${task.id}" draggable="${!batchMode}">
+                  ${batchMode ? `<label class="select-box"><input type="checkbox" data-select-task="${task.id}" ${selectedTaskIds.has(task.id) ? "checked" : ""} /> 选择</label>` : ""}
+                  <div class="task-title">${escapeHtml(task.title || "未命名任务")}</div>
+                  <div class="task-meta">
+                    <span class="chip">${escapeHtml(task.module)}</span>
+                    <span class="chip ${String(task.priority).toLowerCase()}">${escapeHtml(task.priority)}</span>
+                    ${task.owner ? `<span class="chip">${escapeHtml(task.owner)}</span>` : ""}
+                    ${task.dueDate ? `<span class="chip">${escapeHtml(displayDate(task.dueDate))}</span>` : ""}
+                    ${latestLog(task)?.date === todayIso() ? `<span class="chip done">今日已更新</span>` : ""}
+                    ${task.updatedBy?.displayName ? `<span class="chip">更新：${escapeHtml(task.updatedBy.displayName)}</span>` : ""}
+                  </div>
+                </article>
+              `).join("") || `<span class="subtitle">暂无任务</span>`}
+            </div>
+          </section>
+        `;
+      }).join("");
+    }
+
+    function selectedTask() {
+      return tasks.find((task) => task.id === selectedTaskId);
+    }
+
+    function renderTaskDetail() {
+      const task = selectedTask();
+      if (!task) {
+        $("taskDetail").innerHTML = `<p class="subtitle">请选择左侧任务，或新建一个任务。</p>`;
+        return;
+      }
+      $("taskDetail").innerHTML = `
+        <div class="form-grid">
+          <div class="field-full"><label>任务标题</label><input data-task-field="title" value="${escapeHtml(task.title)}" /></div>
+          <div><label>所属模块</label><select data-task-field="module">${modules.map((item) => `<option ${item === task.module ? "selected" : ""}>${item}</option>`).join("")}</select></div>
+          <div><label>负责人</label><input data-task-field="owner" value="${escapeHtml(task.owner)}" /></div>
+          <div><label>状态</label><select data-task-field="status">${statuses.map((item) => `<option ${item === task.status ? "selected" : ""}>${item}</option>`).join("")}</select></div>
+          <div><label>优先级</label><select data-task-field="priority">${["P0","P1","P2","P3"].map((item) => `<option ${item === task.priority ? "selected" : ""}>${item}</option>`).join("")}</select></div>
+          <div><label>计划完成日期</label><input data-task-field="dueDate" placeholder="2026/06/17" value="${escapeHtml(displayDate(task.dueDate))}" /></div>
+          <div><label>进入周报</label><select data-task-field="includeInReport">${[[true,"是"],[false,"否"]].map(([value,label]) => `<option value="${value}" ${task.includeInReport === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+          <div><label>带入下周</label><select data-task-field="carryToNextWeek">${[[false,"否"],[true,"是"]].map(([value,label]) => `<option value="${value}" ${task.carryToNextWeek === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+          <div class="field-full"><label>当前风险 / 阻塞</label><textarea data-task-field="blocker">${escapeHtml(task.blocker)}</textarea></div>
+          <div class="field-full">
+            <label>每日进展记录</label>
+            <div class="logs">
+              ${(task.dailyLogs || []).map((log, index) => `
+                <div class="log-row">
+                  <input data-log-index="${index}" data-log-field="date" placeholder="2026/06/17" value="${escapeHtml(displayDate(log.date))}" />
+                  <textarea data-log-index="${index}" data-log-field="progress">${escapeHtml(log.progress)}</textarea>
+                  <button class="btn small ghost" data-remove-log="${index}">×</button>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:10px;justify-content:flex-start;">
+          <button class="btn secondary" id="addTodayLogBtn">新增今日进展</button>
+          <button class="btn danger" id="deleteTaskBtn">删除任务</button>
+        </div>
+      `;
+    }
+
+    function renderAll() {
+      renderWeekControls();
+      renderStats();
+      renderBoard();
+      if (!$("taskModal").hidden) renderTaskDetail();
+      renderReportEditor();
+      renderReportPreview();
+      renderProfile();
+    }
+
+    function openTaskModal(taskId) {
+      selectedTaskId = taskId;
+      renderBoard();
+      renderTaskDetail();
+      $("taskModal").hidden = false;
+    }
+
+    function closeTaskModal() {
+      $("taskModal").hidden = true;
+    }
+
+    function patchSelectedTask(patch) {
+      const task = selectedTask();
+      if (!task) return;
+      Object.assign(task, patch, { updatedAt: Date.now() });
+      renderStats();
+      renderBoard();
+      scheduleSaveTask(task);
+    }
+
+    function scheduleSaveTask(task) {
+      clearTimeout(saveTimer);
+      setSyncStatus("待同步", "warn");
+      saveTimer = setTimeout(async () => {
+        saveTimer = null;
+        try {
+          await apiJson(`/api/task/${encodeURIComponent(task.id)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ task }),
+          });
+          setSyncStatus("已同步", "ok");
+        } catch {
+          setSyncStatus("同步失败", "warn");
+        }
+      }, 650);
+    }
+
+    function renderReportEditor() {
+      $("reportEditor").innerHTML = `
+        <div class="panel module">
+          <div class="module-head">
+            <div><label>周报标题</label><input data-report-meta="title" value="${escapeHtml(reportData.title)}" /></div>
+            <div><label>周期</label><input value="${escapeHtml(reportData.startDate)}—${escapeHtml(reportData.endDate)}" disabled /></div>
+          </div>
+        </div>
+        ${reportData.modules.map((mod, modIndex) => `
+          <article class="panel module">
+            <div class="module-head">
+              <div><label>模块</label><input data-report-module="${modIndex}" data-report-field="title" value="${escapeHtml(mod.title)}" /></div>
+              <div><label>状态</label><select data-report-module="${modIndex}" data-report-field="status">${["🟡","🔵","🔴","🟢","⚪"].map((item) => `<option ${item === mod.status ? "selected" : ""}>${item}</option>`).join("")}</select></div>
+            </div>
+            <div class="section-grid">
+              ${mod.sections.map((section, sectionIndex) => `
+                <div>
+                  <label>${section.title}</label>
+                  <textarea data-report-module="${modIndex}" data-report-section="${sectionIndex}">${escapeHtml((section.items || []).join("\\n"))}</textarea>
+                </div>
+              `).join("")}
+            </div>
+          </article>
+        `).join("")}
+      `;
+    }
+
+    function renderReportText() {
+      const divider = "⸻";
+      const cn = ["一","二","三","四","五","六","七","八","九","十"];
+      const lines = [reportData.title || "数据产品部周重点工作汇报", `汇报周期：${reportData.startDate}—${reportData.endDate}`, divider];
+      reportData.modules.forEach((mod, index) => {
+        lines.push("", `${cn[index] || index + 1}、${mod.title} ${mod.status}`.trim(), "");
+        mod.sections.forEach((section) => {
+          lines.push(section.title, "");
+          (section.items || []).map((item) => item.trim()).filter(Boolean).forEach((item) => lines.push(`* ${item}`));
+          lines.push("");
+        });
+        lines.push(divider);
+      });
+      return lines.join("\n").replace(/\n{4,}/g, "\n\n\n").trim();
+    }
+
+    function renderReportPreview() {
+      $("reportPreview").textContent = renderReportText();
+    }
+
+    async function loadReports() {
+      const result = await apiJson("/api/reports");
+      reports = result.reports || [];
+      $("historyList").innerHTML = reports.map((report) => `
+        <div class="history-row">
+          <div><strong>${escapeHtml(displayDate(report.startDate || "未填"))}—${escapeHtml(displayDate(report.endDate || "未填"))}</strong><div class="subtitle">${escapeHtml(report.title)}</div></div>
+          <span>${report.status === "final" ? "已定稿" : "编辑中"}</span>
+          <span>${report.updatedAt ? new Date(report.updatedAt).toLocaleDateString() : "-"}</span>
+          <div class="row-actions">
+            <button class="btn small secondary" data-report-open="${report.id}">打开</button>
+            <button class="btn small secondary" data-report-copy="${report.id}">复制文本</button>
+            <button class="btn small danger" data-report-delete="${report.id}">删除</button>
+          </div>
+        </div>
+      `).join("") || `<div class="history-row"><span>暂无历史周报</span></div>`;
+    }
+
+    function setView(view) {
+      $("tasksView").hidden = view !== "tasks";
+      $("reportView").hidden = view !== "report";
+      $("goalsView").hidden = view !== "goals";
+      $("historyView").hidden = view !== "history";
+      $("profileView").hidden = view !== "profile";
+      if (view === "history") loadReports().catch(() => setSyncStatus("列表失败", "warn"));
+      if (view === "goals") loadGoals();
+      if (view === "profile") renderProfile();
+    }
+
+    function renderProfile() {
+      $("profileSummary").textContent = currentUser
+        ? `当前登录：${currentUser.displayName || currentUser.username}（${currentUser.username}）`
+        : "未登录。登录后，新建、更新任务和周报归档会记录到当前用户。";
+      $("authNavBtn").textContent = currentUser ? (currentUser.displayName || currentUser.username || "个人中心") : "登录";
+    }
+
+    function renderAuthModal() {
+      const isLogin = authMode === "login";
+      $("authModalTitle").textContent = isLogin ? "登录" : "注册";
+      $("submitAuthBtn").textContent = isLogin ? "登录" : "注册";
+      $("displayNameField").hidden = isLogin;
+      $("authHint").textContent = isLogin ? "首次使用请先注册。" : "注册后会自动登录，并保持登录状态。";
+      $("showLoginBtn").className = isLogin ? "btn small secondary" : "btn small ghost";
+      $("showRegisterBtn").className = isLogin ? "btn small ghost" : "btn small secondary";
+      $("authMessage").textContent = "";
+    }
+
+    function openAuthModal(mode = "login") {
+      authMode = mode;
+      renderAuthModal();
+      $("authModal").hidden = false;
+    }
+
+    function closeAuthModal() {
+      $("authModal").hidden = true;
+    }
+
+    async function authAction(action) {
+      const username = $("authUsername").value.trim();
+      const password = $("authPassword").value;
+      const displayName = $("authDisplayName").value.trim();
+      if (!username || !password) {
+        $("authMessage").textContent = "请填写用户名和密码。";
+        return;
+      }
+      $("authMessage").textContent = action === "login" ? "正在登录..." : "正在注册...";
+      const result = await apiJson(`/api/auth/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName }),
+      });
+      currentUser = result.user;
+      userToken = result.token;
+      localStorage.setItem(`${storageKey}-user`, JSON.stringify(currentUser));
+      localStorage.setItem(`${storageKey}-user-token`, userToken);
+      renderProfile();
+      $("authMessage").innerHTML = action === "login"
+        ? `登录成功，欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。 <button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`
+        : `注册成功，已自动登录。欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。 <button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`;
+      setSyncStatus(action === "login" ? "已登录" : "已注册", "ok");
+    }
+
+    document.addEventListener("click", async (event) => {
+      const viewBtn = event.target.closest("[data-view]");
+      if (viewBtn) setView(viewBtn.dataset.view);
+
+      const card = event.target.closest("[data-task-id]");
+      if (card && !event.target.closest("[data-select-task]")) {
+        openTaskModal(card.dataset.taskId);
+      }
+
+      const addStatusBtn = event.target.closest("[data-add-status]");
+      if (addStatusBtn) {
+        const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/tasks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task: { title: "新增任务", module: modules[0], status: addStatusBtn.dataset.addStatus, priority: "P1", includeInReport: true } }),
+        });
+        tasks.unshift(result.task);
+        openTaskModal(result.task.id);
+      }
+
+      const selectStatusBtn = event.target.closest("[data-select-status]");
+      if (selectStatusBtn) {
+        tasks.filter((task) => task.status === selectStatusBtn.dataset.selectStatus).forEach((task) => selectedTaskIds.add(task.id));
+        renderBoard();
+      }
+
+      if (event.target.id === "cancelBatchBtn") {
+        batchMode = false;
+        selectedTaskIds.clear();
+        renderBoard();
+      }
+
+      if (event.target.id === "deleteSelectedBtn") {
+        if (!selectedTaskIds.size) return setSyncStatus("未选择任务", "warn");
+        if (!confirm(`确认删除 ${selectedTaskIds.size} 个任务？`)) return;
+        const ids = [...selectedTaskIds];
+        await Promise.all(ids.map((id) => apiJson(`/api/task/${encodeURIComponent(id)}`, { method: "DELETE" })));
+        tasks = tasks.filter((task) => !selectedTaskIds.has(task.id));
+        selectedTaskIds.clear();
+        selectedTaskId = tasks[0]?.id || "";
+        batchMode = false;
+        renderAll();
+        setSyncStatus(`已删除${ids.length}项`, "ok");
+      }
+
+      if (event.target.id === "addTodayLogBtn") {
+        const task = selectedTask();
+        task.dailyLogs = [...(task.dailyLogs || []), { date: todayIso(), progress: "" }];
+        renderTaskDetail();
+        scheduleSaveTask(task);
+      }
+
+      const removeLogBtn = event.target.closest("[data-remove-log]");
+      if (removeLogBtn) {
+        const task = selectedTask();
+        task.dailyLogs.splice(Number(removeLogBtn.dataset.removeLog), 1);
+        renderTaskDetail();
+        scheduleSaveTask(task);
+      }
+
+      if (event.target.id === "deleteTaskBtn") {
+        const task = selectedTask();
+        if (!task || !confirm("确认删除该任务？")) return;
+        await apiJson(`/api/task/${encodeURIComponent(task.id)}`, { method: "DELETE" });
+        tasks = tasks.filter((item) => item.id !== task.id);
+        selectedTaskId = tasks[0]?.id || "";
+        closeTaskModal();
+        renderAll();
+      }
+    });
+
+    document.addEventListener("input", (event) => {
+      const target = event.target;
+      const taskField = target.dataset.taskField;
+      if (taskField) {
+        let value = target.value;
+        if (taskField === "dueDate") value = normalizeDate(value);
+        if (["includeInReport", "carryToNextWeek"].includes(taskField)) value = value === "true";
+        patchSelectedTask({ [taskField]: value });
+      }
+
+      const logIndex = target.dataset.logIndex;
+      if (logIndex !== undefined) {
+        const task = selectedTask();
+        const value = target.dataset.logField === "date" ? normalizeDate(target.value) : target.value;
+        task.dailyLogs[Number(logIndex)][target.dataset.logField] = value;
+        scheduleSaveTask(task);
+      }
+
+      if (target.dataset.reportMeta) {
+        reportData[target.dataset.reportMeta] = target.value;
+        renderReportPreview();
+      }
+      if (target.dataset.reportModule) {
+        const mod = reportData.modules[Number(target.dataset.reportModule)];
+        if (target.dataset.reportField) mod[target.dataset.reportField] = target.value;
+        if (target.dataset.reportSection) mod.sections[Number(target.dataset.reportSection)].items = target.value.split("\n");
+        renderReportPreview();
+      }
+
+      const goalCell = target.closest("[data-goal-row]");
+      if (goalCell) {
+        const row = goalsRows[Number(goalCell.dataset.goalRow)];
+        row[goalCell.dataset.goalKey] = goalCell.innerText.trim();
+        scheduleGoalsSave();
+      }
+    });
+
+    document.addEventListener("change", (event) => {
+      const selectTask = event.target.closest("[data-select-task]");
+      if (!selectTask) return;
+      if (selectTask.checked) selectedTaskIds.add(selectTask.dataset.selectTask);
+      else selectedTaskIds.delete(selectTask.dataset.selectTask);
+      renderBoard();
+    });
+
+    document.addEventListener("dragstart", (event) => {
+      const card = event.target.closest("[data-task-id]");
+      if (!card || batchMode) return;
+      event.dataTransfer.setData("text/plain", card.dataset.taskId);
+      card.classList.add("dragging");
+    });
+
+    document.addEventListener("dragend", (event) => {
+      event.target.closest("[data-task-id]")?.classList.remove("dragging");
+      document.querySelectorAll(".column.drag-over").forEach((column) => column.classList.remove("drag-over"));
+    });
+
+    document.addEventListener("dragover", (event) => {
+      const column = event.target.closest("[data-drop-status]");
+      if (!column) return;
+      event.preventDefault();
+      column.classList.add("drag-over");
+    });
+
+    document.addEventListener("dragleave", (event) => {
+      const column = event.target.closest("[data-drop-status]");
+      if (column && !column.contains(event.relatedTarget)) column.classList.remove("drag-over");
+    });
+
+    document.addEventListener("drop", async (event) => {
+      const column = event.target.closest("[data-drop-status]");
+      if (!column) return;
+      event.preventDefault();
+      column.classList.remove("drag-over");
+      const taskId = event.dataTransfer.getData("text/plain");
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task) return;
+      const nextStatus = column.dataset.dropStatus;
+      task.status = nextStatus;
+      if (nextStatus === "已完成") task.carryToNextWeek = false;
+      task.updatedAt = Date.now();
+      selectedTaskId = task.id;
+      renderAll();
+      scheduleSaveTask(task);
+      setSyncStatus(`已移动到：${nextStatus}`, "ok");
+    });
+
+    $("weekSelect").addEventListener("change", (event) => loadWeek(event.target.value).catch(() => setSyncStatus("读取失败", "warn")));
+    $("createWeekBtn").addEventListener("click", async () => {
+      const startDate = normalizeDate($("weekStart").value);
+      const endDate = normalizeDate($("weekEnd").value);
+      if (!startDate || !endDate) return alert("请填写开始和结束日期");
+      const result = await apiJson("/api/weeks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate, endDate }),
+      });
+      weeks = [result.week, ...weeks.filter((week) => week.id !== result.week.id)];
+      currentWeek = result.week;
+      await loadWeek(result.week.id);
+    });
+
+    $("importPreviousBtn").addEventListener("click", openImportModal);
+    $("batchModeBtn").addEventListener("click", () => {
+      batchMode = !batchMode;
+      selectedTaskIds.clear();
+      $("batchModeBtn").textContent = batchMode ? "退出批量" : "批量删除";
+      renderBoard();
+    });
+
+    $("closeImportModal").addEventListener("click", closeImportModal);
+    $("importModal").addEventListener("click", async (event) => {
+      if (event.target.id === "importModal") closeImportModal();
+      const weekButton = event.target.closest("[data-import-week]");
+      const reportButton = event.target.closest("[data-import-report]");
+      if (weekButton) {
+        const source = weeks.find((week) => week.id === weekButton.dataset.importWeek);
+        if (!source) return;
+        await previewTasksFromWeek(source);
+      }
+      if (reportButton) {
+        await importTodosFromReport(reportButton.dataset.importReport);
+      }
+    });
+
+    $("importPreview").addEventListener("change", (event) => {
+      const checkbox = event.target.closest("[data-import-check]");
+      if (!checkbox) return;
+      const row = importCandidates.find((item) => item.importId === checkbox.dataset.importCheck);
+      if (row && !row.duplicate) row.selected = checkbox.checked;
+    });
+
+    $("importPreview").addEventListener("click", async (event) => {
+      if (event.target.id === "selectAllImportBtn") {
+        importCandidates.forEach((item) => {
+          if (!item.duplicate) item.selected = true;
+        });
+        renderImportPreview(importCandidates, "导入预览");
+      }
+      if (event.target.id === "confirmImportBtn") {
+        await confirmImportCandidates();
+        closeImportModal();
+      }
+    });
+
+    $("closeTaskModal").addEventListener("click", closeTaskModal);
+    $("taskModal").addEventListener("click", (event) => {
+      if (event.target.id === "taskModal") closeTaskModal();
+    });
+
+    $("authNavBtn").addEventListener("click", () => {
+      if (currentUser) setView("profile");
+      else openAuthModal("login");
+    });
+    $("openAuthModalBtn").addEventListener("click", () => openAuthModal("login"));
+    $("closeAuthModal").addEventListener("click", closeAuthModal);
+    $("authModal").addEventListener("click", (event) => {
+      if (event.target.id === "authModal") closeAuthModal();
+    });
+    $("showLoginBtn").addEventListener("click", () => {
+      authMode = "login";
+      renderAuthModal();
+    });
+    $("showRegisterBtn").addEventListener("click", () => {
+      authMode = "register";
+      renderAuthModal();
+    });
+    $("authMessage").addEventListener("click", (event) => {
+      if (event.target.id === "enterAfterAuthBtn") {
+        closeAuthModal();
+        setView("tasks");
+      }
+    });
+    $("submitAuthBtn").addEventListener("click", () => authAction(authMode).catch((error) => {
+      $("authMessage").textContent = error.message || (authMode === "login" ? "登录失败" : "注册失败");
+      setSyncStatus(authMode === "login" ? "登录失败" : "注册失败", "warn");
+    }));
+    $("logoutBtn").addEventListener("click", () => {
+      currentUser = null;
+      userToken = "";
+      localStorage.removeItem(`${storageKey}-user`);
+      localStorage.removeItem(`${storageKey}-user-token`);
+      renderProfile();
+      setView("tasks");
+      setSyncStatus("已退出", "ok");
+    });
+
+    $("generateReportBtn").addEventListener("click", async () => {
+      const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/generate-report`, { method: "POST" });
+      reportData = result.data;
+      renderReportEditor();
+      renderReportPreview();
+      setView("report");
+    });
+
+    $("copyReportBtn").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(renderReportText());
+      setSyncStatus("已复制", "ok");
+    });
+
+    $("saveReportBtn").addEventListener("click", async () => {
+      await apiJson("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: reportData, status: "draft" }),
+      });
+      setSyncStatus("周报已归档", "ok");
+    });
+
+    $("addGoalRowBtn").addEventListener("click", () => {
+      const row = Object.fromEntries(goalColumns.map(([key]) => [key, ""]));
+      row.seq = String(goalsRows.length + 1);
+      goalsRows.push(row);
+      renderGoals();
+      scheduleGoalsSave();
+    });
+
+    $("resetGoalsBtn").addEventListener("click", () => {
+      if (!confirm("确认恢复为附件中的初始目标？当前目标表会被覆盖。")) return;
+      goalsRows = JSON.parse(JSON.stringify(initialGoalsRows));
+      renderGoals();
+      saveGoalsNow().catch(() => setSyncStatus("目标保存失败", "warn"));
+    });
+
+    $("saveGoalsBtn").addEventListener("click", () => {
+      saveGoalsNow().catch(() => setSyncStatus("目标保存失败", "warn"));
+    });
+
+    $("refreshReportsBtn").addEventListener("click", () => loadReports().catch(() => setSyncStatus("列表失败", "warn")));
+    $("historyList").addEventListener("click", async (event) => {
+      const openId = event.target.dataset.reportOpen;
+      const copyId = event.target.dataset.reportCopy;
+      const deleteId = event.target.dataset.reportDelete;
+      const id = openId || copyId || deleteId;
+      if (!id) return;
+      if (deleteId) {
+        if (!confirm("确认删除这份历史周报？")) return;
+        await apiJson(`/api/report/${encodeURIComponent(id)}`, { method: "DELETE" });
+        await loadReports();
+        return;
+      }
+      const result = await apiJson(`/api/report/${encodeURIComponent(id)}`);
+      if (openId) {
+        reportData = result.report.data;
+        renderReportEditor();
+        renderReportPreview();
+        setView("report");
+      }
+      if (copyId) {
+        const old = reportData;
+        reportData = result.report.data;
+        await navigator.clipboard.writeText(renderReportText());
+        reportData = old;
+        setSyncStatus("已复制", "ok");
+      }
+    });
+
+    renderProfile();
+    loadWeeks()
+      .then(() => setSyncStatus("已同步", "ok"))
+      .catch(() => setSyncStatus("连接失败", "warn"));
+  </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+.vercel
+.env*
+node_modules/
+.netlify/
+.playwright-cli/
+*.log
+server.out.log
+server.err.log
+dist/
+build/
+coverage/

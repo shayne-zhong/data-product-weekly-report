@@ -1,0 +1,127 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" rx="18" fill="#F7F9FC"/>
+  <circle cx="1508" cy="58" r="112" fill="#EAF0FF"/>
+  <circle cx="1586" cy="58" r="70" fill="#F7F9FC"/>
+  <g opacity=".35" fill="#BFD0FF">
+    <circle cx="42" cy="50" r="3"/><circle cx="62" cy="50" r="3"/><circle cx="82" cy="50" r="3"/><circle cx="102" cy="50" r="3"/><circle cx="122" cy="50" r="3"/>
+    <circle cx="42" cy="70" r="3"/><circle cx="62" cy="70" r="3"/><circle cx="82" cy="70" r="3"/><circle cx="102" cy="70" r="3"/><circle cx="122" cy="70" r="3"/>
+    <circle cx="42" cy="90" r="3"/><circle cx="62" cy="90" r="3"/><circle cx="82" cy="90" r="3"/><circle cx="102" cy="90" r="3"/><circle cx="122" cy="90" r="3"/>
+    <circle cx="42" cy="110" r="3"/><circle cx="62" cy="110" r="3"/><circle cx="82" cy="110" r="3"/><circle cx="102" cy="110" r="3"/><circle cx="122" cy="110" r="3"/>
+  </g>
+  <text x="800" y="94" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="48" font-weight="800" fill="#182230">欢迎使用 数据产品部工作台</text>
+  <text x="800" y="148" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="24" fill="#667085">围绕目标牵引、任务执行、复盘沉淀，形成数据价值闭环</text>
+
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#142138" flood-opacity=".10"/>
+    </filter>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#315EFB"/>
+      <stop offset="1" stop-color="#7A5AF8"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="8" refY="6" orient="auto">
+      <path d="M2 2L10 6L2 10V2Z" fill="#315EFB"/>
+    </marker>
+  </defs>
+
+  <path d="M383 465H438" stroke="#315EFB" stroke-width="10" marker-end="url(#arrow)"/>
+  <path d="M835 465H889" stroke="#315EFB" stroke-width="10" marker-end="url(#arrow)"/>
+  <path d="M1131 465H1186" stroke="#315EFB" stroke-width="10" marker-end="url(#arrow)"/>
+  <path d="M1128 250C1168 250 1168 250 1168 290V330" stroke="#315EFB" stroke-width="3" stroke-dasharray="8 7"/>
+  <path d="M1128 250H620" stroke="#315EFB" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#arrow)"/>
+  <text x="875" y="230" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="17" font-weight="700" fill="#315EFB">补录结果贡献到目标完成</text>
+
+  <g filter="url(#shadow)">
+    <rect x="46" y="300" width="340" height="330" rx="18" fill="white" stroke="#C9D7FF"/>
+    <circle cx="104" cy="258" r="22" fill="url(#blue)"/><text x="104" y="266" text-anchor="middle" font-family="Arial" font-size="24" font-weight="800" fill="white">1</text>
+    <text x="142" y="266" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="26" font-weight="800" fill="#182230">部门目标</text>
+    <text x="72" y="332" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="18" font-weight="700" fill="#182230">年度目标总览</text>
+    <rect x="74" y="360" width="284" height="98" rx="14" fill="#F8FAFC"/>
+    <circle cx="130" cy="410" r="38" fill="#EEF2FF"/>
+    <path d="M130 382v56M102 410h56M113 393l34 34M147 393l-34 34" stroke="#315EFB" stroke-width="8" stroke-linecap="round"/>
+    <text x="210" y="394" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="16" fill="#667085">年度完成率</text>
+    <text x="210" y="431" font-family="Arial" font-size="34" font-weight="800" fill="#315EFB">68%</text>
+    <rect x="210" y="444" width="112" height="8" rx="4" fill="#E6EAF0"/><rect x="210" y="444" width="76" height="8" rx="4" fill="#315EFB"/>
+    <text x="72" y="494" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="18" font-weight="700" fill="#182230">关键指标</text>
+    <g font-family="PingFang SC, Microsoft YaHei, Arial" font-size="13" fill="#667085">
+      <text x="96" y="530">数据治理</text><text x="198" y="530">95%</text><text x="270" y="530">72%</text>
+      <text x="96" y="562">AI应用</text><text x="198" y="562">80%</text><text x="270" y="562">68%</text>
+      <text x="96" y="594">经营分析</text><text x="198" y="594">90%</text><text x="270" y="594">68%</text>
+    </g>
+    <rect x="72" y="508" width="16" height="16" rx="4" fill="#DDE6FF"/><rect x="76" y="514" width="4" height="6" fill="#315EFB"/><rect x="82" y="510" width="4" height="10" fill="#315EFB"/>
+    <rect x="72" y="540" width="16" height="16" rx="4" fill="#DDE6FF"/><rect x="76" y="546" width="4" height="6" fill="#315EFB"/><rect x="82" y="542" width="4" height="10" fill="#315EFB"/>
+    <rect x="72" y="572" width="16" height="16" rx="4" fill="#DDE6FF"/><rect x="76" y="578" width="4" height="6" fill="#315EFB"/><rect x="82" y="574" width="4" height="10" fill="#315EFB"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="442" y="300" width="394" height="330" rx="18" fill="white" stroke="#C9D7FF"/>
+    <circle cx="494" cy="258" r="22" fill="url(#blue)"/><text x="494" y="266" text-anchor="middle" font-family="Arial" font-size="24" font-weight="800" fill="white">2</text>
+    <text x="532" y="266" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="26" font-weight="800" fill="#182230">部门待办</text>
+    <g font-family="PingFang SC, Microsoft YaHei, Arial" font-size="13" fill="#475467">
+      <circle cx="466" cy="332" r="5" fill="#98A2B3"/><text x="480" y="337">待开始 8</text>
+      <circle cx="568" cy="332" r="5" fill="#315EFB"/><text x="582" y="337">进行中 12</text>
+      <circle cx="684" cy="332" r="5" fill="#E5484D"/><text x="698" y="337">阻塞事项 3</text>
+      <circle cx="800" cy="332" r="5" fill="#16A36A"/><text x="814" y="337">已完成 15</text>
+    </g>
+    <g>
+      <rect x="462" y="360" width="86" height="220" rx="10" fill="#F8FAFC" stroke="#E6EAF0"/>
+      <rect x="562" y="360" width="86" height="220" rx="10" fill="#F8FAFC" stroke="#E6EAF0"/>
+      <rect x="662" y="360" width="86" height="220" rx="10" fill="#F8FAFC" stroke="#E6EAF0"/>
+      <rect x="762" y="360" width="54" height="220" rx="10" fill="#F8FAFC" stroke="#E6EAF0"/>
+      <g fill="#D6DEE8">
+        <rect x="478" y="384" width="54" height="6" rx="3"/><rect x="478" y="402" width="44" height="6" rx="3"/><rect x="478" y="448" width="54" height="6" rx="3"/><rect x="478" y="466" width="44" height="6" rx="3"/><rect x="478" y="512" width="54" height="6" rx="3"/>
+        <rect x="578" y="384" width="54" height="6" rx="3"/><rect x="578" y="402" width="44" height="6" rx="3"/><rect x="578" y="448" width="54" height="6" rx="3"/><rect x="578" y="466" width="44" height="6" rx="3"/>
+        <rect x="678" y="384" width="54" height="6" rx="3"/><rect x="678" y="402" width="44" height="6" rx="3"/><rect x="678" y="448" width="54" height="6" rx="3"/><rect x="678" y="466" width="44" height="6" rx="3"/>
+        <rect x="778" y="384" width="38" height="6" rx="3"/><rect x="778" y="402" width="30" height="6" rx="3"/><rect x="778" y="448" width="38" height="6" rx="3"/>
+      </g>
+      <rect x="478" y="422" width="28" height="8" rx="4" fill="#AFC0FF"/><rect x="578" y="422" width="28" height="8" rx="4" fill="#B7E5CF"/><rect x="678" y="422" width="28" height="8" rx="4" fill="#FFA8AC"/><rect x="778" y="422" width="28" height="8" rx="4" fill="#B7E5CF"/>
+      <rect x="478" y="488" width="28" height="8" rx="4" fill="#FFD18A"/><rect x="578" y="488" width="28" height="8" rx="4" fill="#B7E5CF"/><rect x="678" y="488" width="28" height="8" rx="4" fill="#FFA8AC"/>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="884" y="300" width="250" height="330" rx="18" fill="white" stroke="#C9D7FF"/>
+    <circle cx="906" cy="258" r="22" fill="url(#blue)"/><text x="906" y="266" text-anchor="middle" font-family="Arial" font-size="24" font-weight="800" fill="white">3</text>
+    <text x="944" y="266" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="26" font-weight="800" fill="#182230">历史补录</text>
+    <text x="914" y="336" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="18" font-weight="700" fill="#182230">补录历史任务</text>
+    <rect x="924" y="374" width="170" height="200" rx="16" fill="#F8FAFC" stroke="#D9E2F2" stroke-dasharray="8 8"/>
+    <path d="M1006 400h60l38 38v100c0 12-10 22-22 22h-76c-12 0-22-10-22-22V422c0-12 10-22 22-22Z" fill="white" stroke="#D9E2F2"/>
+    <path d="M1066 400v40h38" stroke="#D9E2F2" stroke-width="2"/>
+    <rect x="1018" y="462" width="48" height="6" rx="3" fill="#D6DEE8"/><rect x="1018" y="486" width="68" height="6" rx="3" fill="#D6DEE8"/><rect x="1018" y="510" width="58" height="6" rx="3" fill="#D6DEE8"/>
+    <circle cx="1074" cy="520" r="28" fill="#EEF2FF"/><path d="M1074 502v20h18" stroke="#315EFB" stroke-width="7" stroke-linecap="round"/>
+    <rect x="950" y="546" width="132" height="36" rx="8" fill="#315EFB"/>
+    <text x="1016" y="570" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="17" font-weight="700" fill="white">补录完成情况</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1188" y="300" width="360" height="330" rx="18" fill="white" stroke="#C9D7FF"/>
+    <circle cx="1244" cy="258" r="22" fill="url(#blue)"/><text x="1244" y="266" text-anchor="middle" font-family="Arial" font-size="24" font-weight="800" fill="white">4</text>
+    <text x="1282" y="266" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="26" font-weight="800" fill="#182230">周报管理</text>
+    <text x="1214" y="336" font-family="PingFang SC, Microsoft YaHei, Arial" font-size="18" font-weight="700" fill="#182230">周报 / 月报 / 季报</text>
+    <rect x="1224" y="366" width="118" height="210" rx="12" fill="#F8FAFC" stroke="#D9E2F2"/>
+    <rect x="1248" y="396" width="70" height="8" rx="4" fill="#DDE6FF"/><rect x="1248" y="424" width="84" height="6" rx="3" fill="#D6DEE8"/><rect x="1248" y="446" width="84" height="6" rx="3" fill="#D6DEE8"/>
+    <circle cx="1284" cy="500" r="28" fill="#315EFB"/><path d="M1284 472v28h28" stroke="white" stroke-width="8"/><rect x="1320" y="496" width="12" height="48" rx="3" fill="#8EA6FF"/><rect x="1296" y="518" width="12" height="26" rx="3" fill="#8EA6FF"/>
+    <g font-family="PingFang SC, Microsoft YaHei, Arial">
+      <rect x="1364" y="382" width="148" height="56" rx="12" fill="#F8FAFC" stroke="#E6EAF0"/><text x="1418" y="407" font-size="15" font-weight="700" fill="#182230">生成总结</text><text x="1418" y="428" font-size="12" fill="#667085">自动汇总进展</text>
+      <rect x="1364" y="456" width="148" height="56" rx="12" fill="#F8FAFC" stroke="#E6EAF0"/><text x="1418" y="481" font-size="15" font-weight="700" fill="#182230">复核编辑</text><text x="1418" y="502" font-size="12" fill="#667085">补充风险计划</text>
+      <rect x="1364" y="530" width="148" height="56" rx="12" fill="#F8FAFC" stroke="#E6EAF0"/><text x="1418" y="555" font-size="15" font-weight="700" fill="#182230">保存归档</text><text x="1418" y="576" font-size="12" fill="#667085">沉淀历史记录</text>
+    </g>
+    <rect x="1378" y="396" width="26" height="26" rx="7" fill="#315EFB"/><path d="M1387 409h8M1391 405v8" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="1391" cy="484" r="14" fill="#16A36A"/><path d="M1384 484l5 5 10-12" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="1378" y="544" width="26" height="26" rx="6" fill="#E58A00"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="94" y="750" width="1412" height="94" rx="18" fill="white" stroke="#D9E2F2"/>
+    <g font-family="PingFang SC, Microsoft YaHei, Arial">
+      <circle cx="172" cy="797" r="28" fill="#EEF2FF"/><path d="M172 775v44M150 797h44" stroke="#315EFB" stroke-width="7" stroke-linecap="round"/>
+      <text x="238" y="790" font-size="22" font-weight="800" fill="#182230">目标牵引</text><text x="238" y="820" font-size="15" fill="#667085">指标拆解，聚焦重点</text>
+      <rect x="500" y="772" width="50" height="50" rx="12" fill="#EEF2FF"/><path d="M516 790h18M516 804h18M510 790l4 4 7-8" stroke="#315EFB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="590" y="790" font-size="22" font-weight="800" fill="#182230">高效执行</text><text x="590" y="820" font-size="15" fill="#667085">任务跟踪，风险可控</text>
+      <rect x="850" y="772" width="50" height="50" rx="12" fill="#EAF8F2"/><path d="M864 807h24M864 794l8 8 14-18" stroke="#16A36A" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="940" y="790" font-size="22" font-weight="800" fill="#182230">数据沉淀</text><text x="940" y="820" font-size="15" fill="#667085">历史补录，贡献清晰</text>
+      <rect x="1196" y="772" width="50" height="50" rx="12" fill="#FFF5E6"/><path d="M1212 794h18M1212 808h26" stroke="#E58A00" stroke-width="5" stroke-linecap="round"/>
+      <text x="1286" y="790" font-size="22" font-weight="800" fill="#182230">持续复盘</text><text x="1286" y="820" font-size="15" fill="#667085">定期总结，持续改进</text>
+    </g>
+  </g>
+</svg>

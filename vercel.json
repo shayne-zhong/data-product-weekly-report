@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install",
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/[...path].mjs"
+    }
+  ],
+  "functions": {
+    "api/[...path].mjs": {
+      "maxDuration": 10
+    }
+  },
+  "env": {
+    "REPORT_SYNC_KEY": "DP-WEEKLY-2026-7K4M"
+  }
+}
