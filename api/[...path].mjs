@@ -11,7 +11,22 @@ const dataPath = "data-product-weekly-report/state-v1.json";
 const tmpPath = join(tmpdir(), "data-product-weekly-report-state-v1.json");
 const defaultSyncKey = "DP-WEEKLY-2026-7K4M";
 const sessionTtlMs = 30 * 60 * 1000;
-const departmentAccounts = [
+const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
+const aiProviders = {
+  deepseek: {
+    label: "DeepSeek",
+    endpoint: "https://api.deepseek.com/chat/completions",
+    defaultModel: "deepseek-v4-flash",
+    apiKeyNames: ["DEEPSEEK_API_KEY", "AI_API_KEY"],
+  },
+  kimi: {
+    label: "Kimi",
+    endpoint: "https://api.moonshot.cn/v1/chat/completions",
+    defaultModel: "kimi-k2.6",
+    apiKeyNames: ["MOONSHOT_API_KEY", "KIMI_API_KEY", "AI_API_KEY"],
+  },
+};
+const defaultDepartmentAccounts = [
   ["钟南海", "zhongnanhai"], ["宋泉辰", "songquanchen"], ["高竹林", "gaozhulin"], ["林徵", "linzheng"],
   ["黄嘉颖", "huangjiaying"], ["梁思嘉", "liangsijia"], ["杨俊华", "yangjunhua"], ["吴健浩", "wujianhao"],
   ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
@@ -54,6 +69,78 @@ function validReportSummaryType(value) {
   return ["weekly", "monthly", "quarterly"].includes(value) ? value : "";
 }
 
+function normalizeModules(list) {
+  const modules = (Array.isArray(list) ? list : [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  return [...new Set(modules)].slice(0, 20);
+}
+
+function normalizeAccounts(list) {
+  const seen = new Set();
+  return (Array.isArray(list) ? list : [])
+    .map((account) => ({
+      name: String(account?.name || "").trim(),
+      username: String(account?.username || "").trim().toLowerCase(),
+    }))
+    .filter((account) => account.name && account.username)
+    .filter((account) => {
+      if (seen.has(account.username)) return false;
+      seen.add(account.username);
+      return true;
+    })
+    .slice(0, 80);
+}
+
+function normalizeAiSettings(value = {}) {
+  const provider = Object.hasOwn(aiProviders, value.provider) ? value.provider : "deepseek";
+  const model = String(value.model || aiProviders[provider].defaultModel).trim().slice(0, 100);
+  return {
+    enabled: value.enabled === true,
+    provider,
+    model: model || aiProviders[provider].defaultModel,
+  };
+}
+
+function aiApiKey(provider) {
+  const definition = aiProviders[provider];
+  if (!definition) return "";
+  return definition.apiKeyNames.map((name) => process.env[name]).find(Boolean) || "";
+}
+
+function publicAiSettings(value = {}) {
+  const ai = normalizeAiSettings(value);
+  return {
+    ...ai,
+    providerLabel: aiProviders[ai.provider].label,
+    configured: Boolean(aiApiKey(ai.provider)),
+  };
+}
+
+function defaultSettings() {
+  return {
+    modules: [...defaultModules],
+    accounts: defaultDepartmentAccounts.map((account) => ({ ...account })),
+    ai: normalizeAiSettings(),
+  };
+}
+
+function getSettings(state = {}) {
+  const fallback = defaultSettings();
+  const modules = normalizeModules(state.settings?.modules);
+  const accounts = normalizeAccounts(state.settings?.accounts);
+  return {
+    modules: modules.length ? modules : fallback.modules,
+    accounts: accounts.length ? accounts : fallback.accounts,
+    ai: normalizeAiSettings(state.settings?.ai || fallback.ai),
+  };
+}
+
+function publicSettings(state = {}) {
+  const settings = getSettings(state);
+  return { ...settings, ai: publicAiSettings(settings.ai) };
+}
+
 function resolveReportSummaryType(reportOrData = {}) {
   const data = reportOrData.data || reportOrData;
   const direct = validReportSummaryType(reportOrData.summaryType) || validReportSummaryType(data.summaryType);
@@ -85,7 +172,13 @@ function normalizeReportPayload(data = {}, fallbackType = "weekly") {
 }
 
 function emptyState() {
-  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null };
+  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, settings: defaultSettings(), aiUsage: {} };
+}
+
+function hydrateState(state = {}) {
+  const merged = { ...emptyState(), ...state };
+  merged.settings = getSettings(merged);
+  return merged;
 }
 
 async function getBlobApi() {
@@ -123,7 +216,7 @@ async function loadState() {
     try {
       const state = await store.get("state-v1.json", { type: "json" });
       if (state) {
-        memoryState = { ...emptyState(), ...state };
+        memoryState = hydrateState(state);
         return memoryState;
       }
     } catch (error) {
@@ -138,14 +231,14 @@ async function loadState() {
       const blob = await api.get(dataPath, { access: "private", useCache: false });
       if (blob?.stream) {
         const text = await new Response(blob.stream).text();
-        memoryState = { ...emptyState(), ...JSON.parse(text) };
+        memoryState = hydrateState(JSON.parse(text));
         return memoryState;
       }
     } catch {}
   }
   if (memoryState) return memoryState;
   try {
-    memoryState = { ...emptyState(), ...JSON.parse(await readFile(tmpPath, "utf8")) };
+    memoryState = hydrateState(JSON.parse(await readFile(tmpPath, "utf8")));
   } catch {
     memoryState = emptyState();
   }
@@ -188,6 +281,16 @@ function requireKey(req, res) {
   const expectedKey = process.env.REPORT_SYNC_KEY || defaultSyncKey;
   if (req.headers["x-report-key"] !== expectedKey) {
     json(res, { error: "Unauthorized" }, 401);
+    return false;
+  }
+  return true;
+}
+
+function requireAdmin(req, res) {
+  const username = String(req.headers["x-admin-user"] || "").trim().toLowerCase();
+  const password = String(req.headers["x-admin-password"] || "");
+  if (username !== "admin" || password !== "888888") {
+    json(res, { error: "Admin unauthorized" }, 401);
     return false;
   }
   return true;
@@ -274,8 +377,8 @@ function makeReportId(data) {
   return `${base || "weekly-report"}-${Date.now().toString(36)}`;
 }
 
-function reportDataFromSummary({ week, summary }) {
-  const modules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
+function reportDataFromSummary({ week, summary, settings }) {
+  const modules = normalizeModules(settings?.modules).length ? normalizeModules(settings.modules) : defaultModules;
   return {
     summaryType: "weekly",
     title: "数据产品部周重点工作汇报",
@@ -283,7 +386,7 @@ function reportDataFromSummary({ week, summary }) {
     endDate: displayDate(week.endDate),
     modules: modules.map((moduleName) => ({
       title: moduleName,
-      status: moduleName === "数据治理与经营分析" ? "🔵" : moduleName === "财经共享" ? "🟢" : "🟡",
+      status: moduleName === "数据治理与经营分析" || moduleName === "财经共享" ? "🟢" : "🟡",
       sections: [
         { title: "本周进展", groups: [], items: summary.progress[moduleName] || [""] },
         { title: "当前风险", groups: [], items: summary.risks[moduleName] || [""] },
@@ -317,7 +420,7 @@ async function handleAuth(req, res, state, action, now) {
   const password = String(body.password || "");
   if (action === "register") {
     const displayName = String(body.displayName || username).trim();
-    if (!/^[a-z0-9_\-.]{3,32}$/.test(username)) return json(res, { error: "用户名需为3-32位英文、数字或._-" }, 400);
+    if (!/^[a-z0-9_.-]{3,32}$/.test(username)) return json(res, { error: "用户名需为3-32位英文、数字或._-" }, 400);
     if (password.length < 6) return json(res, { error: "密码至少6位" }, 400);
     if (state.users[username]) return json(res, { error: "用户名已存在" }, 409);
     const salt = randomId("salt");
@@ -383,8 +486,9 @@ async function handleWeek(req, res, state, parts, now, actor) {
     return json(res, { tasks: rolled }, 201);
   }
   if (req.method === "POST" && action === "generate-report") {
-    const summary = summarizeTasksForReport(listTasksForWeek(state, weekId));
-    return json(res, { data: reportDataFromSummary({ week, summary }), summary });
+    const settings = getSettings(state);
+    const summary = summarizeTasksForReport(listTasksForWeek(state, weekId), { modules: settings.modules });
+    return json(res, { data: reportDataFromSummary({ week, summary, settings }), summary });
   }
   return methodNotAllowed(res);
 }
@@ -434,7 +538,7 @@ async function handleReports(req, res, state, parts, now, actor) {
   if (!report) return json(res, { error: "Not found" }, 404);
   if (req.method === "GET") return json(res, { report, lock: lockForActor(report, actor, now), canManage: isReportManager(actor) });
   if (req.method === "POST" && action === "lock") {
-    if (report.status === "final") return json(res, { error: "周报已归档，无法编辑" }, 423);
+    if (report.status === "final") return json(res, { error: "总结已归档，无法编辑" }, 423);
     report.editLock = { user: actor, lockedAt: now, expiresAt: now + 5 * 60 * 1000 };
     report.updatedAt = now;
     await saveState(state);
@@ -449,13 +553,13 @@ async function handleReports(req, res, state, parts, now, actor) {
     return json(res, { ok: true });
   }
   if (req.method === "DELETE") {
-    if (!isReportManager(actor)) return json(res, { error: "仅钟南海可删除周报" }, 403);
+    if (!isReportManager(actor)) return json(res, { error: "仅钟南海可删除总结" }, 403);
     delete state.reports[id];
     await saveState(state);
     return json(res, { ok: true });
   }
   if (req.method === "POST" || req.method === "PATCH") {
-    if (report.status === "final") return json(res, { error: "周报已归档，无法编辑" }, 423);
+    if (report.status === "final") return json(res, { error: "总结已归档，无法编辑" }, 423);
     const body = await readBody(req);
     if (req.method === "POST" && (!body.data || !Array.isArray(body.data.modules))) return json(res, { error: "Invalid report data" }, 400);
     const data = body.data ? normalizeReportPayload(body.data, resolveReportSummaryType(report)) : normalizeReportPayload(report.data, resolveReportSummaryType(report));
@@ -481,11 +585,133 @@ async function handleGoals(req, res, state, now, actor) {
 async function handleAccounts(req, res, state) {
   if (req.method !== "GET") return methodNotAllowed(res);
   const users = Object.values(state.users || {}).map(publicUser);
-  const accounts = departmentAccounts.map((account) => ({
+  const accounts = getSettings(state).accounts.map((account) => ({
     ...account,
     user: users.find((user) => user.username === account.username || user.displayName === account.name) || null,
   }));
   return json(res, { accounts });
+}
+
+function aiSummaryInstruction(style, summaryType) {
+  const styleRules = {
+    concise: "高度精炼，删除重复表述，每个模块优先保留3-6条最有价值的事实。",
+    executive: "面向CIO和管理层，突出业务结果、量化指标、关键风险、依赖事项和下阶段决策点。",
+    complete: "在保留全部有效事实的前提下润色表达、合并重复项并强化层次。",
+  };
+  const typeLabel = { weekly: "周总结", monthly: "月总结", quarterly: "季度总结" }[summaryType] || "工作总结";
+  return `你是数据产品部负责人助理，负责把${typeLabel}整理成可直接发送给管理层的中文纯文本。\n\n要求：\n1. 严格基于原文，不得补充、猜测或虚构任何数字、结论、人员和进度。\n2. ${styleRules[style] || styleRules.executive}\n3. 保留原文标题、周期、模块名称，以及进展、风险、计划等必要层级。\n4. 优先呈现量化成果、完成度、业务影响、阻塞原因和需要管理层关注的事项。\n5. 合并同义或重复事项，修正病句和标点；信息不完整时保持原意，不自行推断。\n6. 输出纯文本，不要Markdown代码块，不要写“以下是总结”等前言，不要解释你的处理过程。\n7. 列表统一使用“1、2、3、”格式；没有内容的风险可写“无”。`;
+}
+
+function cleanAiText(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^```(?:text|markdown)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+}
+
+async function requestAiSummary({ sourceText, style, summaryType, ai }) {
+  const provider = aiProviders[ai.provider];
+  const apiKey = aiApiKey(ai.provider);
+  if (!apiKey) throw new Error(`${provider.label} API Key 未配置`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const response = await fetch(provider.endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: ai.model,
+        messages: [
+          { role: "system", content: aiSummaryInstruction(style, summaryType) },
+          { role: "user", content: `请总结并提炼以下原始内容：\n\n${sourceText}` },
+        ],
+        temperature: 0.2,
+        max_tokens: 4000,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const upstreamMessage = String(payload?.error?.message || payload?.message || `HTTP ${response.status}`).slice(0, 240);
+      throw new Error(`${provider.label} 调用失败：${upstreamMessage}`);
+    }
+    const text = cleanAiText(payload?.choices?.[0]?.message?.content);
+    if (!text) throw new Error(`${provider.label} 未返回有效内容`);
+    return {
+      text,
+      provider: ai.provider,
+      providerLabel: provider.label,
+      model: ai.model,
+      usage: payload.usage || null,
+    };
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("AI生成超时，请稍后重试");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function consumeAiQuota(state, actor, now = Date.now()) {
+  const configuredLimit = Number(process.env.AI_DAILY_LIMIT || 30);
+  const limit = Math.max(1, Math.min(200, Number.isFinite(configuredLimit) ? Math.floor(configuredLimit) : 30));
+  const userKey = String(actor?.id || actor?.username || "");
+  const day = new Date(now).toISOString().slice(0, 10);
+  const current = state.aiUsage?.[userKey];
+  const count = current?.day === day ? Number(current.count || 0) : 0;
+  if (count >= limit) return { allowed: false, limit, remaining: 0 };
+  if (!state.aiUsage || typeof state.aiUsage !== "object") state.aiUsage = {};
+  state.aiUsage[userKey] = { day, count: count + 1, updatedAt: now };
+  return { allowed: true, limit, remaining: limit - count - 1 };
+}
+
+async function handleAi(req, res, state, parts, actor) {
+  if (req.method === "GET" && parts[1] === "status") {
+    return json(res, { ai: publicAiSettings(getSettings(state).ai) });
+  }
+  if (req.method !== "POST" || parts[1] !== "report-summary") return methodNotAllowed(res);
+  if (!actor) return json(res, { error: "请先登录后使用AI提炼" }, 401);
+  const ai = normalizeAiSettings(getSettings(state).ai);
+  if (!ai.enabled) return json(res, { error: "后台尚未启用AI提炼" }, 503);
+  if (!aiApiKey(ai.provider)) return json(res, { error: `${aiProviders[ai.provider].label} API Key 未配置` }, 503);
+  const body = await readBody(req);
+  const sourceText = String(body.sourceText || "").trim();
+  if (sourceText.length < 20) return json(res, { error: "周报内容过少，暂时无法提炼" }, 400);
+  if (sourceText.length > 50_000) return json(res, { error: "周报内容超过50000字，请精简后重试" }, 413);
+  const style = ["concise", "executive", "complete"].includes(body.style) ? body.style : "executive";
+  const summaryType = validReportSummaryType(body.summaryType) || "weekly";
+  const quota = consumeAiQuota(state, actor);
+  if (!quota.allowed) return json(res, { error: `今日AI提炼次数已达上限（${quota.limit}次）` }, 429);
+  await saveState(state);
+  try {
+    const result = await requestAiSummary({ sourceText, style, summaryType, ai });
+    return json(res, { result, quota });
+  } catch (error) {
+    return json(res, { error: error.message || "AI生成失败" }, 502);
+  }
+}
+
+async function handleSettings(req, res, state, now) {
+  if (req.method === "GET") return json(res, { settings: publicSettings(state) });
+  if (req.method !== "POST" && req.method !== "PATCH") return methodNotAllowed(res);
+  if (!requireAdmin(req, res)) return;
+  const body = await readBody(req);
+  const current = getSettings(state);
+  const next = {
+    modules: body.modules ? normalizeModules(body.modules) : current.modules,
+    accounts: body.accounts ? normalizeAccounts(body.accounts) : current.accounts,
+    ai: body.ai ? normalizeAiSettings(body.ai) : current.ai,
+  };
+  if (!next.modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
+  if (!next.accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
+  state.settings = { ...next, updatedAt: now };
+  await saveState(state);
+  return json(res, { settings: publicSettings(state) });
 }
 
 export default async function handler(req, res) {
@@ -504,9 +730,11 @@ export default async function handler(req, res) {
     if (parts[0] === "reports" || parts[0] === "report") return handleReports(req, res, state, parts, now, actor);
     if (parts[0] === "goals") return handleGoals(req, res, state, now, actor);
     if (parts[0] === "accounts") return handleAccounts(req, res, state);
+    if (parts[0] === "ai") return handleAi(req, res, state, parts, actor);
+    if (parts[0] === "settings") return handleSettings(req, res, state, now);
     return json(res, { error: "Not found" }, 404);
   } catch (error) {
-    if (["无效任务状态", "进入阻塞状态必须填写阻塞原因"].includes(error.message)) {
+    if (["无效任务状态", "进入阻塞状态必须填写阻塞原因", "完成任务前必须关联年度指标并填写贡献数"].includes(error.message)) {
       return json(res, { error: error.message }, 400);
     }
     console.error(error);

@@ -93,6 +93,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .goals-table .seq-input{width:42px;border-color:transparent;background:transparent;box-shadow:none;padding:4px;text-align:left}
 .goals-table .seq-input:hover,.goals-table .seq-input:focus{border-color:#d9deea;background:#fff;outline:none}
 @media(max-width:860px){.goal-link-row{grid-template-columns:1fr 1fr}.goal-link-row .field-full-mobile{grid-column:1/-1}}
+.admin-mode .nav,.admin-mode #openOnboardingBtn,.admin-mode #authNavBtn{display:none}
+.admin-mode .brand small{display:block}
+.admin-login{max-width:560px;padding:22px}.admin-login h3{margin:0 0 4px}
+.admin-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:16px;align-items:start}
+.admin-card{padding:18px}.admin-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.admin-card h3{margin:0 0 4px}
+.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
+.admin-ai-card{grid-column:1/-1}.admin-ai-grid{display:grid;grid-template-columns:180px minmax(220px,1fr) 180px;gap:12px}.admin-ai-grid label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.admin-ai-grid select,.admin-ai-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;outline:none}.ai-ready{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcff}.ai-ready.ok{color:var(--green);border-color:rgba(22,163,106,.25);background:var(--green-soft)}.ai-ready.warn{color:var(--orange);border-color:rgba(229,138,0,.28);background:var(--orange-soft)}
+.ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
+.admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
+@media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}.admin-savebar{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
@@ -110,10 +120,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       <button class="nav-btn" data-view="goals">部门目标</button>
       <button class="nav-btn" data-view="report">周报管理</button>
       <button class="nav-btn" data-view="profile">个人中心</button>
-      <button class="nav-btn" data-view="accounts">账号管理</button>
     </nav>
     <div class="top-actions">
       <span class="sync-pill" id="syncStatus">连接中...</span>
+      <button class="ghost-btn" id="adminEntryBtn">后台管理</button>
       <button class="ghost-btn guide-btn" id="openOnboardingBtn">指引</button>
       <button class="ghost-btn" id="authNavBtn">登录</button>
     </div>
@@ -232,7 +242,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <aside class="panel report-side">
           <div class="side-title">内容来源</div>
           <div id="reportSourceStats"></div>
-          <button class="ghost-btn" style="width:100%;margin-top:8px" id="copyReportSideBtn">复制为文本</button>
+          <button class="soft-btn" style="width:100%;margin-top:8px" id="aiPolishReportBtn">✨ AI提炼周报</button>
+          <button class="ghost-btn" style="width:100%;margin-top:8px" id="copyReportSideBtn">复制原始文本</button>
         </aside>
         <div style="display:none">
           <pre class="preview" id="reportPreview"></pre>
@@ -284,6 +295,66 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       </div>
       <div class="panel table-wrap">
         <table class="data-table" id="accountsTable"></table>
+      </div>
+    </section>
+
+    <section id="adminView" class="page" hidden>
+      <div class="page-head">
+        <div class="title-wrap">
+          <h2>后台管理</h2>
+          <p>维护周报项目类型与部门账号，保存后前台实时按配置读取。</p>
+        </div>
+        <div class="head-actions">
+          <button class="ghost-btn" id="backFromAdminBtn">返回工作台</button>
+        </div>
+      </div>
+      <div class="admin-login panel" id="adminLoginPanel">
+        <h3>后台登录</h3>
+        <p class="subtitle">默认账号 Admin，默认密码 888888。</p>
+        <div class="form-grid">
+          <div><label>账号</label><input id="adminUsername" autocomplete="off" value="Admin" /></div>
+          <div><label>密码</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入后台密码" /></div>
+        </div>
+        <div class="actions" style="justify-content:flex-start;margin-top:12px;">
+          <button class="primary-btn" id="adminLoginBtn">登录后台</button>
+        </div>
+      </div>
+      <div id="adminManagePanel" hidden>
+        <div class="admin-grid">
+          <section class="panel admin-card">
+            <div class="admin-card-head">
+              <div><h3>周报项目类型</h3><p class="subtitle">用于周报模块、任务模块筛选和导入待办归类。</p></div>
+              <button class="ghost-btn" id="addAdminModuleBtn">+ 新增类型</button>
+            </div>
+            <div id="adminModulesList" class="admin-list"></div>
+          </section>
+          <section class="panel admin-card">
+            <div class="admin-card-head">
+              <div><h3>账号管理</h3><p class="subtitle">任务负责人、个人中心识别和注册绑定均使用该清单。</p></div>
+              <button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button>
+            </div>
+            <div id="adminAccountsList" class="admin-list"></div>
+          </section>
+          <section class="panel admin-card admin-ai-card">
+            <div class="admin-card-head">
+              <div><h3>AI周报提炼</h3><p class="subtitle">密钥仅从 Netlify 环境变量读取，不会保存到网页或业务数据。</p></div>
+            </div>
+            <div class="admin-ai-grid">
+              <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
+              <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-v4-flash" /></div>
+              <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
+            </div>
+            <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API Key...</div>
+            <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;"></div>
+          </section>
+        </div>
+        <div class="admin-savebar panel">
+          <span id="adminSaveHint">修改后点击保存配置。</span>
+          <div class="actions">
+            <button class="ghost-btn" id="adminReloadBtn">重新加载</button>
+            <button class="primary-btn" id="adminSaveBtn">保存配置</button>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -366,6 +437,28 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       </div>
       <div class="modal-foot">
         <button class="ghost-btn" id="copyReportAgainBtn">复制文本</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-mask" id="aiReportModal" hidden>
+    <section class="modal ai-modal">
+      <div class="modal-head">
+        <strong>AI提炼周报</strong>
+        <button class="btn small ghost" id="closeAiReportModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="subtitle" style="margin-bottom:12px;">AI仅生成候选文本，不会修改、保存或归档原周报。请复核数字和结论后再复制。</div>
+        <div class="ai-toolbar">
+          <div><label>提炼方式</label><select id="aiSummaryStyle"><option value="executive">管理层重点版</option><option value="concise">高度精炼版</option><option value="complete">完整润色版</option></select></div>
+          <div id="aiReportStatus" class="ai-status">等待生成</div>
+        </div>
+        <textarea id="aiReportText" class="ai-result" readonly placeholder="AI提炼结果将在这里显示"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" id="copyOriginalFromAiBtn">复制原始文本</button>
+        <button class="soft-btn" id="generateAiReportBtn">重新生成</button>
+        <button class="primary-btn" id="copyAiReportBtn" disabled>复制AI结果</button>
       </div>
     </section>
   </div>
@@ -545,7 +638,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
   </div>
 
   <script>
-    const modules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
+    const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
+    let modules = [...defaultModules];
     const reportTypes = {
       weekly: { label: "周总结", title: "数据产品部周重点工作汇报", dateLabel: "汇报周期" },
       monthly: { label: "月总结", title: "数据产品部月度工作总结", dateLabel: "总结周期" },
@@ -555,7 +649,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     const priorityQuadrants = ["重要紧急", "重要不紧急", "不重要紧急", "不重要不紧急"];
     const taskImportHeaders = ["任务标题", "所属模块", "负责人", "状态", "优先级", "计划完成日期", "任务进度", "任务描述", "当前风险/阻塞", "进入周报", "带入下周", "关联年度指标", "完成年度指标数", "指标贡献说明"];
     const historySupplementHeaders = ["任务标题", "所属模块", "负责人", "完成日期", "任务完成情况", "关联年度指标", "完成年度指标数", "指标贡献说明", "任务描述"];
-    const departmentAccounts = [
+    const defaultDepartmentAccounts = [
       ["钟南海", "zhongnanhai"], ["宋泉辰", "songquanchen"], ["高竹林", "gaozhulin"], ["林徵", "linzheng"],
       ["黄嘉颖", "huangjiaying"], ["梁思嘉", "liangsijia"], ["杨俊华", "yangjunhua"], ["吴健浩", "wujianhao"],
       ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
@@ -597,7 +691,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let goalsRows = [];
     let goalLinkedTasks = [];
     let goalsYear = "2026";
-    let accountRows = departmentAccounts;
+    let accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
+    let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
+    let aiGenerating = false;
+    let adminDraftSettings = { modules: [...modules], accounts: accountRows.map((account) => ({ ...account })), ai: { ...aiSettings } };
+    let adminAuthed = sessionStorage.getItem(`${storageKey}-admin-auth`) === "true";
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
     let taskModuleFilter = "all";
@@ -893,7 +991,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function normalizeModule(moduleName) {
-      return modules.includes(moduleName) ? moduleName : "数据治理与经营分析";
+      return modules.includes(moduleName) ? moduleName : (modules[0] || defaultModules[0]);
     }
 
     function goalRowId(row, index = 0) {
@@ -1181,6 +1279,66 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return response.json();
     }
 
+    function normalizeModulesList(list) {
+      const rows = (Array.isArray(list) ? list : [])
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+      const unique = [...new Set(rows)];
+      return unique.length ? unique : [...defaultModules];
+    }
+
+    function normalizeAccountsList(list) {
+      const seen = new Set();
+      const rows = (Array.isArray(list) ? list : [])
+        .map((account) => ({
+          name: String(account?.name || "").trim(),
+          username: String(account?.username || "").trim().toLowerCase(),
+        }))
+        .filter((account) => account.name && account.username)
+        .filter((account) => {
+          if (seen.has(account.username)) return false;
+          seen.add(account.username);
+          return true;
+        });
+      return rows.length ? rows : defaultDepartmentAccounts.map((account) => ({ ...account }));
+    }
+
+    function applySettings(settings = {}) {
+      modules = normalizeModulesList(settings.modules);
+      accountRows = normalizeAccountsList(settings.accounts);
+      aiSettings = {
+        enabled: settings.ai?.enabled === true,
+        provider: ["deepseek", "kimi"].includes(settings.ai?.provider) ? settings.ai.provider : "deepseek",
+        providerLabel: settings.ai?.providerLabel || (settings.ai?.provider === "kimi" ? "Kimi" : "DeepSeek"),
+        model: settings.ai?.model || (settings.ai?.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash"),
+        configured: settings.ai?.configured === true,
+      };
+      adminDraftSettings = {
+        modules: [...modules],
+        accounts: accountRows.map((account) => ({ ...account })),
+        ai: { ...aiSettings },
+      };
+      renderModuleFilterOptions();
+    }
+
+    async function loadSettings() {
+      try {
+        const result = await apiJson("/api/settings");
+        applySettings(result.settings || {});
+      } catch {
+        applySettings({ modules: defaultModules, accounts: defaultDepartmentAccounts });
+        setSyncStatus("配置读取失败，已使用默认配置", "warn");
+      }
+    }
+
+    function renderModuleFilterOptions() {
+      if (!$("moduleFilter")) return;
+      const current = taskModuleFilter;
+      $("moduleFilter").innerHTML = `<option value="all">全部模块</option>${modules.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`).join("")}`;
+      taskModuleFilter = current === "all" || modules.includes(current) ? current : "all";
+      $("moduleFilter").value = taskModuleFilter;
+    }
+
     async function loadWeeks() {
       const result = await apiJson("/api/weeks");
       weeks = result.weeks || [];
@@ -1230,9 +1388,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     async function loadAccounts() {
       try {
         const result = await apiJson("/api/accounts");
-        accountRows = result.accounts?.length ? result.accounts : departmentAccounts;
+        accountRows = result.accounts?.length ? result.accounts : defaultDepartmentAccounts.map((account) => ({ ...account }));
       } catch {
-        accountRows = departmentAccounts;
+        accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
       }
       renderAccounts();
     }
@@ -1339,13 +1497,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const rows = tasksForGoal(goalId).sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0));
       const contributionForTask = (task) => normalizeGoalLinks(task).filter((link) => link.goalId === goalId).reduce((sum, link) => sum + link.contribution, 0);
       const total = rows.filter((task) => task.status === "已完成").reduce((sum, task) => sum + contributionForTask(task), 0);
-      $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} 路 关联任务`;
-      $("goalTaskModalSummary").textContent = `鍏?${rows.length} 涓叧鑱斾换鍔★紝宸插畬鎴愯础鐚暟 ${total}`;
+      $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} · 关联任务`;
+      $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联任务，已完成贡献数 ${total}${goalUnitById(goalId) || ""}`;
       $("goalTaskList").innerHTML = rows.map((task) => `
         <div class="history-row" style="grid-template-columns:1fr 90px 90px 120px;">
           <div>
             <strong>${escapeHtml(task.title || "未命名任务")}</strong>
-            <div class="subtitle">${escapeHtml(task.module || "")} 路 ${escapeHtml(task.owner || "未指定")} 路 ${escapeHtml(goalLinksSummary(task))}</div>
+            <div class="subtitle">${escapeHtml(task.module || "")} · ${escapeHtml(task.owner || "未指定")} · ${escapeHtml(goalLinksSummary(task))}</div>
           </div>
           <span class="status-pill ${task.status === "已完成" ? "status-done" : task.status === "阻塞" ? "status-late" : "status-normal"}">${escapeHtml(task.status || "")}</span>
           <strong>${contributionForTask(task)}${escapeHtml(goalUnitById(goalId))}</strong>
@@ -1674,7 +1832,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     function renderHistorySupplementFormOptions() {
       $("historySingleModule").innerHTML = modules.map((item) => `<option>${escapeHtml(item)}</option>`).join("");
-      $("historySingleOwner").innerHTML = `<option value="">未指定</option>${departmentAccounts.map((account) => `<option value="${account.name}">${escapeHtml(account.name)}</option>`).join("")}`;
+      $("historySingleOwner").innerHTML = `<option value="">未指定</option>${accountRows.map((account) => `<option value="${account.name}">${escapeHtml(account.name)}</option>`).join("")}`;
       $("historySingleGoal").innerHTML = goalOptions("");
     }
 
@@ -1998,7 +2156,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function currentAccountName() {
       if (!currentUser) return "";
       const profileName = currentUser.displayName || currentUser.username || "";
-      const matched = departmentAccounts.find((account) =>
+      const matched = accountRows.find((account) =>
         account.name === profileName || account.username === currentUser.username || account.username === profileName
       );
       return matched?.name || profileName;
@@ -2153,7 +2311,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <div><label>所属模块</label><select data-task-field="module">${modules.map((item) => `<option ${item === normalizeModule(task.module) ? "selected" : ""}>${item}</option>`).join("")}</select></div>
           <div><label>负责人</label><select data-task-field="owner">
             <option value="">未指定</option>
-            ${departmentAccounts.map((account) => `<option value="${account.name}" ${account.name === task.owner ? "selected" : ""}>${account.name}</option>`).join("")}
+            ${accountRows.map((account) => `<option value="${account.name}" ${account.name === task.owner ? "selected" : ""}>${account.name}</option>`).join("")}
           </select></div>
           <div><label>状态</label><select data-task-field="status" data-current-status="${escapeHtml(task.status)}">${statuses.map((item) => `<option ${item === task.status ? "selected" : ""}>${item}</option>`).join("")}</select></div>
           <div><label>优先级</label><select data-task-field="priority">${priorityQuadrants.map((item) => `<option ${item === normalizePriority(task.priority) ? "selected" : ""}>${item}</option>`).join("")}</select></div>
@@ -2216,7 +2374,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           `).join("")}
         </section>
       `).join("");
-      $("taskHistoryList").innerHTML = html || `<div class="panel empty">暂无宸插畬鎴愬巻鍙蹭换鍔?/div>`;
+      $("taskHistoryList").innerHTML = html || `<div class="panel empty">暂无已完成历史任务</div>`;
     }
 
     async function openTaskHistory() {
@@ -2567,7 +2725,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       normalizeReportData();
       const divider = "⸻";
       const cn = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"];
-      const moduleOrder = ["数据治理与经营分析", "AI+X项目", "财经共享", "AI应用项目"];
+      const moduleOrder = modules.length ? modules : defaultModules;
       const orderedModules = (reportData.summaryType || "weekly") === "weekly" ? [
         ...moduleOrder.map((title) => reportData.modules.find((mod) => mod.title === title)).filter(Boolean),
         ...reportData.modules.filter((mod) => !moduleOrder.includes(mod.title)),
@@ -2887,6 +3045,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("historyView").hidden = view !== "history";
       $("profileView").hidden = view !== "profile";
       $("accountsView").hidden = view !== "accounts";
+      $("adminView").hidden = view !== "admin";
       [
         ["tasksView", "tasks"],
         ["taskHistoryView", "taskHistory"],
@@ -2895,6 +3054,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         ["historyView", "history"],
         ["profileView", "profile"],
         ["accountsView", "accounts"],
+        ["adminView", "admin"],
       ].forEach(([id, page]) => $(id).classList.toggle("active", page === view));
       document.querySelectorAll("[data-view]").forEach((button) => button.classList.toggle("active", button.dataset.view === view));
       if (view === "history") loadReports().catch(() => setSyncStatus("列表读取失败", "warn"));
@@ -2902,6 +3062,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (view === "goals") loadGoals().then(loadGoalLinkedTasks).catch(() => setSyncStatus("目标关联任务读取失败", "warn"));
       if (view === "profile") loadGoals().then(renderProfile).catch(() => renderProfile());
       if (view === "accounts") loadAccounts();
+      if (view === "admin") renderAdmin();
     }
 
     function renderProfile() {
@@ -2944,7 +3105,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderAccounts() {
-      const rows = accountRows.length ? accountRows : departmentAccounts;
+      const rows = accountRows.length ? accountRows : defaultDepartmentAccounts;
       const taskCountByOwner = Object.fromEntries(rows.map((account) => [account.name, 0]));
       tasks.forEach((task) => {
         if (taskCountByOwner[task.owner] !== undefined) taskCountByOwner[task.owner] += 1;
@@ -2965,9 +3126,77 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       `;
     }
 
+    function isAdminRoute() {
+      return location.pathname.replace(/\/+$/, "") === "/admin";
+    }
+
+    function enterAdminMode() {
+      document.body.classList.add("admin-mode");
+      setView("admin");
+      renderAdmin();
+      if (adminAuthed) {
+        loadSettings().then(renderAdmin).catch(() => renderAdmin());
+      }
+    }
+
+    function renderAdmin() {
+      $("adminLoginPanel").hidden = adminAuthed;
+      $("adminManagePanel").hidden = !adminAuthed;
+      $("syncStatus").textContent = adminAuthed ? "后台已登录" : "后台未登录";
+      $("syncStatus").className = adminAuthed ? "sync-pill ok" : "sync-pill warn";
+      if (!adminAuthed) return;
+      $("adminModulesList").innerHTML = adminDraftSettings.modules.map((moduleName, index) => `
+        <div class="admin-row" data-admin-module-row="${index}">
+          <input data-admin-module="${index}" value="${escapeHtml(moduleName)}" placeholder="例如 AI+X项目" />
+          <button class="btn small danger" data-remove-admin-module="${index}" ${adminDraftSettings.modules.length <= 1 ? "disabled" : ""}>删除</button>
+        </div>
+      `).join("");
+      $("adminAccountsList").innerHTML = adminDraftSettings.accounts.map((account, index) => `
+        <div class="admin-row two" data-admin-account-row="${index}">
+          <input data-admin-account-name="${index}" value="${escapeHtml(account.name)}" placeholder="姓名" />
+          <input data-admin-account-username="${index}" value="${escapeHtml(account.username)}" placeholder="用户名" />
+          <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
+        </div>
+      `).join("");
+      const ai = adminDraftSettings.ai || aiSettings;
+      $("adminAiProvider").value = ai.provider || "deepseek";
+      $("adminAiModel").value = ai.model || (ai.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash");
+      $("adminAiEnabled").value = String(ai.enabled === true);
+      $("adminAiKeyStatus").className = `ai-ready ${ai.configured ? "ok" : "warn"}`;
+      $("adminAiKeyStatus").textContent = ai.configured
+        ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 已配置`
+        : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 未配置`;
+      $("adminAiEnvHint").textContent = ai.provider === "kimi"
+        ? "请在 Netlify 环境变量中配置 MOONSHOT_API_KEY（也兼容 KIMI_API_KEY）。"
+        : "请在 Netlify 环境变量中配置 DEEPSEEK_API_KEY。";
+    }
+
+    async function saveAdminSettings() {
+      adminDraftSettings.modules = normalizeModulesList(adminDraftSettings.modules);
+      adminDraftSettings.accounts = normalizeAccountsList(adminDraftSettings.accounts);
+      adminDraftSettings.ai = {
+        enabled: adminDraftSettings.ai?.enabled === true,
+        provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek",
+        model: String(adminDraftSettings.ai?.model || "").trim(),
+      };
+      const result = await apiJson("/api/settings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-user": "Admin",
+          "x-admin-password": "888888",
+        },
+        body: JSON.stringify(adminDraftSettings),
+      });
+      applySettings(result.settings || adminDraftSettings);
+      renderAdmin();
+      $("adminSaveHint").textContent = `已保存配置 · ${new Date().toLocaleTimeString()}`;
+      setSyncStatus("后台配置已保存", "ok");
+    }
+
     function renderAuthModal() {
       const isLogin = authMode === "login";
-      $("authModalTitle").textContent = isLogin ? "鐧诲綍" : "娉ㄥ唽";
+      $("authModalTitle").textContent = isLogin ? "登录" : "注册";
       $("submitAuthBtn").textContent = isLogin ? "登录" : "注册";
       $("displayNameField").hidden = isLogin;
       $("authHint").textContent = isLogin ? "首次使用请先注册。" : "注册后会自动登录，并保持登录状态。";
@@ -3473,6 +3702,77 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (currentUser) setView("profile");
       else openAuthModal("login");
     });
+    $("adminEntryBtn").addEventListener("click", () => {
+      location.href = "/admin";
+    });
+    $("backFromAdminBtn").addEventListener("click", () => {
+      location.href = "/";
+    });
+    $("adminLoginBtn").addEventListener("click", () => {
+      const username = $("adminUsername").value.trim().toLowerCase();
+      const password = $("adminPassword").value;
+      if (username !== "admin" || password !== "888888") {
+        $("adminSaveHint").textContent = "后台账号或密码不正确";
+        return setSyncStatus("后台登录失败", "warn");
+      }
+      adminAuthed = true;
+      sessionStorage.setItem(`${storageKey}-admin-auth`, "true");
+      loadSettings().then(renderAdmin).catch(() => renderAdmin());
+      setSyncStatus("后台登录成功", "ok");
+    });
+    $("addAdminModuleBtn").addEventListener("click", () => {
+      adminDraftSettings.modules.push("");
+      renderAdmin();
+    });
+    $("addAdminAccountBtn").addEventListener("click", () => {
+      adminDraftSettings.accounts.push({ name: "", username: "" });
+      renderAdmin();
+    });
+    $("adminReloadBtn").addEventListener("click", () => loadSettings().then(renderAdmin).catch(() => setSyncStatus("配置读取失败", "warn")));
+    $("adminSaveBtn").addEventListener("click", () => saveAdminSettings().catch((error) => {
+      $("adminSaveHint").textContent = error.message || "保存失败";
+      setSyncStatus("后台配置保存失败", "warn");
+    }));
+    $("adminModulesList").addEventListener("input", (event) => {
+      const index = event.target.dataset.adminModule;
+      if (index === undefined) return;
+      adminDraftSettings.modules[Number(index)] = event.target.value;
+    });
+    $("adminModulesList").addEventListener("click", (event) => {
+      const index = event.target.closest("[data-remove-admin-module]")?.dataset.removeAdminModule;
+      if (index === undefined) return;
+      adminDraftSettings.modules.splice(Number(index), 1);
+      renderAdmin();
+    });
+    $("adminAccountsList").addEventListener("input", (event) => {
+      const nameIndex = event.target.dataset.adminAccountName;
+      const usernameIndex = event.target.dataset.adminAccountUsername;
+      if (nameIndex !== undefined) adminDraftSettings.accounts[Number(nameIndex)].name = event.target.value;
+      if (usernameIndex !== undefined) adminDraftSettings.accounts[Number(usernameIndex)].username = event.target.value;
+    });
+    $("adminAccountsList").addEventListener("click", (event) => {
+      const index = event.target.closest("[data-remove-admin-account]")?.dataset.removeAdminAccount;
+      if (index === undefined) return;
+      adminDraftSettings.accounts.splice(Number(index), 1);
+      renderAdmin();
+    });
+    $("adminAiProvider").addEventListener("change", (event) => {
+      const provider = event.target.value === "kimi" ? "kimi" : "deepseek";
+      adminDraftSettings.ai = {
+        ...(adminDraftSettings.ai || {}),
+        provider,
+        providerLabel: provider === "kimi" ? "Kimi" : "DeepSeek",
+        model: provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash",
+        configured: false,
+      };
+      renderAdmin();
+    });
+    $("adminAiModel").addEventListener("input", (event) => {
+      adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), model: event.target.value };
+    });
+    $("adminAiEnabled").addEventListener("change", (event) => {
+      adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), enabled: event.target.value === "true" };
+    });
     $("openAuthModalBtn").addEventListener("click", () => openAuthModal("login"));
     $("closeAuthModal").addEventListener("click", closeAuthModal);
     $("authModal").addEventListener("click", (event) => {
@@ -3532,6 +3832,65 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setSyncStatus("已生成复制文本", "ok");
     }
 
+    function setAiReportStatus(message, tone = "") {
+      $("aiReportStatus").textContent = message;
+      $("aiReportStatus").className = `ai-status ${tone}`.trim();
+    }
+
+    function closeAiReportModal() {
+      if (aiGenerating) return;
+      $("aiReportModal").hidden = true;
+    }
+
+    async function generateAiReport() {
+      if (aiGenerating) return;
+      if (!currentUser) {
+        setAiReportStatus("请先登录后使用AI提炼", "error");
+        $("aiReportModal").hidden = true;
+        openAuthModal("login");
+        return;
+      }
+      if (!aiSettings.enabled) return setAiReportStatus("后台尚未启用AI提炼", "error");
+      if (!aiSettings.configured) return setAiReportStatus(`${aiSettings.providerLabel} API Key 未配置`, "error");
+      aiGenerating = true;
+      $("generateAiReportBtn").disabled = true;
+      $("copyAiReportBtn").disabled = true;
+      $("aiReportText").value = "";
+      setAiReportStatus(`${aiSettings.providerLabel} 正在提炼，请稍候...`, "loading");
+      try {
+        const result = await apiJson("/api/ai/report-summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceText: renderReportText(),
+            summaryType: reportData.summaryType || "weekly",
+            style: $("aiSummaryStyle").value || "executive",
+          }),
+        });
+        $("aiReportText").value = result.result.text || "";
+        $("copyAiReportBtn").disabled = !$("aiReportText").value.trim();
+        const usage = result.result.usage;
+        const usageText = usage?.total_tokens ? ` · ${usage.total_tokens} tokens` : "";
+        const quotaText = Number.isFinite(result.quota?.remaining) ? ` · 今日剩余${result.quota.remaining}次` : "";
+        setAiReportStatus(`${result.result.providerLabel} · ${result.result.model}${usageText}${quotaText} · 请复核后复制`);
+        setSyncStatus("AI提炼已完成", "ok");
+      } catch (error) {
+        setAiReportStatus(error.message || "AI提炼失败", "error");
+        setSyncStatus("AI提炼失败", "warn");
+      } finally {
+        aiGenerating = false;
+        $("generateAiReportBtn").disabled = false;
+      }
+    }
+
+    function openAiReportModal() {
+      $("aiReportModal").hidden = false;
+      $("aiReportText").value = "";
+      $("copyAiReportBtn").disabled = true;
+      setAiReportStatus("准备生成管理层重点版");
+      generateAiReport();
+    }
+
     $("generateReportBtn").addEventListener("click", openTaskHistory);
     $("backToTasksBtn").addEventListener("click", () => setView("tasks"));
     $("openOnboardingBtn").addEventListener("click", openOnboardingModal);
@@ -3575,6 +3934,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
 
     $("copyReportSideBtn").addEventListener("click", copyCurrentReport);
+    $("aiPolishReportBtn").addEventListener("click", openAiReportModal);
     $("closeCopyReportModal").addEventListener("click", () => $("copyReportModal").hidden = true);
     $("copyReportModal").addEventListener("click", (event) => {
       if (event.target.id === "copyReportModal") $("copyReportModal").hidden = true;
@@ -3582,6 +3942,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("copyReportAgainBtn").addEventListener("click", async () => {
       await navigator.clipboard.writeText($("copyReportText").value);
       setSyncStatus("已复制", "ok");
+    });
+    $("closeAiReportModal").addEventListener("click", closeAiReportModal);
+    $("aiReportModal").addEventListener("click", (event) => {
+      if (event.target.id === "aiReportModal") closeAiReportModal();
+    });
+    $("generateAiReportBtn").addEventListener("click", generateAiReport);
+    $("copyOriginalFromAiBtn").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(renderReportText());
+      setSyncStatus("已复制原始文本", "ok");
+    });
+    $("copyAiReportBtn").addEventListener("click", async () => {
+      const text = $("aiReportText").value.trim();
+      if (!text) return;
+      await navigator.clipboard.writeText(text);
+      setSyncStatus("已复制AI提炼结果", "ok");
     });
     $("previewDiffBtn").addEventListener("click", () => {
       const changedModules = reportData.modules.filter((mod) => mod.sections.some((section) => (section.items || []).length)).length;
@@ -3661,13 +4036,20 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (userToken && !ensureLoginAlive()) return;
       if (currentUser) renderProfile();
     }, 60 * 1000);
-    renderProfile();
-    loadWeeks()
-      .then(() => {
-        setSyncStatus("已同步", "ok");
-        maybeShowOnboarding();
-      })
-      .catch(() => setSyncStatus("连接失败", "warn"));
+    async function initializeApp() {
+      if (isAdminRoute()) {
+        await loadSettings();
+        enterAdminMode();
+        return;
+      }
+      await loadSettings();
+      renderProfile();
+      await loadWeeks();
+      setSyncStatus("已同步", "ok");
+      maybeShowOnboarding();
+    }
+
+    initializeApp().catch(() => setSyncStatus("连接失败", "warn"));
   </script>
 </body>
 </html>

@@ -25,10 +25,10 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "" } = {}) {
+async function api(path, { method = "GET", body, token = "", headers = {} } = {}) {
   const req = {
     method,
-    headers: { "x-report-key": syncKey, ...(token ? { "x-user-token": token } : {}) },
+    headers: { "x-report-key": syncKey, ...(token ? { "x-user-token": token } : {}), ...headers },
     query: { path: path.split("/").filter(Boolean) },
     body,
   };
@@ -36,6 +36,108 @@ async function api(path, { method = "GET", body, token = "" } = {}) {
   await handler(req, res);
   return res;
 }
+
+test("AI settings expose readiness without exposing API keys", async () => {
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalMoonshotKey = process.env.MOONSHOT_API_KEY;
+  process.env.DEEPSEEK_API_KEY = "unit-test-placeholder";
+  process.env.MOONSHOT_API_KEY = "unit-test-moonshot-placeholder";
+  try {
+    const settings = await api("/settings");
+    assert.equal(settings.statusCode, 200);
+    assert.equal(settings.body.settings.ai.configured, true);
+    assert.equal(JSON.stringify(settings.body).includes("unit-test-placeholder"), false);
+    assert.equal(JSON.stringify(settings.body).includes("unit-test-moonshot-placeholder"), false);
+  } finally {
+    if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = originalKey;
+    if (originalMoonshotKey === undefined) delete process.env.MOONSHOT_API_KEY;
+    else process.env.MOONSHOT_API_KEY = originalMoonshotKey;
+  }
+});
+
+test("AI report summary requires login and returns a reviewable candidate", async () => {
+  const anonymous = await api("/ai/report-summary", {
+    method: "POST",
+    body: { sourceText: "这是一段足够长的周报原始内容，用于验证未登录状态。" },
+  });
+  assert.equal(anonymous.statusCode, 401);
+
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 10);
+  const registered = await api("/auth/register", {
+    method: "POST",
+    body: { username: `aiuser${suffix}`, password: "12345678", displayName: "AI测试用户" },
+  });
+  assert.equal(registered.statusCode, 201);
+
+  const saved = await api("/settings", {
+    method: "POST",
+    headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+    body: { ai: { enabled: true, provider: "deepseek", model: "deepseek-v4-flash" } },
+  });
+  assert.equal(saved.statusCode, 200);
+
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  const originalMoonshotKey = process.env.MOONSHOT_API_KEY;
+  const originalFetch = globalThis.fetch;
+  process.env.DEEPSEEK_API_KEY = "unit-test-placeholder";
+  process.env.MOONSHOT_API_KEY = "unit-test-moonshot-placeholder";
+  let upstreamRequest = null;
+  globalThis.fetch = async (url, options) => {
+    upstreamRequest = { url, options };
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          choices: [{ message: { content: "```text\n数据产品部周重点工作汇报\n1、完成重点任务。\n```" } }],
+          usage: { total_tokens: 128 },
+        };
+      },
+    };
+  };
+  try {
+    const generated = await api("/ai/report-summary", {
+      method: "POST",
+      token: registered.body.token,
+      body: {
+        sourceText: "数据产品部周重点工作汇报\n汇报周期：2026/07/13—2026/07/19\n本周完成重点任务。",
+        summaryType: "weekly",
+        style: "executive",
+      },
+    });
+    assert.equal(generated.statusCode, 200);
+    assert.equal(generated.body.result.text.includes("```"), false);
+    assert.equal(generated.body.result.usage.total_tokens, 128);
+    assert.equal(upstreamRequest.url, "https://api.deepseek.com/chat/completions");
+    assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-placeholder");
+
+    const kimiSettings = await api("/settings", {
+      method: "POST",
+      headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+      body: { ai: { enabled: true, provider: "kimi", model: "kimi-k2.6" } },
+    });
+    assert.equal(kimiSettings.statusCode, 200);
+    const kimiGenerated = await api("/ai/report-summary", {
+      method: "POST",
+      token: registered.body.token,
+      body: {
+        sourceText: "数据产品部周重点工作汇报\n汇报周期：2026/07/13—2026/07/19\n本周完成重点任务。",
+        summaryType: "weekly",
+        style: "concise",
+      },
+    });
+    assert.equal(kimiGenerated.statusCode, 200);
+    assert.equal(upstreamRequest.url, "https://api.moonshot.cn/v1/chat/completions");
+    assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-moonshot-placeholder");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = originalKey;
+    if (originalMoonshotKey === undefined) delete process.env.MOONSHOT_API_KEY;
+    else process.env.MOONSHOT_API_KEY = originalMoonshotKey;
+  }
+});
 
 function reportData(summaryType, startDate, endDate) {
   return {
