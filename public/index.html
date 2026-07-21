@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>数据产品部任务与周报工作台</title>
+  <title>部门工作台</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <style>
 
 :root{
@@ -16,10 +17,10 @@
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,"PingFang SC","Microsoft YaHei",sans-serif}
 button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .app{min-height:100vh}.topbar{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 28px;position:sticky;top:0;z-index:30}
-.brand{display:flex;align-items:center;gap:12px;min-width:310px}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--primary),#7f56d9);display:grid;place-items:center;color:#fff;font-weight:800;box-shadow:0 7px 18px rgba(49,94,251,.25)}
+.brand{display:flex;align-items:center;gap:12px;min-width:310px}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--primary),#2447c6);display:grid;place-items:center;color:#fff;font-weight:800;box-shadow:0 7px 18px rgba(49,94,251,.25)}.logo svg{width:24px;height:24px;display:block}
 .brand h1{font-size:16px;margin:0}.brand small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
 .nav{display:flex;gap:6px;align-self:stretch}.nav-btn{border:0;background:transparent;padding:0 18px;color:#475467;cursor:pointer;position:relative;font-weight:600}.nav-btn:hover{color:var(--primary)}.nav-btn.active{color:var(--primary)}.nav-btn.active:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:3px;background:var(--primary);border-radius:3px 3px 0 0}
-.top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}.icon-btn,.ghost-btn,.primary-btn,.danger-btn,.soft-btn{border:1px solid var(--line);background:#fff;color:#344054;border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:600}.icon-btn{width:38px;height:38px;padding:0}.primary-btn{border-color:var(--primary);background:var(--primary);color:#fff}.primary-btn:hover{background:var(--primary-2)}.soft-btn{background:var(--primary-soft);border-color:#dfe4ff;color:var(--primary)}.danger-btn{background:var(--red-soft);border-color:#ffd5d7;color:var(--red)}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}.icon-btn,.ghost-btn,.primary-btn,.danger-btn,.soft-btn{border:1px solid var(--line);background:#fff;color:#344054;border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:600}.icon-btn{width:38px;height:38px;padding:0;display:grid;place-items:center;transition:border-color .18s,color .18s,box-shadow .18s,transform .18s}.icon-btn:hover{color:var(--primary);border-color:#cbd5ff;box-shadow:0 6px 16px rgba(49,94,251,.12);transform:translateY(-1px)}.icon-btn svg{width:19px;height:19px;display:block}.primary-btn{border-color:var(--primary);background:var(--primary);color:#fff}.primary-btn:hover{background:var(--primary-2)}.soft-btn{background:var(--primary-soft);border-color:#dfe4ff;color:var(--primary)}.danger-btn{background:var(--red-soft);border-color:#ffd5d7;color:var(--red)}
 .avatar{width:34px;height:34px;border-radius:50%;background:#172b4d;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
 .main{padding:24px 28px 40px;max-width:1680px;margin:auto}.page{display:none}.page.active{display:block}
 .page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}.title-wrap h2{font-size:24px;margin:0 0 4px}.title-wrap p{margin:0;color:var(--muted)}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
@@ -98,7 +99,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .admin-login{max-width:560px;padding:22px}.admin-login h3{margin:0 0 4px}
 .admin-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:16px;align-items:start}
 .admin-card{padding:18px}.admin-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.admin-card h3{margin:0 0 4px}
-.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
+.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row.three{grid-template-columns:1fr 1fr 150px auto}.admin-row input,.admin-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus,.admin-row select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
 .admin-ai-card{grid-column:1/-1}.admin-ai-grid{display:grid;grid-template-columns:180px minmax(220px,1fr) 180px;gap:12px}.admin-ai-grid label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.admin-ai-grid select,.admin-ai-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;outline:none}.ai-ready{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcff}.ai-ready.ok{color:var(--green);border-color:rgba(22,163,106,.25);background:var(--green-soft)}.ai-ready.warn{color:var(--orange);border-color:rgba(229,138,0,.28);background:var(--orange-soft)}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
 .admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
@@ -109,9 +110,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 <div class="app">
   <header class="topbar">
     <div class="brand">
-      <div class="logo">DP</div>
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="13" y="4" width="7" height="10" rx="1.5" fill="currentColor" opacity=".82"/><rect x="4" y="12" width="7" height="8" rx="1.5" fill="currentColor" opacity=".68"/><path d="M15.5 17h4M15.5 20h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
       <div>
-        <h1>数据产品部工作台</h1>
+        <h1 id="brandTitle">部门工作台</h1>
         <small>目标牵引 · 任务执行 · 周报沉淀</small>
       </div>
     </div>
@@ -123,8 +124,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </nav>
     <div class="top-actions">
       <span class="sync-pill" id="syncStatus">连接中...</span>
-      <button class="ghost-btn" id="adminEntryBtn">后台管理</button>
-      <button class="ghost-btn guide-btn" id="openOnboardingBtn">指引</button>
+      <button class="icon-btn" id="adminEntryBtn" title="后台管理" aria-label="后台管理"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M13 4v6M7 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/></svg></button>
+      <button class="icon-btn guide-btn" id="openOnboardingBtn" title="指引" aria-label="指引"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="m14.9 9.1-1.7 4.1-4.1 1.7 1.7-4.1 4.1-1.7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg></button>
       <button class="ghost-btn" id="authNavBtn">登录</button>
     </div>
   </header>
@@ -323,9 +324,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <div class="admin-grid">
           <section class="panel admin-card">
             <div class="admin-card-head">
+              <div><h3>部门管理</h3><p class="subtitle">维护系统内的部门名称与启用状态；已有部门可停用，不直接删除。</p></div>
+              <button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button>
+            </div>
+            <div id="adminDepartmentsList" class="admin-list"></div>
+          </section>
+          <section class="panel admin-card">
+            <div class="admin-card-head">
               <div><h3>周报项目类型</h3><p class="subtitle">用于周报模块、任务模块筛选和导入待办归类。</p></div>
               <button class="ghost-btn" id="addAdminModuleBtn">+ 新增类型</button>
             </div>
+            <div style="margin-bottom:10px;"><label class="subtitle" for="adminDepartmentModulesSelect">所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
             <div id="adminModulesList" class="admin-list"></div>
           </section>
           <section class="panel admin-card">
@@ -343,6 +352,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
               <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
               <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-v4-flash" /></div>
               <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
+              <div><label>登录保持时间（分钟）</label><input id="adminSessionDurationMinutes" type="number" min="5" max="43200" step="1" /></div>
             </div>
             <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API Key...</div>
             <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;"></div>
@@ -640,6 +650,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
   <script>
     const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
     let modules = [...defaultModules];
+    const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, modules: [...defaultModules] };
+    let departments = [{ ...defaultDepartment, modules: [...defaultModules] }];
+    let sessionDurationMinutes = 30;
     const reportTypes = {
       weekly: { label: "周总结", title: "数据产品部周重点工作汇报", dateLabel: "汇报周期" },
       monthly: { label: "月总结", title: "数据产品部月度工作总结", dateLabel: "总结周期" },
@@ -653,14 +666,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       ["钟南海", "zhongnanhai"], ["宋泉辰", "songquanchen"], ["高竹林", "gaozhulin"], ["林徵", "linzheng"],
       ["黄嘉颖", "huangjiaying"], ["梁思嘉", "liangsijia"], ["杨俊华", "yangjunhua"], ["吴健浩", "wujianhao"],
       ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
-    ].map(([name, username]) => ({ name, username }));
+    ].map(([name, username]) => ({ name, username, departmentId: defaultDepartment.id }));
     const storageKey = "dp-weekly-workbench-v1";
     const syncKeyStorageKey = `${storageKey}-sync-key`;
     const userStorageKey = `${storageKey}-user`;
     const userTokenStorageKey = `${storageKey}-user-token`;
     const userTokenExpiresStorageKey = `${storageKey}-user-token-expires-at`;
     const onboardingSeenStorageKey = "dp-workbench-onboarding-seen";
-    const loginKeepAliveMs = 30 * 60 * 1000;
 
     let weeks = [];
     let currentWeek = null;
@@ -694,7 +706,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
     let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
     let aiGenerating = false;
-    let adminDraftSettings = { modules: [...modules], accounts: accountRows.map((account) => ({ ...account })), ai: { ...aiSettings } };
+    let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
+    let adminModulesDepartmentId = defaultDepartment.id;
     let adminAuthed = sessionStorage.getItem(`${storageKey}-admin-auth`) === "true";
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
@@ -796,6 +809,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       localStorage.removeItem(userStorageKey);
       localStorage.removeItem(userTokenStorageKey);
       localStorage.removeItem(userTokenExpiresStorageKey);
+      applyDepartmentBranding();
       renderProfile();
       updateReportControls();
       if (message) setSyncStatus(message, "warn");
@@ -826,13 +840,19 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       });
       let response = await request();
       if (response.status === 401) {
-        localStorage.removeItem(syncKeyStorageKey);
-        const nextKey = getSyncKey(true);
-        if (!nextKey) throw new Error("unauthorized");
-        response = await fetch(url, {
-          ...options,
-          headers: { ...(options.headers || {}), "x-report-key": nextKey, ...(userToken ? { "x-user-token": userToken } : {}) },
-        });
+        const errorBody = await response.clone().json().catch(() => ({}));
+        if (errorBody.error === "Unauthorized") {
+          localStorage.removeItem(syncKeyStorageKey);
+          const nextKey = getSyncKey(true);
+          if (!nextKey) throw new Error("unauthorized");
+          response = await fetch(url, {
+            ...options,
+            headers: { ...(options.headers || {}), "x-report-key": nextKey, ...(userToken ? { "x-user-token": userToken } : {}) },
+          });
+        } else {
+          clearLoginState("登录已过期，请重新登录");
+          if (!isAdminRoute()) openAuthModal("login");
+        }
       }
       return response;
     }
@@ -1293,6 +1313,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         .map((account) => ({
           name: String(account?.name || "").trim(),
           username: String(account?.username || "").trim().toLowerCase(),
+          departmentId: String(account?.departmentId || departments[0]?.id || defaultDepartment.id).trim(),
         }))
         .filter((account) => account.name && account.username)
         .filter((account) => {
@@ -1303,9 +1324,54 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return rows.length ? rows : defaultDepartmentAccounts.map((account) => ({ ...account }));
     }
 
+    function departmentIdFromName(name) {
+      const ascii = String(name || "").trim().toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+        .replace(/^-|-$/g, "");
+      return ascii || `department-${Date.now().toString(36)}`;
+    }
+
+    function normalizeDepartmentsList(list) {
+      const seen = new Set();
+      const rows = (Array.isArray(list) ? list : []).map((department) => ({
+        id: String(department?.id || departmentIdFromName(department?.name)).trim(),
+        name: String(department?.name || "").trim(),
+        enabled: department?.enabled !== false,
+        modules: normalizeModulesList(department?.modules),
+      })).filter((department) => department.id && department.name).filter((department) => {
+        if (seen.has(department.id)) return false;
+        seen.add(department.id);
+        return true;
+      });
+      return rows.length ? rows : [{ ...defaultDepartment, modules: [...defaultModules] }];
+    }
+
+    function currentDepartment() {
+      const departmentId = currentUser?.departmentId || currentUser?.department?.id;
+      return departments.find((department) => department.id === departmentId) || departments[0] || defaultDepartment;
+    }
+
+    function defaultGoalsForCurrentDepartment() {
+      return currentDepartment().id === defaultDepartment.id
+        ? JSON.parse(JSON.stringify(initialGoalsRows))
+        : [];
+    }
+
+    function applyDepartmentBranding() {
+      const department = currentDepartment();
+      const departmentName = currentUser?.department?.name || department.name || "部门";
+      $("brandTitle").textContent = currentUser ? `${departmentName}工作台` : "部门工作台";
+      reportTypes.weekly.title = `${departmentName}周重点工作汇报`;
+      reportTypes.monthly.title = `${departmentName}月度工作总结`;
+      reportTypes.quarterly.title = `${departmentName}季度工作总结`;
+      modules = normalizeModulesList(department.modules);
+      renderModuleFilterOptions();
+    }
+
     function applySettings(settings = {}) {
-      modules = normalizeModulesList(settings.modules);
+      departments = normalizeDepartmentsList(settings.departments);
       accountRows = normalizeAccountsList(settings.accounts);
+      sessionDurationMinutes = Number.isInteger(Number(settings.sessionDurationMinutes)) ? Number(settings.sessionDurationMinutes) : 30;
       aiSettings = {
         enabled: settings.ai?.enabled === true,
         provider: ["deepseek", "kimi"].includes(settings.ai?.provider) ? settings.ai.provider : "deepseek",
@@ -1314,19 +1380,23 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         configured: settings.ai?.configured === true,
       };
       adminDraftSettings = {
-        modules: [...modules],
+        departments: departments.map((department) => ({ ...department, modules: [...department.modules] })),
         accounts: accountRows.map((account) => ({ ...account })),
+        sessionDurationMinutes,
         ai: { ...aiSettings },
       };
-      renderModuleFilterOptions();
+      if (!departments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = departments[0].id;
+      applyDepartmentBranding();
     }
 
-    async function loadSettings() {
+    async function loadSettings({ admin = false } = {}) {
       try {
-        const result = await apiJson("/api/settings");
+        const result = await apiJson("/api/settings", admin ? {
+          headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+        } : {});
         applySettings(result.settings || {});
       } catch {
-        applySettings({ modules: defaultModules, accounts: defaultDepartmentAccounts });
+        applySettings({ departments: [defaultDepartment], accounts: defaultDepartmentAccounts, sessionDurationMinutes: 30 });
         setSyncStatus("配置读取失败，已使用默认配置", "warn");
       }
     }
@@ -1372,13 +1442,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       try {
         const result = await apiJson("/api/goals");
         goalsYear = String(result.year || "2026");
-        goalsRows = Array.isArray(result.rows) && result.rows.length ? result.rows : JSON.parse(JSON.stringify(initialGoalsRows));
+        goalsRows = Array.isArray(result.rows) && result.rows.length ? result.rows : defaultGoalsForCurrentDepartment();
         resequenceGoals();
         renderGoals();
         renderGoalsMeta(result);
       } catch {
         goalsYear = "2026";
-        goalsRows = JSON.parse(JSON.stringify(initialGoalsRows));
+        goalsRows = defaultGoalsForCurrentDepartment();
         resequenceGoals();
         renderGoals();
         setSyncStatus("目标读取失败", "warn");
@@ -3066,6 +3136,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderProfile() {
+      applyDepartmentBranding();
       const accountName = currentAccountName();
       const myTasks = accountName ? tasks.filter((task) => normalizeText(task.owner).includes(normalizeText(accountName))) : [];
       const myGoals = accountName ? goalsRows.filter((goal) => normalizeText(goal.owner).includes(normalizeText(accountName))) : [];
@@ -3135,7 +3206,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setView("admin");
       renderAdmin();
       if (adminAuthed) {
-        loadSettings().then(renderAdmin).catch(() => renderAdmin());
+        loadSettings({ admin: true }).then(renderAdmin).catch(() => renderAdmin());
       }
     }
 
@@ -3145,16 +3216,28 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("syncStatus").textContent = adminAuthed ? "后台已登录" : "后台未登录";
       $("syncStatus").className = adminAuthed ? "sync-pill ok" : "sync-pill warn";
       if (!adminAuthed) return;
-      $("adminModulesList").innerHTML = adminDraftSettings.modules.map((moduleName, index) => `
+      const draftDepartments = adminDraftSettings.departments || [];
+      if (!draftDepartments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = draftDepartments[0]?.id || "";
+      const selectedDepartment = draftDepartments.find((department) => department.id === adminModulesDepartmentId) || draftDepartments[0];
+      $("adminDepartmentsList").innerHTML = draftDepartments.map((department, index) => `
+        <div class="admin-row two" data-admin-department-row="${index}">
+          <input data-admin-department-name="${index}" value="${escapeHtml(department.name)}" placeholder="部门名称" />
+          <select data-admin-department-enabled="${index}"><option value="true" ${department.enabled !== false ? "selected" : ""}>启用</option><option value="false" ${department.enabled === false ? "selected" : ""}>停用</option></select>
+          <span class="subtitle">${escapeHtml(department.id)}</span>
+        </div>
+      `).join("");
+      $("adminDepartmentModulesSelect").innerHTML = draftDepartments.map((department) => `<option value="${escapeHtml(department.id)}" ${department.id === adminModulesDepartmentId ? "selected" : ""}>${escapeHtml(department.name)}</option>`).join("");
+      $("adminModulesList").innerHTML = (selectedDepartment?.modules || []).map((moduleName, index) => `
         <div class="admin-row" data-admin-module-row="${index}">
           <input data-admin-module="${index}" value="${escapeHtml(moduleName)}" placeholder="例如 AI+X项目" />
-          <button class="btn small danger" data-remove-admin-module="${index}" ${adminDraftSettings.modules.length <= 1 ? "disabled" : ""}>删除</button>
+          <button class="btn small danger" data-remove-admin-module="${index}" ${(selectedDepartment?.modules || []).length <= 1 ? "disabled" : ""}>删除</button>
         </div>
       `).join("");
       $("adminAccountsList").innerHTML = adminDraftSettings.accounts.map((account, index) => `
-        <div class="admin-row two" data-admin-account-row="${index}">
+        <div class="admin-row three" data-admin-account-row="${index}">
           <input data-admin-account-name="${index}" value="${escapeHtml(account.name)}" placeholder="姓名" />
           <input data-admin-account-username="${index}" value="${escapeHtml(account.username)}" placeholder="用户名" />
+          <select data-admin-account-department="${index}">${draftDepartments.map((department) => `<option value="${escapeHtml(department.id)}" ${department.id === account.departmentId ? "selected" : ""}>${escapeHtml(department.name)}</option>`).join("")}</select>
           <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
         </div>
       `).join("");
@@ -3162,6 +3245,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("adminAiProvider").value = ai.provider || "deepseek";
       $("adminAiModel").value = ai.model || (ai.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash");
       $("adminAiEnabled").value = String(ai.enabled === true);
+      $("adminSessionDurationMinutes").value = String(adminDraftSettings.sessionDurationMinutes || 30);
       $("adminAiKeyStatus").className = `ai-ready ${ai.configured ? "ok" : "warn"}`;
       $("adminAiKeyStatus").textContent = ai.configured
         ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 已配置`
@@ -3172,8 +3256,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function saveAdminSettings() {
-      adminDraftSettings.modules = normalizeModulesList(adminDraftSettings.modules);
+      adminDraftSettings.departments = normalizeDepartmentsList(adminDraftSettings.departments);
       adminDraftSettings.accounts = normalizeAccountsList(adminDraftSettings.accounts);
+      adminDraftSettings.sessionDurationMinutes = Number($("adminSessionDurationMinutes").value);
+      if (!Number.isInteger(adminDraftSettings.sessionDurationMinutes) || adminDraftSettings.sessionDurationMinutes < 5 || adminDraftSettings.sessionDurationMinutes > 43200) {
+        throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
+      }
       adminDraftSettings.ai = {
         enabled: adminDraftSettings.ai?.enabled === true,
         provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek",
@@ -3231,14 +3319,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       });
       currentUser = result.user;
       userToken = result.token;
-      userTokenExpiresAt = Number(result.expiresAt || 0) || Date.now() + loginKeepAliveMs;
+      userTokenExpiresAt = Number(result.expiresAt || 0) || Date.now() + sessionDurationMinutes * 60_000;
       localStorage.setItem(userStorageKey, JSON.stringify(currentUser));
       localStorage.setItem(userTokenStorageKey, userToken);
       localStorage.setItem(userTokenExpiresStorageKey, String(userTokenExpiresAt));
+      applyDepartmentBranding();
       renderProfile();
+      await loadSettings();
+      await loadWeeks();
+      const keepMinutes = authRemainingMinutes();
       $("authMessage").innerHTML = action === "login"
-        ? `登录成功，欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}，本次登录将保持30分钟。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`
-        : `注册成功，已自动登录，本次登录将保持30分钟。欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`;
+        ? `登录成功，欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}，本次登录约保持${keepMinutes}分钟。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`
+        : `注册成功，已自动登录，本次登录约保持${keepMinutes}分钟。欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`;
       setSyncStatus(action === "login" ? "已登录" : "已注册", "ok");
     }
 
@@ -3717,18 +3809,40 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
       adminAuthed = true;
       sessionStorage.setItem(`${storageKey}-admin-auth`, "true");
-      loadSettings().then(renderAdmin).catch(() => renderAdmin());
+      loadSettings({ admin: true }).then(renderAdmin).catch(() => renderAdmin());
       setSyncStatus("后台登录成功", "ok");
     });
+    $("addAdminDepartmentBtn").addEventListener("click", () => {
+      const name = `新部门${adminDraftSettings.departments.length + 1}`;
+      let id = departmentIdFromName(name);
+      let suffix = 2;
+      while (adminDraftSettings.departments.some((department) => department.id === id)) id = `${departmentIdFromName(name)}-${suffix++}`;
+      adminDraftSettings.departments.push({ id, name, enabled: true, modules: [...defaultModules] });
+      adminModulesDepartmentId = id;
+      renderAdmin();
+    });
+    $("adminDepartmentsList").addEventListener("input", (event) => {
+      const nameIndex = event.target.dataset.adminDepartmentName;
+      if (nameIndex !== undefined) adminDraftSettings.departments[Number(nameIndex)].name = event.target.value;
+    });
+    $("adminDepartmentsList").addEventListener("change", (event) => {
+      const enabledIndex = event.target.dataset.adminDepartmentEnabled;
+      if (enabledIndex !== undefined) adminDraftSettings.departments[Number(enabledIndex)].enabled = event.target.value === "true";
+    });
+    $("adminDepartmentModulesSelect").addEventListener("change", (event) => {
+      adminModulesDepartmentId = event.target.value;
+      renderAdmin();
+    });
     $("addAdminModuleBtn").addEventListener("click", () => {
-      adminDraftSettings.modules.push("");
+      const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
+      if (department) department.modules.push("");
       renderAdmin();
     });
     $("addAdminAccountBtn").addEventListener("click", () => {
-      adminDraftSettings.accounts.push({ name: "", username: "" });
+      adminDraftSettings.accounts.push({ name: "", username: "", departmentId: adminDraftSettings.departments[0]?.id || defaultDepartment.id });
       renderAdmin();
     });
-    $("adminReloadBtn").addEventListener("click", () => loadSettings().then(renderAdmin).catch(() => setSyncStatus("配置读取失败", "warn")));
+    $("adminReloadBtn").addEventListener("click", () => loadSettings({ admin: true }).then(renderAdmin).catch(() => setSyncStatus("配置读取失败", "warn")));
     $("adminSaveBtn").addEventListener("click", () => saveAdminSettings().catch((error) => {
       $("adminSaveHint").textContent = error.message || "保存失败";
       setSyncStatus("后台配置保存失败", "warn");
@@ -3736,19 +3850,27 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("adminModulesList").addEventListener("input", (event) => {
       const index = event.target.dataset.adminModule;
       if (index === undefined) return;
-      adminDraftSettings.modules[Number(index)] = event.target.value;
+      const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
+      if (department) department.modules[Number(index)] = event.target.value;
     });
     $("adminModulesList").addEventListener("click", (event) => {
       const index = event.target.closest("[data-remove-admin-module]")?.dataset.removeAdminModule;
       if (index === undefined) return;
-      adminDraftSettings.modules.splice(Number(index), 1);
+      const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
+      if (department) department.modules.splice(Number(index), 1);
       renderAdmin();
     });
     $("adminAccountsList").addEventListener("input", (event) => {
       const nameIndex = event.target.dataset.adminAccountName;
       const usernameIndex = event.target.dataset.adminAccountUsername;
+      const departmentIndex = event.target.dataset.adminAccountDepartment;
       if (nameIndex !== undefined) adminDraftSettings.accounts[Number(nameIndex)].name = event.target.value;
       if (usernameIndex !== undefined) adminDraftSettings.accounts[Number(usernameIndex)].username = event.target.value;
+      if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
+    });
+    $("adminAccountsList").addEventListener("change", (event) => {
+      const departmentIndex = event.target.dataset.adminAccountDepartment;
+      if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
     });
     $("adminAccountsList").addEventListener("click", (event) => {
       const index = event.target.closest("[data-remove-admin-account]")?.dataset.removeAdminAccount;
@@ -3986,7 +4108,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     $("resetGoalsBtn").addEventListener("click", () => {
       if (!confirm("确认恢复为初始目标？当前目标表会被覆盖。")) return;
-      goalsRows = JSON.parse(JSON.stringify(initialGoalsRows));
+      goalsRows = defaultGoalsForCurrentDepartment();
       goalsRows.forEach((row, index) => {
         row.id = goalRowId(row, index);
       });
@@ -4038,12 +4160,28 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }, 60 * 1000);
     async function initializeApp() {
       if (isAdminRoute()) {
-        await loadSettings();
+        await loadSettings({ admin: adminAuthed });
         enterAdminMode();
         return;
       }
       await loadSettings();
+      if (userToken) {
+        const session = await apiJson("/api/auth/me");
+        currentUser = session.user;
+        userTokenExpiresAt = Number(session.expiresAt || 0);
+        if (currentUser) {
+          localStorage.setItem(userStorageKey, JSON.stringify(currentUser));
+          localStorage.setItem(userTokenExpiresStorageKey, String(userTokenExpiresAt));
+        } else {
+          clearLoginState();
+        }
+      }
       renderProfile();
+      if (!currentUser) {
+        setSyncStatus("请先登录", "warn");
+        openAuthModal("login");
+        return;
+      }
       await loadWeeks();
       setSyncStatus("已同步", "ok");
       maybeShowOnboarding();
