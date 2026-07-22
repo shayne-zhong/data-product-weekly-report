@@ -1,15 +1,11 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
 import { applyTaskStatus, buildEmptyTask, buildWeekId, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
 import { adminCredentialsValid as credentialsMatch, reportSyncKeyValid } from "../lib/runtime-config.mjs";
+import { createStateStore } from "../lib/state-store.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
 };
-const dataPath = "data-product-weekly-report/state-v1.json";
-const tmpPath = join(tmpdir(), "data-product-weekly-report-state-v1.json");
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
 const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true };
 const defaultSessionDurationMinutes = 30;
@@ -35,8 +31,7 @@ const defaultDepartmentAccounts = [
   ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
 ].map(([name, username]) => ({ name, username }));
 let memoryState = null;
-let blobApi = null;
-let netlifyStore = null;
+const stateStore = createStateStore();
 
 function json(res, body, status = 200) {
   Object.entries(jsonHeaders).forEach(([key, value]) => res.setHeader(key, value));
@@ -263,100 +258,15 @@ function hydrateState(state = {}) {
   return merged;
 }
 
-async function getBlobApi() {
-  if (blobApi !== null) return blobApi;
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    blobApi = false;
-    return blobApi;
-  }
-  try {
-    blobApi = await import("@vercel/blob");
-  } catch {
-    blobApi = false;
-  }
-  return blobApi;
-}
-
-async function getNetlifyStore() {
-  if (netlifyStore !== null) return netlifyStore;
-  if (!process.env.NETLIFY) {
-    netlifyStore = false;
-    return netlifyStore;
-  }
-  try {
-    const { getStore } = await import("@netlify/blobs");
-    netlifyStore = getStore({ name: "weekly-report", consistency: "strong" });
-  } catch {
-    netlifyStore = false;
-  }
-  return netlifyStore;
-}
-
 async function loadState() {
-  const store = await getNetlifyStore();
-  if (store) {
-    try {
-      const state = await store.get("state-v1.json", { type: "json" });
-      if (state) {
-        memoryState = hydrateState(state);
-        return memoryState;
-      }
-    } catch (error) {
-      if (process.env.NETLIFY) throw new Error(`Cloud state load failed: ${error.message || error}`);
-    }
-  } else if (process.env.NETLIFY) {
-    throw new Error("Cloud state storage is not configured");
-  }
-  const api = await getBlobApi();
-  if (api) {
-    try {
-      const blob = await api.get(dataPath, { access: "private", useCache: false });
-      if (blob?.stream) {
-        const text = await new Response(blob.stream).text();
-        memoryState = hydrateState(JSON.parse(text));
-        return memoryState;
-      }
-    } catch {}
-  }
-  if (memoryState) return memoryState;
-  try {
-    memoryState = hydrateState(JSON.parse(await readFile(tmpPath, "utf8")));
-  } catch {
-    memoryState = emptyState();
-  }
+  const state = await stateStore.load();
+  memoryState = state ? hydrateState(state) : emptyState();
   return memoryState;
 }
 
 async function saveState(state) {
   memoryState = state;
-  const body = JSON.stringify(state);
-  const store = await getNetlifyStore();
-  if (store) {
-    try {
-      await store.setJSON("state-v1.json", state);
-      return;
-    } catch (error) {
-      if (process.env.NETLIFY) throw new Error(`Cloud state save failed: ${error.message || error}`);
-    }
-  } else if (process.env.NETLIFY) {
-    throw new Error("Cloud state storage is not configured");
-  }
-  const api = await getBlobApi();
-  if (api) {
-    try {
-      await api.put(dataPath, body, {
-        access: "private",
-        allowOverwrite: true,
-        contentType: "application/json; charset=utf-8",
-      });
-      return;
-    } catch (error) {
-      if (process.env.VERCEL) throw new Error(`Cloud state save failed: ${error.message || error}`);
-    }
-  } else if (process.env.VERCEL) {
-    throw new Error("Cloud state storage is not configured");
-  }
-  await writeFile(tmpPath, body, "utf8");
+  await stateStore.save(state);
 }
 
 function requireKey(req, res) {

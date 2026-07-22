@@ -3,7 +3,11 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@cloudbase/node-sdk": "^4.0.3",
     "@netlify/blobs": "^9.1.2",
     "@vercel/blob": "^2.4.1"
+  },
+  "overrides": {
+    "axios": "1.18.1"
   }
 }
