@@ -2,6 +2,11 @@
   "name": "data-product-weekly-report",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "start": "node server.mjs"
+  },
   "dependencies": {
     "@cloudbase/node-sdk": "^4.0.3",
     "@netlify/blobs": "^9.1.2",

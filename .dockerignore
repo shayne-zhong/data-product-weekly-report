@@ -1,0 +1,13 @@
+.git
+.agents
+.codex
+.env*
+.netlify
+.playwright-cli
+.vercel
+backups
+coverage
+docs
+node_modules
+test
+*.log

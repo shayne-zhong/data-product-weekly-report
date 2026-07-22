@@ -10,3 +10,5 @@ server.err.log
 dist/
 build/
 coverage/
+backups/migration/
+.env.migration*
