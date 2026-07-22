@@ -1,0 +1,57 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { createProductionServer } from "../server.mjs";
+
+process.env.REPORT_SYNC_KEY = "production-server-test-key";
+process.env.ADMIN_USERNAME = "admin-test";
+process.env.ADMIN_PASSWORD = "admin-password-test";
+
+function listen(server) {
+  return new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+}
+
+function close(server) {
+  return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+test("production server serves health, UI, and protected API", async () => {
+  const server = createProductionServer({ deploymentVersion: "test-version" });
+  await listen(server);
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    const healthResponse = await fetch(`${origin}/healthz`);
+    assert.equal(healthResponse.status, 200);
+    assert.deepEqual(await healthResponse.json(), { status: "ok", version: "test-version" });
+
+    const home = await fetch(origin);
+    assert.equal(home.status, 200);
+    assert.match(await home.text(), /<title>部门工作台<\/title>/);
+
+    assert.equal((await fetch(`${origin}/admin`)).status, 200);
+    assert.equal((await fetch(`${origin}/favicon.svg`)).status, 200);
+
+    const protectedResponse = await fetch(`${origin}/api/weeks`, {
+      headers: { "x-report-key": process.env.REPORT_SYNC_KEY },
+    });
+    assert.equal(protectedResponse.status, 401);
+  } finally {
+    await close(server);
+  }
+});
+
+test("production server does not expose files outside public", async () => {
+  const server = createProductionServer({ deploymentVersion: "test-version" });
+  await listen(server);
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    assert.equal((await fetch(`${origin}/..%2Fpackage.json`)).status, 404);
+  } finally {
+    await close(server);
+  }
+});
