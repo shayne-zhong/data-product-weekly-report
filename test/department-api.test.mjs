@@ -8,6 +8,8 @@ const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
 process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
+process.env.ADMIN_SESSION_SECRET = "department-api-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString("base64");
 
 function mockRes() {
   return {
@@ -28,12 +30,13 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", admin = false, includeSyncKey = true } = {}) {
+async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true } = {}) {
   const req = {
     method,
     headers: {
       ...(includeSyncKey ? { "x-report-key": syncKey } : {}),
       ...(token ? { "x-user-token": token } : {}),
+      ...(adminToken ? { authorization: `Bearer ${adminToken}` } : {}),
       ...(admin ? { "x-admin-user": "Admin", "x-admin-password": "888888" } : {}),
     },
     query: { path: path.split("/").filter(Boolean) },
@@ -43,6 +46,27 @@ async function api(path, { method = "GET", body, token = "", admin = false, incl
   await handler(req, res);
   return res;
 }
+
+test("admin credentials are exchanged for a short-lived bearer token", async () => {
+  const loggedIn = await api("/admin/login", {
+    method: "POST",
+    body: { username: "Admin", password: "888888" },
+    includeSyncKey: false,
+  });
+  assert.equal(loggedIn.statusCode, 200);
+  assert.ok(loggedIn.body.token);
+  assert.ok(loggedIn.body.expiresAt > Date.now());
+
+  const settings = await api("/admin/settings", {
+    adminToken: loggedIn.body.token,
+    includeSyncKey: false,
+  });
+  assert.equal(settings.statusCode, 200);
+  assert.ok(settings.body.settings.accounts.length > 0);
+
+  const rejected = await api("/admin/settings", { adminToken: `${loggedIn.body.token}x`, includeSyncKey: false });
+  assert.equal(rejected.statusCode, 401);
+});
 
 test("registration and login do not require the legacy report sync key", async () => {
   const username = uniqueUsername("keyless");

@@ -1,5 +1,6 @@
 import { applyTaskStatus, buildEmptyTask, buildWeekId, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
 import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config.mjs";
+import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
 
 const jsonHeaders = {
@@ -748,18 +749,18 @@ async function handleAi(req, res, state, parts, actor) {
   }
 }
 
-async function handleSettings(req, res, state, now) {
+async function handleSettings(req, res, state, now, { adminAuthorized = false } = {}) {
   if (req.method === "GET") {
     const session = currentSession(req, state, now);
     return json(res, {
       settings: publicSettings(state, {
-        admin: adminCredentialsValid(req),
+        admin: adminAuthorized || adminCredentialsValid(req),
         departmentId: session?.departmentId || "",
       }),
     });
   }
   if (req.method !== "POST" && req.method !== "PATCH") return methodNotAllowed(res);
-  if (!requireAdmin(req, res)) return;
+  if (!adminAuthorized && !requireAdmin(req, res)) return;
   const body = await readBody(req);
   const current = getSettings(state);
   if (Object.hasOwn(body, "sessionDurationMinutes") && !validSessionDurationMinutes(body.sessionDurationMinutes)) {
@@ -799,6 +800,27 @@ async function handleSettings(req, res, state, now) {
   return json(res, { settings: publicSettings(state, { admin: true }) });
 }
 
+function bearerToken(req) {
+  const header = String(req.headers.authorization || req.headers.Authorization || "");
+  return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+}
+
+async function handleAdmin(req, res, state, parts, now) {
+  const action = parts[1] || "";
+  if (action === "login") {
+    if (req.method !== "POST") return methodNotAllowed(res);
+    const { username, password } = await readBody(req);
+    if (!credentialsMatch(username, password)) return json(res, { error: "后台账号或密码错误" }, 401);
+    const session = await issueAdminToken({ username, now });
+    return json(res, session);
+  }
+
+  const admin = await verifyAdminToken(bearerToken(req), { now });
+  if (!admin) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
+  if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
+  return json(res, { error: "Not found" }, 404);
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   const state = await loadState();
@@ -808,6 +830,7 @@ export default async function handler(req, res) {
   const actor = currentUser(req, state, now);
   try {
     if (parts[0] === "auth") return handleAuth(req, res, state, parts[1], now);
+    if (parts[0] === "admin") return handleAdmin(req, res, state, parts, now);
     if (parts[0] === "settings") return handleSettings(req, res, state, now);
     if (!actor) return json(res, { error: "请先登录" }, 401);
     if (parts[0] === "weeks") return handleWeeks(req, res, state, parts, now, actor);
