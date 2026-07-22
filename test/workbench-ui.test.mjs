@@ -49,3 +49,12 @@ test("data product starter goals are not copied into other departments", () => {
   assert.match(html, /currentDepartment\(\)\.id === defaultDepartment\.id/);
   assert.match(html, /function defaultGoalsForCurrentDepartment/);
 });
+
+test("admin credentials are entered by the operator and are not hard-coded", () => {
+  assert.doesNotMatch(html, /默认账号|默认密码|888888/);
+  assert.doesNotMatch(html, /"x-admin-user":\s*"Admin"/);
+  assert.match(html, /adminCredentialsStorageKey = `\$\{storageKey\}-admin-credentials`/);
+  assert.match(html, /sessionStorage\.setItem\(adminCredentialsStorageKey/);
+  assert.match(html, /adminRequestHeaders\(\)/);
+  assert.match(html, /catch \(error\) \{\s*if \(admin\) throw error;/);
+});

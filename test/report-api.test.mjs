@@ -5,6 +5,9 @@ import { randomUUID } from "node:crypto";
 import handler from "../api/[...path].mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
+process.env.REPORT_SYNC_KEY = syncKey;
+process.env.ADMIN_USERNAME = "Admin";
+process.env.ADMIN_PASSWORD = "888888";
 
 function mockRes() {
   return {

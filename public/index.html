@@ -311,9 +311,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       </div>
       <div class="admin-login panel" id="adminLoginPanel">
         <h3>后台登录</h3>
-        <p class="subtitle">默认账号 Admin，默认密码 888888。</p>
+        <p class="subtitle">请输入部署环境中配置的后台账号与密码。</p>
         <div class="form-grid">
-          <div><label>账号</label><input id="adminUsername" autocomplete="off" value="Admin" /></div>
+          <div><label>账号</label><input id="adminUsername" autocomplete="username" /></div>
           <div><label>密码</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入后台密码" /></div>
         </div>
         <div class="actions" style="justify-content:flex-start;margin-top:12px;">
@@ -708,7 +708,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let aiGenerating = false;
     let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
     let adminModulesDepartmentId = defaultDepartment.id;
-    let adminAuthed = sessionStorage.getItem(`${storageKey}-admin-auth`) === "true";
+    const adminCredentialsStorageKey = `${storageKey}-admin-credentials`;
+    let adminCredentials = JSON.parse(sessionStorage.getItem(adminCredentialsStorageKey) || "null") || { username: "", password: "" };
+    let adminAuthed = Boolean(adminCredentials.username && adminCredentials.password);
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
     let taskModuleFilter = "all";
@@ -1389,13 +1391,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       applyDepartmentBranding();
     }
 
+    function adminRequestHeaders() {
+      return {
+        "x-admin-user": adminCredentials.username,
+        "x-admin-password": adminCredentials.password,
+      };
+    }
+
     async function loadSettings({ admin = false } = {}) {
       try {
         const result = await apiJson("/api/settings", admin ? {
-          headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+          headers: adminRequestHeaders(),
         } : {});
         applySettings(result.settings || {});
-      } catch {
+      } catch (error) {
+        if (admin) throw error;
         applySettings({ departments: [defaultDepartment], accounts: defaultDepartmentAccounts, sessionDurationMinutes: 30 });
         setSyncStatus("配置读取失败，已使用默认配置", "warn");
       }
@@ -3271,8 +3281,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-user": "Admin",
-          "x-admin-password": "888888",
+          ...adminRequestHeaders(),
         },
         body: JSON.stringify(adminDraftSettings),
       });
@@ -3800,16 +3809,25 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("backFromAdminBtn").addEventListener("click", () => {
       location.href = "/";
     });
-    $("adminLoginBtn").addEventListener("click", () => {
-      const username = $("adminUsername").value.trim().toLowerCase();
+    $("adminLoginBtn").addEventListener("click", async () => {
+      const username = $("adminUsername").value.trim();
       const password = $("adminPassword").value;
-      if (username !== "admin" || password !== "888888") {
-        $("adminSaveHint").textContent = "后台账号或密码不正确";
+      if (!username || !password) {
+        $("adminSaveHint").textContent = "请输入后台账号和密码";
+        return setSyncStatus("后台登录失败", "warn");
+      }
+      adminCredentials = { username, password };
+      try {
+        await loadSettings({ admin: true });
+      } catch (error) {
+        adminCredentials = { username: "", password: "" };
+        sessionStorage.removeItem(adminCredentialsStorageKey);
+        $("adminSaveHint").textContent = error.message || "后台账号或密码不正确";
         return setSyncStatus("后台登录失败", "warn");
       }
       adminAuthed = true;
-      sessionStorage.setItem(`${storageKey}-admin-auth`, "true");
-      loadSettings({ admin: true }).then(renderAdmin).catch(() => renderAdmin());
+      sessionStorage.setItem(adminCredentialsStorageKey, JSON.stringify(adminCredentials));
+      renderAdmin();
       setSyncStatus("后台登录成功", "ok");
     });
     $("addAdminDepartmentBtn").addEventListener("click", () => {

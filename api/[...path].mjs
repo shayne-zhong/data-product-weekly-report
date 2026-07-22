@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { applyTaskStatus, buildEmptyTask, buildWeekId, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
+import { adminCredentialsValid as credentialsMatch, reportSyncKeyValid } from "../lib/runtime-config.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -9,7 +10,6 @@ const jsonHeaders = {
 };
 const dataPath = "data-product-weekly-report/state-v1.json";
 const tmpPath = join(tmpdir(), "data-product-weekly-report-state-v1.json");
-const defaultSyncKey = "DP-WEEKLY-2026-7K4M";
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
 const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true };
 const defaultSessionDurationMinutes = 30;
@@ -360,8 +360,7 @@ async function saveState(state) {
 }
 
 function requireKey(req, res) {
-  const expectedKey = process.env.REPORT_SYNC_KEY || defaultSyncKey;
-  if (req.headers["x-report-key"] !== expectedKey) {
+  if (!reportSyncKeyValid(req.headers["x-report-key"])) {
     json(res, { error: "Unauthorized" }, 401);
     return false;
   }
@@ -371,7 +370,7 @@ function requireKey(req, res) {
 function adminCredentialsValid(req) {
   const username = String(req.headers["x-admin-user"] || "").trim().toLowerCase();
   const password = String(req.headers["x-admin-password"] || "");
-  return username === "admin" && password === "888888";
+  return credentialsMatch(username, password);
 }
 
 function requireAdmin(req, res) {
