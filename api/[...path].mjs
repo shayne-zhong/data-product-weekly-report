@@ -1,6 +1,7 @@
 import { applyTaskStatus, buildEmptyTask, buildWeekId, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
 import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config.mjs";
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
+import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
 
 const jsonHeaders = {
@@ -126,10 +127,16 @@ function normalizeSessionDurationMinutes(value, fallback = defaultSessionDuratio
 function normalizeAiSettings(value = {}) {
   const provider = Object.hasOwn(aiProviders, value.provider) ? value.provider : "deepseek";
   const model = String(value.model || aiProviders[provider].defaultModel).trim().slice(0, 100);
+  const encryptedApiKey = value.encryptedApiKey && typeof value.encryptedApiKey === "object"
+    ? value.encryptedApiKey
+    : null;
+  const apiKeyLast4 = String(value.apiKeyLast4 || "").slice(-4);
   return {
     enabled: value.enabled === true,
     provider,
     model: model || aiProviders[provider].defaultModel,
+    ...(encryptedApiKey ? { encryptedApiKey } : {}),
+    ...(encryptedApiKey && apiKeyLast4 ? { apiKeyLast4 } : {}),
   };
 }
 
@@ -139,13 +146,22 @@ function aiApiKey(provider) {
   return definition.apiKeyNames.map((name) => process.env[name]).find(Boolean) || "";
 }
 
-function publicAiSettings(value = {}) {
+async function resolvedAiApiKey(value = {}) {
+  if (value.encryptedApiKey) return decryptSecret(value.encryptedApiKey);
+  return aiApiKey(value.provider);
+}
+
+function publicAiSettings(value = {}, { admin = false } = {}) {
   const ai = normalizeAiSettings(value);
-  return {
-    ...ai,
+  const result = {
+    enabled: ai.enabled,
+    provider: ai.provider,
+    model: ai.model,
     providerLabel: aiProviders[ai.provider].label,
-    configured: Boolean(aiApiKey(ai.provider)),
+    configured: Boolean(ai.encryptedApiKey || aiApiKey(ai.provider)),
   };
+  if (admin && ai.encryptedApiKey && ai.apiKeyLast4) result.apiKeyMask = `•••• ${ai.apiKeyLast4}`;
+  return result;
 }
 
 function defaultSettings() {
@@ -178,7 +194,7 @@ function getSettings(state = {}) {
 
 function publicSettings(state = {}, { admin = false, departmentId = "" } = {}) {
   const settings = getSettings(state);
-  const ai = publicAiSettings(settings.ai);
+  const ai = publicAiSettings(settings.ai, { admin });
   if (admin) return { ...settings, ai };
   if (departmentId) {
     const department = settings.departments.find((item) => item.id === departmentId);
@@ -664,7 +680,7 @@ function cleanAiText(value) {
 
 async function requestAiSummary({ sourceText, style, summaryType, departmentName, ai }) {
   const provider = aiProviders[ai.provider];
-  const apiKey = aiApiKey(ai.provider);
+  const apiKey = await resolvedAiApiKey(ai);
   if (!apiKey) throw new Error(`${provider.label} API Key 未配置`);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
@@ -731,7 +747,7 @@ async function handleAi(req, res, state, parts, actor) {
   const departmentSettings = settingsForDepartment(state, actor.departmentId);
   const ai = normalizeAiSettings(departmentSettings.ai);
   if (!ai.enabled) return json(res, { error: "后台尚未启用AI提炼" }, 503);
-  if (!aiApiKey(ai.provider)) return json(res, { error: `${aiProviders[ai.provider].label} API Key 未配置` }, 503);
+  if (!ai.encryptedApiKey && !aiApiKey(ai.provider)) return json(res, { error: `${aiProviders[ai.provider].label} API Key 未配置` }, 503);
   const body = await readBody(req);
   const sourceText = String(body.sourceText || "").trim();
   if (sourceText.length < 20) return json(res, { error: "周报内容过少，暂时无法提炼" }, 400);
@@ -791,13 +807,45 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     sessionDurationMinutes: Object.hasOwn(body, "sessionDurationMinutes")
       ? Number(body.sessionDurationMinutes)
       : current.sessionDurationMinutes,
-    ai: body.ai ? normalizeAiSettings(body.ai) : current.ai,
+    ai: body.ai ? normalizeAiSettings({ ...current.ai, ...body.ai }) : current.ai,
   };
+  if (body.ai?.apiKey) {
+    const apiKey = String(body.ai.apiKey).trim();
+    next.ai.encryptedApiKey = await encryptSecret(apiKey);
+    next.ai.apiKeyLast4 = apiKey.slice(-4);
+  }
+  if (body.ai?.clearApiKey === true) {
+    delete next.ai.encryptedApiKey;
+    delete next.ai.apiKeyLast4;
+    next.ai.enabled = false;
+  }
   if (!next.modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
   if (!next.accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
   state.settings = { ...next, updatedAt: now };
   await saveState(state);
   return json(res, { settings: publicSettings(state, { admin: true }) });
+}
+
+async function testAiConnection({ provider: providerName, model, apiKey }) {
+  const provider = aiProviders[providerName];
+  if (!provider || !apiKey) throw new Error("请填写有效的 AI API 密钥");
+  const response = await fetch(provider.endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: String(model || provider.defaultModel),
+      messages: [{ role: "user", content: "请回复 OK" }],
+      temperature: 0,
+      max_tokens: 4,
+      stream: false,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = String(payload?.error?.message || payload?.message || `HTTP ${response.status}`).slice(0, 240);
+    throw new Error(`${provider.label} 连接失败：${message}`);
+  }
+  return { ok: true, message: "连接成功" };
 }
 
 function bearerToken(req) {
@@ -818,6 +866,16 @@ async function handleAdmin(req, res, state, parts, now) {
   const admin = await verifyAdminToken(bearerToken(req), { now });
   if (!admin) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
+  if (action === "ai" && parts[2] === "test" && req.method === "POST") {
+    const body = await readBody(req);
+    const ai = normalizeAiSettings({ ...getSettings(state).ai, ...body });
+    try {
+      const apiKey = String(body.apiKey || "").trim() || await resolvedAiApiKey(ai);
+      return json(res, await testAiConnection({ provider: ai.provider, model: ai.model, apiKey }));
+    } catch (error) {
+      return json(res, { error: error.message || "AI 连接测试失败" }, 502);
+    }
+  }
   return json(res, { error: "Not found" }, 404);
 }
 

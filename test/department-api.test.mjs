@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 import handler from "../api/[...path].mjs";
+import { defaultLocalStatePath } from "../lib/state-store.mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
@@ -66,6 +68,59 @@ test("admin credentials are exchanged for a short-lived bearer token", async () 
 
   const rejected = await api("/admin/settings", { adminToken: `${loggedIn.body.token}x`, includeSyncKey: false });
   assert.equal(rejected.statusCode, 401);
+});
+
+async function adminSessionToken() {
+  const response = await api("/admin/login", {
+    method: "POST",
+    body: { username: "Admin", password: "888888" },
+    includeSyncKey: false,
+  });
+  assert.equal(response.statusCode, 200);
+  return response.body.token;
+}
+
+test("admin settings encrypt, mask, test, and clear AI API keys", async () => {
+  const token = await adminSessionToken();
+  const apiKey = `sk-encrypted-${randomUUID().slice(-8)}`;
+  const saved = await api("/admin/settings", {
+    method: "PATCH",
+    adminToken: token,
+    includeSyncKey: false,
+    body: { ai: { enabled: true, provider: "deepseek", model: "deepseek-chat", apiKey } },
+  });
+
+  assert.equal(saved.statusCode, 200);
+  assert.equal(saved.body.settings.ai.configured, true);
+  assert.equal(saved.body.settings.ai.apiKeyMask, `•••• ${apiKey.slice(-4)}`);
+  assert.equal(JSON.stringify(saved.body).includes(apiKey), false);
+  assert.equal((await readFile(defaultLocalStatePath(), "utf8")).includes(apiKey), false);
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 401, async json() { return { error: { message: "invalid key" } }; } });
+  try {
+    const tested = await api("/admin/ai/test", {
+      method: "POST",
+      adminToken: token,
+      includeSyncKey: false,
+      body: { provider: "deepseek", model: "deepseek-chat", apiKey: "sk-invalid" },
+    });
+    assert.equal(tested.statusCode, 502);
+    const unchanged = await api("/admin/settings", { adminToken: token, includeSyncKey: false });
+    assert.equal(unchanged.body.settings.ai.apiKeyMask, `•••• ${apiKey.slice(-4)}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const cleared = await api("/admin/settings", {
+    method: "PATCH",
+    adminToken: token,
+    includeSyncKey: false,
+    body: { ai: { clearApiKey: true } },
+  });
+  assert.equal(cleared.statusCode, 200);
+  assert.equal(cleared.body.settings.ai.configured, false);
+  assert.equal(cleared.body.settings.ai.enabled, false);
 });
 
 test("registration and login do not require the legacy report sync key", async () => {
