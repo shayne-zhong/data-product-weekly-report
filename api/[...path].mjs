@@ -1,5 +1,5 @@
 import { applyTaskStatus, buildEmptyTask, buildWeekId, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
-import { adminCredentialsValid as credentialsMatch, reportSyncKeyValid } from "../lib/runtime-config.mjs";
+import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
 
 const jsonHeaders = {
@@ -267,14 +267,6 @@ async function loadState() {
 async function saveState(state) {
   memoryState = state;
   await stateStore.save(state);
-}
-
-function requireKey(req, res) {
-  if (!reportSyncKeyValid(req.headers["x-report-key"])) {
-    json(res, { error: "Unauthorized" }, 401);
-    return false;
-  }
-  return true;
 }
 
 function adminCredentialsValid(req) {
@@ -809,7 +801,6 @@ async function handleSettings(req, res, state, now) {
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
-  if (!requireKey(req, res)) return;
   const state = await loadState();
   const now = Date.now();
   const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");

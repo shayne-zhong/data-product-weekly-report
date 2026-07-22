@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 
 import { createProductionServer } from "../server.mjs";
 
-process.env.REPORT_SYNC_KEY = "production-server-test-key";
 process.env.ADMIN_USERNAME = "admin-test";
 process.env.ADMIN_PASSWORD = "admin-password-test";
+process.env.ADMIN_SESSION_SECRET = "production-server-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 4).toString("base64");
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -35,9 +36,7 @@ test("production server serves health, UI, and protected API", async () => {
     assert.equal((await fetch(`${origin}/admin`)).status, 200);
     assert.equal((await fetch(`${origin}/favicon.svg`)).status, 200);
 
-    const protectedResponse = await fetch(`${origin}/api/weeks`, {
-      headers: { "x-report-key": process.env.REPORT_SYNC_KEY },
-    });
+    const protectedResponse = await fetch(`${origin}/api/weeks`);
     assert.equal(protectedResponse.status, 401);
   } finally {
     await close(server);

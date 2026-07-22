@@ -28,11 +28,11 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", admin = false } = {}) {
+async function api(path, { method = "GET", body, token = "", admin = false, includeSyncKey = true } = {}) {
   const req = {
     method,
     headers: {
-      "x-report-key": syncKey,
+      ...(includeSyncKey ? { "x-report-key": syncKey } : {}),
       ...(token ? { "x-user-token": token } : {}),
       ...(admin ? { "x-admin-user": "Admin", "x-admin-password": "888888" } : {}),
     },
@@ -43,6 +43,39 @@ async function api(path, { method = "GET", body, token = "", admin = false } = {
   await handler(req, res);
   return res;
 }
+
+test("registration and login do not require the legacy report sync key", async () => {
+  const username = uniqueUsername("keyless");
+  const current = await api("/settings", { admin: true });
+  await saveSettings({
+    departments: current.body.settings.departments,
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "Keyless User", username, departmentId: current.body.settings.departments[0].id },
+    ],
+    sessionDurationMinutes: 60,
+  });
+
+  const registered = await api("/auth/register", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username, password: "12345678" },
+  });
+  assert.equal(registered.statusCode, 201);
+
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
+  assert.ok(loggedIn.body.token);
+});
+
+test("business data still requires a user session without a sync key", async () => {
+  const response = await api("/weeks", { includeSyncKey: false });
+  assert.equal(response.statusCode, 401);
+});
 
 function uniqueUsername(prefix) {
   return `${prefix}${randomUUID().replaceAll("-", "").slice(0, 10)}`;
