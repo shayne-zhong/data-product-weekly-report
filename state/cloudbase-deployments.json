@@ -1,0 +1,20 @@
+[
+  {
+    "deployedAt": "2026-07-22T03:49:15.0264547Z",
+    "environmentId": "shayen-d0g1qu7hfe1045db1",
+    "environmentAlias": "shayen",
+    "region": "ap-shanghai",
+    "service": "department-workbench",
+    "cloudVersion": "department-workbench-003",
+    "sourceVersion": "18c61f3b9aef79d3042715c3ac877b5cb40836f1",
+    "url": "https://department-workbench-4144803-1301331867.ap-shanghai.run.tcloudbase.com",
+    "status": "normal",
+    "checks": {
+      "health": 200,
+      "home": 200,
+      "anonymousApi": 401,
+      "adminLogin": true,
+      "adminSettings": true
+    }
+  }
+]
