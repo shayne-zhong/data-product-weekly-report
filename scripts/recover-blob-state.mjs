@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { fingerprintState } from "../lib/state-fingerprint.mjs";
+import { downloadVercelState } from "../lib/vercel-state-source.mjs";
 
 const statePath = "data-product-weekly-report/state-v1.json";
 
@@ -33,13 +34,12 @@ async function loadToken() {
 const token = await loadToken();
 if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN in the process or MIGRATION_ENV_FILE");
 
-const { head } = await import("@vercel/blob");
-const blob = await head(statePath, { token });
-const response = await fetch(blob.downloadUrl, { headers: { Authorization: `Bearer ${token}` } });
-if (!response.ok) throw new Error(`Unable to download Vercel Blob state: ${response.status} ${response.statusText}`);
-
-const text = await response.text();
-const state = JSON.parse(text);
+const blobApi = await import("@vercel/blob");
+const { state, metadata: blob } = await downloadVercelState({
+  blobApi,
+  token,
+  pathname: statePath,
+});
 const fingerprint = fingerprintState(state);
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const backupDir = process.env.MIGRATION_BACKUP_DIR || join("backups", "migration", stamp);
