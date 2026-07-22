@@ -4,6 +4,7 @@
 node_modules/
 .netlify/
 .playwright-cli/
+.superpowers/
 *.log
 server.out.log
 server.err.log
