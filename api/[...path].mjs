@@ -286,20 +286,6 @@ async function saveState(state) {
   await stateStore.save(state);
 }
 
-function adminCredentialsValid(req) {
-  const username = String(req.headers["x-admin-user"] || "").trim().toLowerCase();
-  const password = String(req.headers["x-admin-password"] || "");
-  return credentialsMatch(username, password);
-}
-
-function requireAdmin(req, res) {
-  if (!adminCredentialsValid(req)) {
-    json(res, { error: "Admin unauthorized" }, 401);
-    return false;
-  }
-  return true;
-}
-
 async function readBody(req) {
   if (req.body && typeof req.body === "object") return req.body;
   if (typeof req.body === "string") return req.body ? JSON.parse(req.body) : {};
@@ -770,13 +756,13 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     const session = currentSession(req, state, now);
     return json(res, {
       settings: publicSettings(state, {
-        admin: adminAuthorized || adminCredentialsValid(req),
+        admin: adminAuthorized,
         departmentId: session?.departmentId || "",
       }),
     });
   }
   if (req.method !== "POST" && req.method !== "PATCH") return methodNotAllowed(res);
-  if (!adminAuthorized && !requireAdmin(req, res)) return;
+  if (!adminAuthorized) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
   const body = await readBody(req);
   const current = getSettings(state);
   if (Object.hasOwn(body, "sessionDurationMinutes") && !validSessionDurationMinutes(body.sessionDurationMinutes)) {

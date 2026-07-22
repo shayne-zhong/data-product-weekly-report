@@ -8,6 +8,8 @@ const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
 process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
+process.env.ADMIN_SESSION_SECRET = "persistence-api-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 6).toString("base64");
 
 function mockRes() {
   return {
@@ -48,12 +50,14 @@ async function api(path, { method = "GET", body, token, headers = {} } = {}) {
 }
 
 test.before(async () => {
+  const adminLogin = await api("/admin/login", { method: "POST", body: { username: "Admin", password: "888888" } });
+  assert.equal(adminLogin.statusCode, 200);
   const username = `persist${randomUUID().replaceAll("-", "").slice(0, 10)}`;
   const current = await api("/settings");
   const settings = current.body.settings;
-  const saved = await api("/settings", {
+  const saved = await api("/admin/settings", {
     method: "POST",
-    headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+    headers: { authorization: `Bearer ${adminLogin.body.token}` },
     body: {
       departments: settings.departments,
       accounts: [...settings.accounts, { name: "持久化测试", username, departmentId: settings.departments[0].id }],

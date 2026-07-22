@@ -32,22 +32,34 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true } = {}) {
+async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {} } = {}) {
+  const resolvedAdminToken = adminToken || (admin ? await adminSessionToken() : "");
+  const resolvedPath = admin && path === "/settings" ? "/admin/settings" : path;
   const req = {
     method,
     headers: {
       ...(includeSyncKey ? { "x-report-key": syncKey } : {}),
       ...(token ? { "x-user-token": token } : {}),
-      ...(adminToken ? { authorization: `Bearer ${adminToken}` } : {}),
-      ...(admin ? { "x-admin-user": "Admin", "x-admin-password": "888888" } : {}),
+      ...(resolvedAdminToken ? { authorization: `Bearer ${resolvedAdminToken}` } : {}),
+      ...headers,
     },
-    query: { path: path.split("/").filter(Boolean) },
+    query: { path: resolvedPath.split("/").filter(Boolean) },
     body,
   };
   const res = mockRes();
   await handler(req, res);
   return res;
 }
+
+test("legacy admin password headers cannot update settings", async () => {
+  const response = await api("/settings", {
+    method: "PATCH",
+    includeSyncKey: false,
+    headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+    body: { sessionDurationMinutes: 30 },
+  });
+  assert.equal(response.statusCode, 401);
+});
 
 test("admin credentials are exchanged for a short-lived bearer token", async () => {
   const loggedIn = await api("/admin/login", {

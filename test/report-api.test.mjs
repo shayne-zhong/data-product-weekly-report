@@ -8,6 +8,8 @@ const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
 process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
+process.env.ADMIN_SESSION_SECRET = "report-api-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 5).toString("base64");
 
 function mockRes() {
   return {
@@ -29,6 +31,7 @@ function mockRes() {
 }
 
 let defaultToken = "";
+let adminToken = "";
 
 async function api(path, { method = "GET", body, token, headers = {} } = {}) {
   const resolvedToken = token === undefined ? defaultToken : token;
@@ -44,12 +47,15 @@ async function api(path, { method = "GET", body, token, headers = {} } = {}) {
 }
 
 test.before(async () => {
+  const adminLogin = await api("/admin/login", { method: "POST", body: { username: "Admin", password: "888888" } });
+  assert.equal(adminLogin.statusCode, 200);
+  adminToken = adminLogin.body.token;
   const username = `report${randomUUID().replaceAll("-", "").slice(0, 10)}`;
   const current = await api("/settings");
   const settings = current.body.settings;
-  const saved = await api("/settings", {
+  const saved = await api("/admin/settings", {
     method: "POST",
-    headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+    headers: { authorization: `Bearer ${adminToken}` },
     body: {
       departments: settings.departments,
       accounts: [...settings.accounts, { name: "报告测试", username, departmentId: settings.departments[0].id }],
@@ -93,9 +99,9 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
   });
   assert.equal(anonymous.statusCode, 401);
 
-  const saved = await api("/settings", {
+  const saved = await api("/admin/settings", {
     method: "POST",
-    headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+    headers: { authorization: `Bearer ${adminToken}` },
     body: { ai: { enabled: true, provider: "deepseek", model: "deepseek-v4-flash" } },
   });
   assert.equal(saved.statusCode, 200);
@@ -135,9 +141,9 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
     assert.equal(upstreamRequest.url, "https://api.deepseek.com/chat/completions");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-placeholder");
 
-    const kimiSettings = await api("/settings", {
+    const kimiSettings = await api("/admin/settings", {
       method: "POST",
-      headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+      headers: { authorization: `Bearer ${adminToken}` },
       body: { ai: { enabled: true, provider: "kimi", model: "kimi-k2.6" } },
     });
     assert.equal(kimiSettings.statusCode, 200);

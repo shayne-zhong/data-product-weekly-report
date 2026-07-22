@@ -48,6 +48,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 /* Task and report workflow refinements */
 .modal.wide{display:flex;flex-direction:column}.modal.wide .modal-body{flex:1;min-height:0;overflow:auto}.history-task-page{display:grid;gap:14px}.history-group{overflow:hidden}.history-group h3{margin:0;padding:12px 14px;background:#fafbfc;border-bottom:1px solid var(--line);font-size:14px}.history-task-row{display:grid;grid-template-columns:1fr 110px 130px;gap:10px;align-items:center;padding:12px 14px;background:#fff;border-bottom:1px solid var(--line)}.excel-hint{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted);font-size:12px}.history-supplement-modal{width:min(1180px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.history-supplement-modal .modal-body{overflow:auto;min-height:0}.history-supplement-grid{display:grid;grid-template-columns:minmax(320px,420px) minmax(420px,1fr);gap:16px}.history-supplement-actions{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 0 0;margin-top:10px}.seq-input{width:54px;border:1px solid var(--line);border-radius:8px;padding:6px 7px;text-align:center;background:#fff}.quarter-goal-cell{min-width:160px}.onboarding-modal{width:min(980px,calc(100% - 32px));max-height:calc(100vh - 36px);display:flex;flex-direction:column}.onboarding-modal .modal-body{overflow:auto}.onboarding-hero{width:100%;display:block;border:1px solid var(--line);border-radius:14px;background:#f8fafc;box-shadow:0 2px 10px rgba(16,24,40,.03)}.onboarding-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}.onboarding-step{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.onboarding-step b{display:block;margin-bottom:5px}.onboarding-step span{color:var(--muted);font-size:12px}.onboarding-num{width:24px;height:24px;border-radius:8px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font-weight:800;margin-bottom:8px}.guide-btn{padding:9px 12px}@media(max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.history-task-row{grid-template-columns:1fr}.history-supplement-grid{grid-template-columns:1fr}.history-supplement-modal{width:calc(100% - 18px);max-height:calc(100vh - 18px)}.onboarding-steps{grid-template-columns:1fr}.onboarding-modal{width:calc(100% - 18px);max-height:calc(100vh - 18px)}}
 
+.login-page{min-height:100vh;display:grid;grid-template-columns:minmax(420px,1.08fr) minmax(420px,.92fr);background:#edf2f9}.login-brand-panel{position:relative;overflow:hidden;background:#17326f;color:#fff;padding:56px clamp(38px,6vw,86px);display:flex;flex-direction:column;justify-content:space-between}.login-brand-panel:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(255,255,255,.14);border-radius:50%;right:-120px;top:-140px}.login-brand-panel:after{content:"";position:absolute;width:230px;height:230px;border-radius:54px;background:#315efb;right:50px;bottom:-130px;transform:rotate(24deg);opacity:.7}.login-brand-lockup,.login-brand-copy,.login-brand-foot{position:relative;z-index:1}.login-brand-lockup{display:flex;align-items:center;gap:13px;font-size:18px;font-weight:800}.login-brand-copy{max-width:520px}.login-kicker{font-size:12px;letter-spacing:.2em;color:#9db7ff;font-weight:800}.login-brand-copy h1{font-size:clamp(36px,5vw,58px);line-height:1.12;margin:18px 0}.login-brand-copy p{font-size:16px;line-height:1.9;color:#c8d6f6}.login-brand-foot{color:#91a7d5}.login-form-panel{background:#fff;padding:48px;display:grid;place-items:center}.login-box{width:min(390px,100%)}.login-box h2{font-size:30px;margin:8px 0}.login-box>p{color:var(--muted);margin:0 0 30px}.login-field{display:grid;gap:7px;margin-bottom:17px}.login-field label{font-size:12px;color:#344054;font-weight:800}.login-field input{height:46px;border:1px solid var(--line);border-radius:11px;padding:0 13px;outline:none}.login-field input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(49,94,251,.1)}.login-submit{width:100%;height:47px;margin-top:8px}.login-message{min-height:22px;margin-top:12px;color:var(--red)}.login-register{text-align:center;margin-top:19px;color:var(--muted)}.login-register button{border:0;background:transparent;color:var(--primary);font-weight:800;cursor:pointer}
+.settings-center{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}.settings-nav{position:sticky;top:88px;padding:10px;display:grid;gap:5px}.settings-nav button{border:0;background:transparent;color:#475467;border-radius:10px;padding:11px 12px;text-align:left;cursor:pointer;font-weight:700}.settings-nav button:hover{background:#f5f7fb;color:var(--text)}.settings-nav button.active{background:var(--primary-soft);color:var(--primary)}.settings-editor{min-height:520px}.admin-section{padding:22px}.admin-section[hidden]{display:none!important}.admin-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}.admin-section-head h3{margin:0 0 4px}.admin-section-head p{margin:0;color:var(--muted)}.settings-center+.admin-savebar{margin-left:238px}.admin-savebar[hidden]{display:none!important}
+@media(max-width:900px){.settings-center{grid-template-columns:1fr}.settings-nav{position:static;display:flex;overflow:auto}.settings-nav button{white-space:nowrap}.settings-center+.admin-savebar{margin-left:0}}
+@media(max-width:720px){.login-page{grid-template-columns:1fr}.login-brand-panel{display:none}.login-form-panel{padding:28px 20px}.login-box h2{font-size:26px}}
 </style>
 <style>
 /* Focused refinements: historical supplement and quarterly goal breakdown */
@@ -107,7 +111,25 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 </style>
 </head>
 <body>
-<div class="app">
+<main id="loginView" class="login-page">
+  <section class="login-brand-panel" aria-label="部门工作台介绍">
+    <div class="login-brand-lockup"><span class="logo" aria-hidden="true">▦</span><span>部门工作台</span></div>
+    <div class="login-brand-copy"><div class="login-kicker">WORK WITH CLARITY</div><h1>目标有方向，<br />工作有沉淀。</h1><p>统一管理部门目标、任务执行和周期总结，让每一次推进都有迹可循。</p></div>
+    <div class="login-brand-foot">安全登录 · 部门数据独立管理</div>
+  </section>
+  <section class="login-form-panel">
+    <form id="loginForm" class="login-box">
+      <div class="login-kicker">欢迎回来</div><h2>登录部门工作台</h2><p>使用你的账号和密码继续</p>
+      <div class="login-field"><label for="loginUsername">账号</label><input id="loginUsername" autocomplete="username" placeholder="请输入账号" /></div>
+      <div class="login-field"><label for="loginPassword">密码</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" /></div>
+      <div class="subtitle">登录状态将按后台设置的时间保持</div>
+      <button class="primary-btn login-submit" id="loginSubmitBtn" type="submit">登录</button>
+      <div class="login-message" id="loginMessage" role="alert"></div>
+      <div class="login-register">首次使用？<button id="loginRegisterBtn" type="button">注册账号</button></div>
+    </form>
+  </section>
+</main>
+<div class="app" id="workspaceShell" hidden>
   <header class="topbar">
     <div class="brand">
       <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="13" y="4" width="7" height="10" rx="1.5" fill="currentColor" opacity=".82"/><rect x="4" y="12" width="7" height="8" rx="1.5" fill="currentColor" opacity=".68"/><path d="M15.5 17h4M15.5 20h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
@@ -303,7 +325,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       <div class="page-head">
         <div class="title-wrap">
           <h2>后台管理</h2>
-          <p>维护周报项目类型与部门账号，保存后前台实时按配置读取。</p>
+          <p>集中维护部门、项目类型、成员账号、AI 服务与登录策略。</p>
         </div>
         <div class="head-actions">
           <button class="ghost-btn" id="backFromAdminBtn">返回工作台</button>
@@ -321,44 +343,47 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         </div>
       </div>
       <div id="adminManagePanel" hidden>
-        <div class="admin-grid">
-          <section class="panel admin-card">
-            <div class="admin-card-head">
-              <div><h3>部门管理</h3><p class="subtitle">维护系统内的部门名称与启用状态；已有部门可停用，不直接删除。</p></div>
-              <button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button>
-            </div>
-            <div id="adminDepartmentsList" class="admin-list"></div>
-          </section>
-          <section class="panel admin-card">
-            <div class="admin-card-head">
-              <div><h3>周报项目类型</h3><p class="subtitle">用于周报模块、任务模块筛选和导入待办归类。</p></div>
-              <button class="ghost-btn" id="addAdminModuleBtn">+ 新增类型</button>
-            </div>
-            <div style="margin-bottom:10px;"><label class="subtitle" for="adminDepartmentModulesSelect">所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
-            <div id="adminModulesList" class="admin-list"></div>
-          </section>
-          <section class="panel admin-card">
-            <div class="admin-card-head">
-              <div><h3>账号管理</h3><p class="subtitle">任务负责人、个人中心识别和注册绑定均使用该清单。</p></div>
-              <button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button>
-            </div>
-            <div id="adminAccountsList" class="admin-list"></div>
-          </section>
-          <section class="panel admin-card admin-ai-card">
-            <div class="admin-card-head">
-              <div><h3>AI周报提炼</h3><p class="subtitle">密钥仅从 Netlify 环境变量读取，不会保存到网页或业务数据。</p></div>
-            </div>
-            <div class="admin-ai-grid">
-              <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
-              <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-v4-flash" /></div>
-              <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
-              <div><label>登录保持时间（分钟）</label><input id="adminSessionDurationMinutes" type="number" min="5" max="43200" step="1" /></div>
-            </div>
-            <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API Key...</div>
-            <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;"></div>
-          </section>
+        <div class="settings-center">
+          <nav class="settings-nav panel" aria-label="后台设置分类">
+            <button class="active" data-admin-section="departments">部门管理</button>
+            <button data-admin-section="modules">项目类型</button>
+            <button data-admin-section="accounts">账号管理</button>
+            <button data-admin-section="ai">AI 服务</button>
+            <button data-admin-section="session">登录策略</button>
+          </nav>
+          <div class="settings-editor">
+            <section class="panel admin-section" data-admin-panel="departments">
+              <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门名称与启用状态；已有部门请停用，不直接删除。</p></div><button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
+              <div id="adminDepartmentsList" class="admin-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="modules" hidden>
+              <div class="admin-section-head"><div><h3>项目类型</h3><p>用于任务筛选、周报模块和导入待办归类。</p></div><button class="ghost-btn" id="addAdminModuleBtn">+ 新增类型</button></div>
+              <div style="margin-bottom:14px;"><label class="subtitle" for="adminDepartmentModulesSelect">所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
+              <div id="adminModulesList" class="admin-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="accounts" hidden>
+              <div class="admin-section-head"><div><h3>账号管理</h3><p>维护可注册成员及其所属部门。</p></div><button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button></div>
+              <div id="adminAccountsList" class="admin-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="ai" hidden>
+              <div class="admin-section-head"><div><h3>AI 服务</h3><p>配置模型和 API 密钥；完整密钥不会再次显示。</p></div></div>
+              <div class="admin-ai-grid">
+                <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
+                <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-chat" /></div>
+                <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
+                <div><label>API 密钥</label><input id="adminAiApiKey" type="password" autocomplete="new-password" placeholder="输入新密钥以配置或替换" /></div>
+              </div>
+              <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API 密钥...</div>
+              <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="ghost-btn" id="adminAiTestBtn">测试连接</button><button class="danger-btn" id="adminAiClearBtn">清除密钥</button></div>
+              <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;">密钥将由服务端加密保存。</div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="session" hidden>
+              <div class="admin-section-head"><div><h3>登录策略</h3><p>设置普通用户登录状态的保持时间。</p></div></div>
+              <div class="form-group" style="max-width:360px;"><label for="adminSessionDurationMinutes">登录保持时间（分钟）</label><input id="adminSessionDurationMinutes" type="number" min="5" max="43200" step="1" /></div>
+            </section>
+          </div>
         </div>
-        <div class="admin-savebar panel">
+        <div class="admin-savebar panel" hidden>
           <span id="adminSaveHint">修改后点击保存配置。</span>
           <div class="actions">
             <button class="ghost-btn" id="adminReloadBtn">重新加载</button>
@@ -668,7 +693,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
     ].map(([name, username]) => ({ name, username, departmentId: defaultDepartment.id }));
     const storageKey = "dp-weekly-workbench-v1";
-    const syncKeyStorageKey = `${storageKey}-sync-key`;
     const userStorageKey = `${storageKey}-user`;
     const userTokenStorageKey = `${storageKey}-user-token`;
     const userTokenExpiresStorageKey = `${storageKey}-user-token-expires-at`;
@@ -708,9 +732,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let aiGenerating = false;
     let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
     let adminModulesDepartmentId = defaultDepartment.id;
-    const adminCredentialsStorageKey = `${storageKey}-admin-credentials`;
-    let adminCredentials = JSON.parse(sessionStorage.getItem(adminCredentialsStorageKey) || "null") || { username: "", password: "" };
-    let adminAuthed = Boolean(adminCredentials.username && adminCredentials.password);
+    const adminSessionStorageKey = `${storageKey}-admin-session`;
+    let adminSession = JSON.parse(sessionStorage.getItem(adminSessionStorageKey) || "null") || { token: "", expiresAt: 0 };
+    let adminSessionToken = adminSession.token || "";
+    let adminAuthed = Boolean(adminSessionToken && Number(adminSession.expiresAt) > Date.now());
+    let adminActiveSection = "departments";
+    let adminDirty = false;
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
     let taskModuleFilter = "all";
@@ -804,6 +831,19 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return Math.max(0, Math.ceil((userTokenExpiresAt - Date.now()) / 60000));
     }
 
+    function showLoginPage(message = "") {
+      $("loginView").hidden = false;
+      $("workspaceShell").hidden = true;
+      $("loginMessage").textContent = message;
+      setTimeout(() => $("loginUsername").focus(), 0);
+    }
+
+    function showAuthenticatedWorkspace() {
+      $("loginView").hidden = true;
+      $("workspaceShell").hidden = false;
+      $("loginMessage").textContent = "";
+    }
+
     function clearLoginState(message = "") {
       currentUser = null;
       userToken = "";
@@ -815,6 +855,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderProfile();
       updateReportControls();
       if (message) setSyncStatus(message, "warn");
+      if (!isAdminRoute()) showLoginPage(message);
     }
 
     function ensureLoginAlive() {
@@ -823,38 +864,15 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return false;
     }
 
-    function getSyncKey(force = false) {
-      let key = localStorage.getItem(syncKeyStorageKey) || "";
-      if (!key || force) {
-        key = prompt("请输入周报协同口令") || "";
-        if (key) localStorage.setItem(syncKeyStorageKey, key);
-      }
-      return key;
-    }
-
     async function authedFetch(url, options = {}) {
       ensureLoginAlive();
-      const key = getSyncKey();
-      if (!key) throw new Error("missing key");
-      const request = () => fetch(url, {
+      const response = await fetch(url, {
         ...options,
-        headers: { ...(options.headers || {}), "x-report-key": key, ...(userToken ? { "x-user-token": userToken } : {}) },
+        headers: { ...(options.headers || {}), ...(userToken ? { "x-user-token": userToken } : {}) },
       });
-      let response = await request();
-      if (response.status === 401) {
-        const errorBody = await response.clone().json().catch(() => ({}));
-        if (errorBody.error === "Unauthorized") {
-          localStorage.removeItem(syncKeyStorageKey);
-          const nextKey = getSyncKey(true);
-          if (!nextKey) throw new Error("unauthorized");
-          response = await fetch(url, {
-            ...options,
-            headers: { ...(options.headers || {}), "x-report-key": nextKey, ...(userToken ? { "x-user-token": userToken } : {}) },
-          });
-        } else {
-          clearLoginState("登录已过期，请重新登录");
-          if (!isAdminRoute()) openAuthModal("login");
-        }
+      if (response.status === 401 && !isAdminRoute() && !url.includes("/api/auth/")) {
+        clearLoginState("登录已过期，请重新登录");
+        showLoginPage("登录已过期，请重新登录");
       }
       return response;
     }
@@ -1380,6 +1398,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         providerLabel: settings.ai?.providerLabel || (settings.ai?.provider === "kimi" ? "Kimi" : "DeepSeek"),
         model: settings.ai?.model || (settings.ai?.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash"),
         configured: settings.ai?.configured === true,
+        apiKeyMask: settings.ai?.apiKeyMask || "",
       };
       adminDraftSettings = {
         departments: departments.map((department) => ({ ...department, modules: [...department.modules] })),
@@ -1392,15 +1411,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function adminRequestHeaders() {
-      return {
-        "x-admin-user": adminCredentials.username,
-        "x-admin-password": adminCredentials.password,
-      };
+      return adminSessionToken ? { Authorization: `Bearer ${adminSessionToken}` } : {};
     }
 
     async function loadSettings({ admin = false } = {}) {
       try {
-        const result = await apiJson("/api/settings", admin ? {
+        const result = await apiJson(admin ? "/api/admin/settings" : "/api/settings", admin ? {
           headers: adminRequestHeaders(),
         } : {});
         applySettings(result.settings || {});
@@ -3215,9 +3231,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       document.body.classList.add("admin-mode");
       setView("admin");
       renderAdmin();
-      if (adminAuthed) {
-        loadSettings({ admin: true }).then(renderAdmin).catch(() => renderAdmin());
-      }
     }
 
     function renderAdmin() {
@@ -3226,6 +3239,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("syncStatus").textContent = adminAuthed ? "后台已登录" : "后台未登录";
       $("syncStatus").className = adminAuthed ? "sync-pill ok" : "sync-pill warn";
       if (!adminAuthed) return;
+      document.querySelectorAll("[data-admin-section]").forEach((button) => button.classList.toggle("active", button.dataset.adminSection === adminActiveSection));
+      document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== adminActiveSection; });
+      document.querySelector(".admin-savebar").hidden = !adminDirty;
       const draftDepartments = adminDraftSettings.departments || [];
       if (!draftDepartments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = draftDepartments[0]?.id || "";
       const selectedDepartment = draftDepartments.find((department) => department.id === adminModulesDepartmentId) || draftDepartments[0];
@@ -3258,11 +3274,15 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("adminSessionDurationMinutes").value = String(adminDraftSettings.sessionDurationMinutes || 30);
       $("adminAiKeyStatus").className = `ai-ready ${ai.configured ? "ok" : "warn"}`;
       $("adminAiKeyStatus").textContent = ai.configured
-        ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 已配置`
-        : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 未配置`;
-      $("adminAiEnvHint").textContent = ai.provider === "kimi"
-        ? "请在 Netlify 环境变量中配置 MOONSHOT_API_KEY（也兼容 KIMI_API_KEY）。"
-        : "请在 Netlify 环境变量中配置 DEEPSEEK_API_KEY。";
+        ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥已配置${ai.apiKeyMask ? ` · ${ai.apiKeyMask}` : ""}`
+        : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥未配置`;
+      $("adminAiEnvHint").textContent = "新密钥只在本次输入时可见，保存后由服务端加密存储。";
+    }
+
+    function markAdminDirty(message = "存在未保存修改") {
+      adminDirty = true;
+      $("adminSaveHint").textContent = message;
+      document.querySelector(".admin-savebar").hidden = false;
     }
 
     async function saveAdminSettings() {
@@ -3272,20 +3292,24 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!Number.isInteger(adminDraftSettings.sessionDurationMinutes) || adminDraftSettings.sessionDurationMinutes < 5 || adminDraftSettings.sessionDurationMinutes > 43200) {
         throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
       }
+      const apiKey = $("adminAiApiKey").value.trim();
       adminDraftSettings.ai = {
         enabled: adminDraftSettings.ai?.enabled === true,
         provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek",
         model: String(adminDraftSettings.ai?.model || "").trim(),
+        ...(apiKey ? { apiKey } : {}),
       };
-      const result = await apiJson("/api/settings", {
-        method: "POST",
+      const result = await apiJson("/api/admin/settings", {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...adminRequestHeaders(),
         },
         body: JSON.stringify(adminDraftSettings),
       });
+      $("adminAiApiKey").value = "";
       applySettings(result.settings || adminDraftSettings);
+      adminDirty = false;
       renderAdmin();
       $("adminSaveHint").textContent = `已保存配置 · ${new Date().toLocaleTimeString()}`;
       setSyncStatus("后台配置已保存", "ok");
@@ -3305,20 +3329,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function openAuthModal(mode = "login") {
       authMode = mode;
       renderAuthModal();
+      if (!$("loginView").hidden) $("workspaceShell").hidden = false;
       $("authModal").hidden = false;
     }
 
     function closeAuthModal() {
       $("authModal").hidden = true;
+      if (!currentUser && !isAdminRoute()) $("workspaceShell").hidden = true;
     }
 
-    async function authAction(action) {
-      const username = $("authUsername").value.trim();
-      const password = $("authPassword").value;
-      const displayName = $("authDisplayName").value.trim();
+    async function authAction(action, credentials = null) {
+      const username = credentials?.username?.trim() || $("authUsername").value.trim();
+      const password = credentials?.password ?? $("authPassword").value;
+      const displayName = credentials?.displayName?.trim() || $("authDisplayName").value.trim();
       if (!username || !password) {
-        $("authMessage").textContent = "请填写用户名和密码。";
-        return;
+        throw new Error("请填写用户名和密码。");
       }
       $("authMessage").textContent = action === "login" ? "正在登录..." : "正在注册...";
       const result = await apiJson(`/api/auth/${action}`, {
@@ -3333,6 +3358,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       localStorage.setItem(userTokenStorageKey, userToken);
       localStorage.setItem(userTokenExpiresStorageKey, String(userTokenExpiresAt));
       applyDepartmentBranding();
+      showAuthenticatedWorkspace();
       renderProfile();
       await loadSettings();
       await loadWeeks();
@@ -3341,6 +3367,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         ? `登录成功，欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}，本次登录约保持${keepMinutes}分钟。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`
         : `注册成功，已自动登录，本次登录约保持${keepMinutes}分钟。欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`;
       setSyncStatus(action === "login" ? "已登录" : "已注册", "ok");
+      return result;
     }
 
     document.addEventListener("click", async (event) => {
@@ -3816,17 +3843,26 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         $("adminSaveHint").textContent = "请输入后台账号和密码";
         return setSyncStatus("后台登录失败", "warn");
       }
-      adminCredentials = { username, password };
       try {
+        const session = await apiJson("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        adminSession = session;
+        adminSessionToken = session.token;
+        adminAuthed = true;
+        sessionStorage.setItem(adminSessionStorageKey, JSON.stringify(session));
         await loadSettings({ admin: true });
       } catch (error) {
-        adminCredentials = { username: "", password: "" };
-        sessionStorage.removeItem(adminCredentialsStorageKey);
+        adminSession = { token: "", expiresAt: 0 };
+        adminSessionToken = "";
+        adminAuthed = false;
+        sessionStorage.removeItem(adminSessionStorageKey);
         $("adminSaveHint").textContent = error.message || "后台账号或密码不正确";
         return setSyncStatus("后台登录失败", "warn");
       }
-      adminAuthed = true;
-      sessionStorage.setItem(adminCredentialsStorageKey, JSON.stringify(adminCredentials));
+      $("adminPassword").value = "";
       renderAdmin();
       setSyncStatus("后台登录成功", "ok");
     });
@@ -3837,15 +3873,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       while (adminDraftSettings.departments.some((department) => department.id === id)) id = `${departmentIdFromName(name)}-${suffix++}`;
       adminDraftSettings.departments.push({ id, name, enabled: true, modules: [...defaultModules] });
       adminModulesDepartmentId = id;
+      markAdminDirty();
       renderAdmin();
     });
     $("adminDepartmentsList").addEventListener("input", (event) => {
       const nameIndex = event.target.dataset.adminDepartmentName;
       if (nameIndex !== undefined) adminDraftSettings.departments[Number(nameIndex)].name = event.target.value;
+      markAdminDirty();
     });
     $("adminDepartmentsList").addEventListener("change", (event) => {
       const enabledIndex = event.target.dataset.adminDepartmentEnabled;
       if (enabledIndex !== undefined) adminDraftSettings.departments[Number(enabledIndex)].enabled = event.target.value === "true";
+      markAdminDirty();
     });
     $("adminDepartmentModulesSelect").addEventListener("change", (event) => {
       adminModulesDepartmentId = event.target.value;
@@ -3854,13 +3893,15 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("addAdminModuleBtn").addEventListener("click", () => {
       const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
       if (department) department.modules.push("");
+      markAdminDirty();
       renderAdmin();
     });
     $("addAdminAccountBtn").addEventListener("click", () => {
       adminDraftSettings.accounts.push({ name: "", username: "", departmentId: adminDraftSettings.departments[0]?.id || defaultDepartment.id });
+      markAdminDirty();
       renderAdmin();
     });
-    $("adminReloadBtn").addEventListener("click", () => loadSettings({ admin: true }).then(renderAdmin).catch(() => setSyncStatus("配置读取失败", "warn")));
+    $("adminReloadBtn").addEventListener("click", () => loadSettings({ admin: true }).then(() => { adminDirty = false; renderAdmin(); }).catch(() => setSyncStatus("配置读取失败", "warn")));
     $("adminSaveBtn").addEventListener("click", () => saveAdminSettings().catch((error) => {
       $("adminSaveHint").textContent = error.message || "保存失败";
       setSyncStatus("后台配置保存失败", "warn");
@@ -3870,12 +3911,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (index === undefined) return;
       const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
       if (department) department.modules[Number(index)] = event.target.value;
+      markAdminDirty();
     });
     $("adminModulesList").addEventListener("click", (event) => {
       const index = event.target.closest("[data-remove-admin-module]")?.dataset.removeAdminModule;
       if (index === undefined) return;
       const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
       if (department) department.modules.splice(Number(index), 1);
+      markAdminDirty();
       renderAdmin();
     });
     $("adminAccountsList").addEventListener("input", (event) => {
@@ -3885,6 +3928,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (nameIndex !== undefined) adminDraftSettings.accounts[Number(nameIndex)].name = event.target.value;
       if (usernameIndex !== undefined) adminDraftSettings.accounts[Number(usernameIndex)].username = event.target.value;
       if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
+      markAdminDirty();
     });
     $("adminAccountsList").addEventListener("change", (event) => {
       const departmentIndex = event.target.dataset.adminAccountDepartment;
@@ -3894,6 +3938,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const index = event.target.closest("[data-remove-admin-account]")?.dataset.removeAdminAccount;
       if (index === undefined) return;
       adminDraftSettings.accounts.splice(Number(index), 1);
+      markAdminDirty();
       renderAdmin();
     });
     $("adminAiProvider").addEventListener("change", (event) => {
@@ -3903,15 +3948,67 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         provider,
         providerLabel: provider === "kimi" ? "Kimi" : "DeepSeek",
         model: provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash",
-        configured: false,
       };
+      markAdminDirty();
       renderAdmin();
     });
     $("adminAiModel").addEventListener("input", (event) => {
       adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), model: event.target.value };
+      markAdminDirty();
     });
     $("adminAiEnabled").addEventListener("change", (event) => {
       adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), enabled: event.target.value === "true" };
+      markAdminDirty();
+    });
+    document.querySelector(".settings-nav").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admin-section]");
+      if (!button) return;
+      adminActiveSection = button.dataset.adminSection;
+      renderAdmin();
+    });
+    $("adminSessionDurationMinutes").addEventListener("input", () => markAdminDirty());
+    $("adminAiApiKey").addEventListener("input", () => markAdminDirty("输入了新密钥，保存后生效"));
+    $("adminAiTestBtn").addEventListener("click", async () => {
+      $("adminAiKeyStatus").className = "ai-ready warn";
+      $("adminAiKeyStatus").textContent = "正在测试连接...";
+      try {
+        const result = await apiJson("/api/admin/ai/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+          body: JSON.stringify({
+            provider: $("adminAiProvider").value,
+            model: $("adminAiModel").value.trim(),
+            apiKey: $("adminAiApiKey").value.trim(),
+          }),
+        });
+        $("adminAiKeyStatus").className = "ai-ready ok";
+        $("adminAiKeyStatus").textContent = result.message || "连接成功";
+      } catch (error) {
+        $("adminAiKeyStatus").className = "ai-ready warn";
+        $("adminAiKeyStatus").textContent = error.message || "连接失败";
+      }
+    });
+    $("adminAiClearBtn").addEventListener("click", async () => {
+      if (!confirm("确认清除当前 AI API 密钥？清除后 AI 功能将停用。")) return;
+      try {
+        const result = await apiJson("/api/admin/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+          body: JSON.stringify({ ai: { clearApiKey: true } }),
+        });
+        applySettings(result.settings || {});
+        adminDirty = false;
+        $("adminAiApiKey").value = "";
+        renderAdmin();
+        setSyncStatus("AI 密钥已清除", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "清除失败", "warn");
+      }
+    });
+    window.addEventListener("beforeunload", (event) => {
+      if (!adminDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
     });
     $("openAuthModalBtn").addEventListener("click", () => openAuthModal("login"));
     $("closeAuthModal").addEventListener("click", closeAuthModal);
@@ -3936,16 +4033,30 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("authMessage").textContent = error.message || (authMode === "login" ? "登录失败" : "注册失败");
       setSyncStatus(authMode === "login" ? "登录失败" : "注册失败", "warn");
     }));
+    $("loginForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = $("loginSubmitBtn");
+      button.disabled = true;
+      button.textContent = "登录中...";
+      $("loginMessage").textContent = "";
+      try {
+        await authAction("login", { username: $("loginUsername").value, password: $("loginPassword").value });
+        $("loginPassword").value = "";
+        closeAuthModal();
+        setView("tasks");
+      } catch (error) {
+        $("loginMessage").textContent = error.message || "账号或密码错误";
+      } finally {
+        button.disabled = false;
+        button.textContent = "登录";
+      }
+    });
+    $("loginRegisterBtn").addEventListener("click", () => {
+      $("authUsername").value = $("loginUsername").value.trim();
+      openAuthModal("register");
+    });
     $("logoutBtn").addEventListener("click", () => {
-      currentUser = null;
-      userToken = "";
-      userTokenExpiresAt = 0;
-      localStorage.removeItem(userStorageKey);
-      localStorage.removeItem(userTokenStorageKey);
-      localStorage.removeItem(userTokenExpiresStorageKey);
-      renderProfile();
-      setView("tasks");
-      setSyncStatus("已退出", "ok");
+      clearLoginState("已退出登录");
     });
 
     async function generateCurrentWeekReport() {
@@ -4178,8 +4289,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }, 60 * 1000);
     async function initializeApp() {
       if (isAdminRoute()) {
-        await loadSettings({ admin: adminAuthed });
+        showAuthenticatedWorkspace();
         enterAdminMode();
+        try {
+          await loadSettings({ admin: adminAuthed });
+        } catch {
+          adminSession = { token: "", expiresAt: 0 };
+          adminSessionToken = "";
+          adminAuthed = false;
+          sessionStorage.removeItem(adminSessionStorageKey);
+          await loadSettings();
+        }
+        renderAdmin();
         return;
       }
       await loadSettings();
@@ -4197,9 +4318,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderProfile();
       if (!currentUser) {
         setSyncStatus("请先登录", "warn");
-        openAuthModal("login");
+        showLoginPage();
         return;
       }
+      showAuthenticatedWorkspace();
       await loadWeeks();
       setSyncStatus("已同步", "ok");
       maybeShowOnboarding();

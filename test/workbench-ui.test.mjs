@@ -53,8 +53,25 @@ test("data product starter goals are not copied into other departments", () => {
 test("admin credentials are entered by the operator and are not hard-coded", () => {
   assert.doesNotMatch(html, /默认账号|默认密码|888888/);
   assert.doesNotMatch(html, /"x-admin-user":\s*"Admin"/);
-  assert.match(html, /adminCredentialsStorageKey = `\$\{storageKey\}-admin-credentials`/);
-  assert.match(html, /sessionStorage\.setItem\(adminCredentialsStorageKey/);
+  assert.match(html, /adminSessionStorageKey = `\$\{storageKey\}-admin-session`/);
+  assert.match(html, /sessionStorage\.setItem\(adminSessionStorageKey/);
   assert.match(html, /adminRequestHeaders\(\)/);
-  assert.match(html, /catch \(error\) \{\s*if \(admin\) throw error;/);
+  assert.doesNotMatch(html, /x-admin-password/);
+});
+
+test("unauthenticated visitors see a dedicated login page without sync keys", () => {
+  assert.match(html, /id="loginView"/);
+  assert.match(html, /id="workspaceShell"[^>]+hidden/);
+  assert.match(html, /id="loginForm"/);
+  assert.doesNotMatch(html, /syncKeyStorageKey|getSyncKey|x-report-key|周报协同口令/);
+});
+
+test("admin uses categorized settings and safe AI key controls", () => {
+  for (const section of ["departments", "modules", "accounts", "ai", "session"]) {
+    assert.match(html, new RegExp(`data-admin-section="${section}"`));
+  }
+  assert.match(html, /id="adminAiApiKey"/);
+  assert.match(html, /id="adminAiTestBtn"/);
+  assert.match(html, /id="adminAiClearBtn"/);
+  assert.match(html, /adminDirty/);
 });
