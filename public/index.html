@@ -543,6 +543,33 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </section>
   </div>
 
+  <div class="modal-mask" id="adminResetPasswordModal" hidden>
+    <section class="modal">
+      <div class="modal-head">
+        <strong>重置成员密码</strong>
+        <button class="btn small ghost" id="closeAdminResetPasswordModal" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="subtitle" id="adminResetPasswordAccount"></p>
+        <div class="form-grid">
+          <div class="field-full">
+            <label for="adminResetPassword">新密码</label>
+            <input id="adminResetPassword" type="password" autocomplete="new-password" placeholder="至少6位" />
+          </div>
+          <div class="field-full">
+            <label for="adminResetPasswordConfirm">确认新密码</label>
+            <input id="adminResetPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入新密码" />
+          </div>
+        </div>
+        <div class="login-message" id="adminResetPasswordMessage" role="alert"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" id="cancelAdminResetPasswordBtn" type="button">取消</button>
+        <button class="primary-btn" id="confirmAdminResetPasswordBtn" type="button">确认重置</button>
+      </div>
+    </section>
+  </div>
+
   <div class="modal-mask" id="goalTaskModal" hidden>
     <section class="modal copy-modal">
       <div class="modal-head">
@@ -721,6 +748,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let adminAuthed = Boolean(adminSessionToken && Number(adminSession.expiresAt) > Date.now());
     let adminActiveSection = "departments";
     let adminDirty = false;
+    let adminResetUsername = "";
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
     let taskModuleFilter = "all";
@@ -1335,6 +1363,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           name: String(account?.name || "").trim(),
           username: String(account?.username || "").trim().toLowerCase(),
           departmentId: String(account?.departmentId || departments[0]?.id || defaultDepartment.id).trim(),
+          registered: account?.registered === true,
         }))
         .filter((account) => account.name && account.username)
         .filter((account) => {
@@ -3268,7 +3297,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <input data-admin-account-name="${index}" value="${escapeHtml(account.name)}" placeholder="姓名" />
           <input data-admin-account-username="${index}" value="${escapeHtml(account.username)}" placeholder="用户名" />
           <select data-admin-account-department="${index}">${draftDepartments.map((department) => `<option value="${escapeHtml(department.id)}" ${department.id === account.departmentId ? "selected" : ""}>${escapeHtml(department.name)}</option>`).join("")}</select>
-          <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
+          <div class="row-actions">
+            ${account.registered ? `<button class="btn small ghost" data-admin-reset-password="${escapeHtml(account.username)}">重置密码</button>` : ""}
+            <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
+          </div>
         </div>
       `).join("");
       const ai = adminDraftSettings.ai || aiSettings;
@@ -3287,6 +3319,39 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       adminDirty = true;
       $("adminSaveHint").textContent = message;
       document.querySelector(".admin-savebar").hidden = false;
+    }
+
+    function openAdminPasswordReset(username) {
+      adminResetUsername = String(username || "").trim().toLowerCase();
+      $("adminResetPasswordAccount").textContent = `为账号 ${adminResetUsername} 设置新密码。重置后，该账号现有登录会立即失效。`;
+      $("adminResetPassword").value = "";
+      $("adminResetPasswordConfirm").value = "";
+      $("adminResetPasswordMessage").textContent = "";
+      $("adminResetPasswordModal").hidden = false;
+      setTimeout(() => $("adminResetPassword").focus(), 0);
+    }
+
+    function closeAdminPasswordReset() {
+      $("adminResetPasswordModal").hidden = true;
+      adminResetUsername = "";
+    }
+
+    async function submitAdminPasswordReset() {
+      const password = $("adminResetPassword").value;
+      const confirmPassword = $("adminResetPasswordConfirm").value;
+      if (password.length < 6) throw new Error("密码至少6位");
+      if (password !== confirmPassword) throw new Error("两次输入的密码不一致");
+      await apiJson(`/api/admin/users/${encodeURIComponent(adminResetUsername)}/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...adminRequestHeaders(),
+        },
+        body: JSON.stringify({ password }),
+      });
+      const username = adminResetUsername;
+      closeAdminPasswordReset();
+      setSyncStatus(`已重置 ${username} 的密码`, "ok");
     }
 
     async function saveAdminSettings() {
@@ -3798,6 +3863,26 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("confirmReportTaskImportBtn").addEventListener("click", confirmReportTaskImport);
 
+    $("closeAdminResetPasswordModal").addEventListener("click", closeAdminPasswordReset);
+    $("cancelAdminResetPasswordBtn").addEventListener("click", closeAdminPasswordReset);
+    $("adminResetPasswordModal").addEventListener("click", (event) => {
+      if (event.target.id === "adminResetPasswordModal") closeAdminPasswordReset();
+    });
+    $("confirmAdminResetPasswordBtn").addEventListener("click", async () => {
+      const button = $("confirmAdminResetPasswordBtn");
+      button.disabled = true;
+      button.textContent = "重置中...";
+      $("adminResetPasswordMessage").textContent = "";
+      try {
+        await submitAdminPasswordReset();
+      } catch (error) {
+        $("adminResetPasswordMessage").textContent = error.message || "密码重置失败";
+      } finally {
+        button.disabled = false;
+        button.textContent = "确认重置";
+      }
+    });
+
     $("closeGoalTaskModal").addEventListener("click", closeGoalTaskModal);
     $("goalTaskModal").addEventListener("click", (event) => {
       if (event.target.id === "goalTaskModal") closeGoalTaskModal();
@@ -3923,6 +4008,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
     });
     $("adminAccountsList").addEventListener("click", (event) => {
+      const resetUsername = event.target.closest("[data-admin-reset-password]")?.dataset.adminResetPassword;
+      if (resetUsername) {
+        openAdminPasswordReset(resetUsername);
+        return;
+      }
       const index = event.target.closest("[data-remove-admin-account]")?.dataset.removeAdminAccount;
       if (index === undefined) return;
       adminDraftSettings.accounts.splice(Number(index), 1);

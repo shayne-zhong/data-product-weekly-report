@@ -187,6 +187,14 @@ test("admin resets a member password and invalidates existing sessions", async (
     body: { username, password: "old-password" },
   });
   assert.equal(registered.statusCode, 201);
+  const adminSettings = await api("/admin/settings", {
+    admin: true,
+    includeSyncKey: false,
+  });
+  assert.equal(
+    adminSettings.body.settings.accounts.find((account) => account.username === username)?.registered,
+    true,
+  );
   const oldLogin = await api("/auth/login", {
     method: "POST",
     includeSyncKey: false,

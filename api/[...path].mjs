@@ -195,7 +195,16 @@ function getSettings(state = {}) {
 function publicSettings(state = {}, { admin = false, departmentId = "" } = {}) {
   const settings = getSettings(state);
   const ai = publicAiSettings(settings.ai, { admin });
-  if (admin) return { ...settings, ai };
+  if (admin) {
+    return {
+      ...settings,
+      accounts: settings.accounts.map((account) => ({
+        ...account,
+        registered: Boolean(state.users?.[account.username]),
+      })),
+      ai,
+    };
+  }
   if (departmentId) {
     const department = settings.departments.find((item) => item.id === departmentId);
     if (department) {

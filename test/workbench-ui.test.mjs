@@ -90,6 +90,14 @@ test("login page shows the configured session duration directly", () => {
   assert.doesNotMatch(html, /登录状态将按后台设置的时间保持/);
 });
 
+test("admin account management exposes registered-user password reset", () => {
+  assert.match(html, /data-admin-reset-password/);
+  assert.match(html, /id="adminResetPasswordModal"/);
+  assert.match(html, /id="adminResetPassword"/);
+  assert.match(html, /id="adminResetPasswordConfirm"/);
+  assert.match(html, /\/api\/admin\/users\/\$\{encodeURIComponent\(adminResetUsername\)\}\/reset-password/);
+});
+
 test("admin uses categorized settings and safe AI key controls", () => {
   for (const section of ["departments", "modules", "accounts", "ai", "session"]) {
     assert.match(html, new RegExp(`data-admin-section="${section}"`));
