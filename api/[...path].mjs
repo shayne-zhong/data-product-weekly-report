@@ -497,6 +497,40 @@ async function handleWeeks(req, res, state, parts, now, actor) {
   return methodNotAllowed(res);
 }
 
+function validIsoDate(value) {
+  const text = String(value || "");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const date = new Date(`${text}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === text;
+}
+
+function listTasksForPeriod(state, departmentId, startDate, endDate) {
+  const weekIds = new Set(
+    Object.values(state.weeks || {})
+      .filter((week) =>
+        week.departmentId === departmentId
+        && week.startDate <= endDate
+        && week.endDate >= startDate
+      )
+      .map((week) => week.id),
+  );
+  return Object.values(state.tasks || {})
+    .filter((task) => task.departmentId === departmentId && weekIds.has(task.weekId))
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+}
+
+function handleTasksByPeriod(req, res, state, actor) {
+  if (req.method !== "GET") return methodNotAllowed(res);
+  const startDate = String(req.query.startDate || "");
+  const endDate = String(req.query.endDate || "");
+  if (!validIsoDate(startDate) || !validIsoDate(endDate) || endDate < startDate) {
+    return json(res, { error: "请输入有效的开始日期和结束日期" }, 400);
+  }
+  return json(res, {
+    tasks: listTasksForPeriod(state, actor.departmentId, startDate, endDate),
+  });
+}
+
 async function handleWeek(req, res, state, parts, now, actor) {
   const departmentId = actor.departmentId;
   const weekId = decodeURIComponent(parts[1] || "");
@@ -899,6 +933,7 @@ export default async function handler(req, res) {
     if (!actor) return json(res, { error: "请先登录" }, 401);
     if (parts[0] === "weeks") return handleWeeks(req, res, state, parts, now, actor);
     if (parts[0] === "week") return handleWeek(req, res, state, parts, now, actor);
+    if (parts[0] === "tasks") return handleTasksByPeriod(req, res, state, actor);
     if (parts[0] === "task") return handleTask(req, res, state, parts, now, actor);
     if (parts[0] === "reports" || parts[0] === "report") return handleReports(req, res, state, parts, now, actor);
     if (parts[0] === "goals") return handleGoals(req, res, state, now, actor);

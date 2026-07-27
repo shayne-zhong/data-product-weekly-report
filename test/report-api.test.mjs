@@ -33,12 +33,12 @@ function mockRes() {
 let defaultToken = "";
 let adminToken = "";
 
-async function api(path, { method = "GET", body, token, headers = {} } = {}) {
+async function api(path, { method = "GET", body, token, headers = {}, query = {} } = {}) {
   const resolvedToken = token === undefined ? defaultToken : token;
   const req = {
     method,
     headers: { "x-report-key": syncKey, ...(resolvedToken ? { "x-user-token": resolvedToken } : {}), ...headers },
-    query: { path: path.split("/").filter(Boolean) },
+    query: { path: path.split("/").filter(Boolean), ...query },
     body,
   };
   const res = mockRes();
@@ -75,6 +75,45 @@ test.before(async () => {
   });
   assert.equal(loggedIn.statusCode, 200);
   defaultToken = loggedIn.body.token;
+});
+
+test("task range returns every matching week in the signed-in department", async () => {
+  const settings = await api("/settings");
+  const module = settings.body.settings.modules[0];
+  for (const week of [
+    { startDate: "2098-07-06", endDate: "2098-07-12", title: "Week one" },
+    { startDate: "2098-07-13", endDate: "2098-07-19", title: "Week two" },
+  ]) {
+    const createdWeek = await api("/weeks", { method: "POST", body: week });
+    assert.equal(createdWeek.statusCode, 201);
+    const createdTask = await api(`/week/${week.startDate}_${week.endDate}/tasks`, {
+      method: "POST",
+      body: { task: { title: week.title, module } },
+    });
+    assert.equal(createdTask.statusCode, 201);
+  }
+
+  const response = await api("/tasks", {
+    query: { startDate: "2098-07-01", endDate: "2098-07-31" },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(
+    response.body.tasks.map((task) => task.title).sort(),
+    ["Week one", "Week two"],
+  );
+});
+
+test("task range rejects invalid dates and anonymous access", async () => {
+  const invalid = await api("/tasks", {
+    query: { startDate: "2098-07-31", endDate: "2098-07-01" },
+  });
+  assert.equal(invalid.statusCode, 400);
+
+  const anonymous = await api("/tasks", {
+    token: "",
+    query: { startDate: "2098-07-01", endDate: "2098-07-31" },
+  });
+  assert.equal(anonymous.statusCode, 401);
 });
 
 test("AI settings expose readiness without exposing API keys", async () => {
