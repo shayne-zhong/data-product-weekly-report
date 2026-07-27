@@ -456,11 +456,8 @@ async function handleAuth(req, res, state, action, now) {
     const salt = randomId("salt");
     const user = { id: randomId("user"), username, displayName, departmentId: department.id, salt, passwordHash: await hashPassword(password, salt), createdAt: now, updatedAt: now };
     state.users[username] = user;
-    const token = randomId("session");
-    const expiresAt = now + settings.sessionDurationMinutes * 60_000;
-    state.sessions[token] = { username, departmentId: department.id, createdAt: now, expiresAt };
     await saveState(state);
-    return json(res, { user: publicUser(user, state), token, expiresAt }, 201);
+    return json(res, { ok: true, user: publicUser(user, state) }, 201);
   }
   if (action === "login") {
     const user = state.users[username];

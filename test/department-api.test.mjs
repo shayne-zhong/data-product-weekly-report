@@ -153,6 +153,12 @@ test("registration and login do not require the legacy report sync key", async (
     body: { username, password: "12345678" },
   });
   assert.equal(registered.statusCode, 201);
+  assert.equal(registered.body.token, undefined);
+  assert.equal(registered.body.expiresAt, undefined);
+
+  const beforeLogin = await api("/auth/me", { includeSyncKey: false });
+  assert.equal(beforeLogin.statusCode, 200);
+  assert.equal(beforeLogin.body.user, null);
 
   const loggedIn = await api("/auth/login", {
     method: "POST",
@@ -249,7 +255,6 @@ test("registration requires a configured account and binds its department", asyn
   });
   assert.equal(settings.statusCode, 200);
 
-  const before = Date.now();
   const registered = await api("/auth/register", {
     method: "POST",
     body: { username, password: "12345678", displayName: "财务测试" },
@@ -258,8 +263,16 @@ test("registration requires a configured account and binds its department", asyn
   assert.equal(registered.statusCode, 201);
   assert.equal(registered.body.user.departmentId, "finance");
   assert.equal(registered.body.user.department.name, "财经部");
-  assert.ok(registered.body.expiresAt >= before + 120 * 60_000);
-  assert.ok(registered.body.expiresAt <= Date.now() + 120 * 60_000);
+  assert.equal(registered.body.token, undefined);
+
+  const before = Date.now();
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
+  assert.ok(loggedIn.body.expiresAt >= before + 120 * 60_000);
+  assert.ok(loggedIn.body.expiresAt <= Date.now() + 120 * 60_000);
 });
 
 test("registration rejects usernames missing from department accounts", async () => {
@@ -288,13 +301,18 @@ test("moving an account to another department invalidates its existing session",
     body: { username, password: "12345678" },
   });
   assert.equal(registered.statusCode, 201);
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
 
   await saveSettings({
     departments,
     accounts: [{ name: "调动测试", username, departmentId: "finance" }],
     sessionDurationMinutes: 60,
   });
-  const oldSession = await api("/weeks", { token: registered.body.token });
+  const oldSession = await api("/weeks", { token: loggedIn.body.token });
 
   assert.equal(oldSession.statusCode, 401);
 });
@@ -321,16 +339,26 @@ test("departments cannot read or update each other's workbench data", async () =
     ],
     sessionDurationMinutes: 60,
   });
-  const dataUser = await api("/auth/register", {
+  const dataRegistration = await api("/auth/register", {
     method: "POST",
     body: { username: dataUsername, password: "12345678" },
   });
-  const financeUser = await api("/auth/register", {
+  const financeRegistration = await api("/auth/register", {
     method: "POST",
     body: { username: financeUsername, password: "12345678" },
   });
-  assert.equal(dataUser.statusCode, 201);
-  assert.equal(financeUser.statusCode, 201);
+  assert.equal(dataRegistration.statusCode, 201);
+  assert.equal(financeRegistration.statusCode, 201);
+  const dataUser = await api("/auth/login", {
+    method: "POST",
+    body: { username: dataUsername, password: "12345678" },
+  });
+  const financeUser = await api("/auth/login", {
+    method: "POST",
+    body: { username: financeUsername, password: "12345678" },
+  });
+  assert.equal(dataUser.statusCode, 200);
+  assert.equal(financeUser.statusCode, 200);
 
   const financeSettings = await api("/settings", { token: financeUser.body.token });
   assert.deepEqual(financeSettings.body.settings.departments.map((department) => department.id), ["finance"]);
@@ -410,6 +438,11 @@ test("AI summary instructions use the signed-in department name", async () => {
     body: { username, password: "12345678" },
   });
   assert.equal(registered.statusCode, 201);
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
 
   const originalKey = process.env.DEEPSEEK_API_KEY;
   const originalFetch = globalThis.fetch;
@@ -428,7 +461,7 @@ test("AI summary instructions use the signed-in department name", async () => {
   try {
     const response = await api("/ai/report-summary", {
       method: "POST",
-      token: registered.body.token,
+      token: loggedIn.body.token,
       body: { sourceText: "这是一段财经部门的工作总结原始内容，长度足够用于部门名称测试。", summaryType: "weekly" },
     });
     assert.equal(response.statusCode, 200);

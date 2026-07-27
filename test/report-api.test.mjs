@@ -69,7 +69,12 @@ test.before(async () => {
     body: { username, password: "12345678", displayName: "报告测试" },
   });
   assert.equal(registered.statusCode, 201);
-  defaultToken = registered.body.token;
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
+  defaultToken = loggedIn.body.token;
 });
 
 test("AI settings expose readiness without exposing API keys", async () => {
