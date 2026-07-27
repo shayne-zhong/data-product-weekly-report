@@ -5,6 +5,11 @@ import { randomUUID } from "node:crypto";
 import handler from "../api/[...path].mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
+process.env.REPORT_SYNC_KEY = syncKey;
+process.env.ADMIN_USERNAME = "Admin";
+process.env.ADMIN_PASSWORD = "888888";
+process.env.ADMIN_SESSION_SECRET = "persistence-api-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 6).toString("base64");
 
 function mockRes() {
   return {
@@ -25,10 +30,17 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body } = {}) {
+let defaultToken = "";
+
+async function api(path, { method = "GET", body, token, headers = {} } = {}) {
+  const resolvedToken = token === undefined ? defaultToken : token;
   const req = {
     method,
-    headers: { "x-report-key": syncKey },
+    headers: {
+      "x-report-key": syncKey,
+      ...(resolvedToken ? { "x-user-token": resolvedToken } : {}),
+      ...headers,
+    },
     query: { path: path.split("/").filter(Boolean) },
     body,
   };
@@ -36,6 +48,36 @@ async function api(path, { method = "GET", body } = {}) {
   await handler(req, res);
   return res;
 }
+
+test.before(async () => {
+  const adminLogin = await api("/admin/login", { method: "POST", body: { username: "Admin", password: "888888" } });
+  assert.equal(adminLogin.statusCode, 200);
+  const username = `persist${randomUUID().replaceAll("-", "").slice(0, 10)}`;
+  const current = await api("/settings");
+  const settings = current.body.settings;
+  const saved = await api("/admin/settings", {
+    method: "POST",
+    headers: { authorization: `Bearer ${adminLogin.body.token}` },
+    body: {
+      departments: settings.departments,
+      accounts: [...settings.accounts, { name: "持久化测试", username, departmentId: settings.departments[0].id }],
+      sessionDurationMinutes: settings.sessionDurationMinutes,
+      ai: settings.ai,
+    },
+  });
+  assert.equal(saved.statusCode, 200);
+  const registered = await api("/auth/register", {
+    method: "POST",
+    body: { username, password: "12345678", displayName: "持久化测试" },
+  });
+  assert.equal(registered.statusCode, 201);
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
+  defaultToken = loggedIn.body.token;
+});
 
 test("tasks persist multiple linked goal contributions after update and reload", async () => {
   const suffix = randomUUID();

@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>数据产品部任务与周报工作台</title>
+  <title>部门工作台</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <style>
 
 :root{
@@ -16,10 +17,10 @@
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,"PingFang SC","Microsoft YaHei",sans-serif}
 button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .app{min-height:100vh}.topbar{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 28px;position:sticky;top:0;z-index:30}
-.brand{display:flex;align-items:center;gap:12px;min-width:310px}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--primary),#7f56d9);display:grid;place-items:center;color:#fff;font-weight:800;box-shadow:0 7px 18px rgba(49,94,251,.25)}
+.brand{display:flex;align-items:center;gap:12px;min-width:310px}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--primary),#2447c6);display:grid;place-items:center;color:#fff;font-weight:800;box-shadow:0 7px 18px rgba(49,94,251,.25)}.logo svg{width:24px;height:24px;display:block}
 .brand h1{font-size:16px;margin:0}.brand small{display:block;color:var(--muted);font-size:12px;margin-top:1px}
 .nav{display:flex;gap:6px;align-self:stretch}.nav-btn{border:0;background:transparent;padding:0 18px;color:#475467;cursor:pointer;position:relative;font-weight:600}.nav-btn:hover{color:var(--primary)}.nav-btn.active{color:var(--primary)}.nav-btn.active:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:3px;background:var(--primary);border-radius:3px 3px 0 0}
-.top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}.icon-btn,.ghost-btn,.primary-btn,.danger-btn,.soft-btn{border:1px solid var(--line);background:#fff;color:#344054;border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:600}.icon-btn{width:38px;height:38px;padding:0}.primary-btn{border-color:var(--primary);background:var(--primary);color:#fff}.primary-btn:hover{background:var(--primary-2)}.soft-btn{background:var(--primary-soft);border-color:#dfe4ff;color:var(--primary)}.danger-btn{background:var(--red-soft);border-color:#ffd5d7;color:var(--red)}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}.icon-btn,.ghost-btn,.primary-btn,.danger-btn,.soft-btn{border:1px solid var(--line);background:#fff;color:#344054;border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:600}.icon-btn{width:38px;height:38px;padding:0;display:grid;place-items:center;transition:border-color .18s,color .18s,box-shadow .18s,transform .18s}.icon-btn:hover{color:var(--primary);border-color:#cbd5ff;box-shadow:0 6px 16px rgba(49,94,251,.12);transform:translateY(-1px)}.icon-btn svg{width:19px;height:19px;display:block}.primary-btn{border-color:var(--primary);background:var(--primary);color:#fff}.primary-btn:hover{background:var(--primary-2)}.soft-btn{background:var(--primary-soft);border-color:#dfe4ff;color:var(--primary)}.danger-btn{background:var(--red-soft);border-color:#ffd5d7;color:var(--red)}
 .avatar{width:34px;height:34px;border-radius:50%;background:#172b4d;color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700}
 .main{padding:24px 28px 40px;max-width:1680px;margin:auto}.page{display:none}.page.active{display:block}
 .page-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}.title-wrap h2{font-size:24px;margin:0 0 4px}.title-wrap p{margin:0;color:var(--muted)}.head-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
@@ -47,6 +48,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 /* Task and report workflow refinements */
 .modal.wide{display:flex;flex-direction:column}.modal.wide .modal-body{flex:1;min-height:0;overflow:auto}.history-task-page{display:grid;gap:14px}.history-group{overflow:hidden}.history-group h3{margin:0;padding:12px 14px;background:#fafbfc;border-bottom:1px solid var(--line);font-size:14px}.history-task-row{display:grid;grid-template-columns:1fr 110px 130px;gap:10px;align-items:center;padding:12px 14px;background:#fff;border-bottom:1px solid var(--line)}.excel-hint{padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted);font-size:12px}.history-supplement-modal{width:min(1180px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.history-supplement-modal .modal-body{overflow:auto;min-height:0}.history-supplement-grid{display:grid;grid-template-columns:minmax(320px,420px) minmax(420px,1fr);gap:16px}.history-supplement-actions{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 0 0;margin-top:10px}.seq-input{width:54px;border:1px solid var(--line);border-radius:8px;padding:6px 7px;text-align:center;background:#fff}.quarter-goal-cell{min-width:160px}.onboarding-modal{width:min(980px,calc(100% - 32px));max-height:calc(100vh - 36px);display:flex;flex-direction:column}.onboarding-modal .modal-body{overflow:auto}.onboarding-hero{width:100%;display:block;border:1px solid var(--line);border-radius:14px;background:#f8fafc;box-shadow:0 2px 10px rgba(16,24,40,.03)}.onboarding-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}.onboarding-step{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.onboarding-step b{display:block;margin-bottom:5px}.onboarding-step span{color:var(--muted);font-size:12px}.onboarding-num{width:24px;height:24px;border-radius:8px;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font-weight:800;margin-bottom:8px}.guide-btn{padding:9px 12px}@media(max-width:760px){.summary-grid{grid-template-columns:repeat(2,1fr)}.history-task-row{grid-template-columns:1fr}.history-supplement-grid{grid-template-columns:1fr}.history-supplement-modal{width:calc(100% - 18px);max-height:calc(100vh - 18px)}.onboarding-steps{grid-template-columns:1fr}.onboarding-modal{width:calc(100% - 18px);max-height:calc(100vh - 18px)}}
 
+.login-page{min-height:100vh;display:grid;grid-template-columns:minmax(420px,1.08fr) minmax(420px,.92fr);background:#edf2f9}.login-brand-panel{position:relative;overflow:hidden;background:#17326f;color:#fff;padding:56px clamp(38px,6vw,86px);display:flex;flex-direction:column;justify-content:space-between}.login-brand-panel:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(255,255,255,.14);border-radius:50%;right:-120px;top:-140px}.login-brand-panel:after{content:"";position:absolute;width:230px;height:230px;border-radius:54px;background:#315efb;right:50px;bottom:-130px;transform:rotate(24deg);opacity:.7}.login-brand-lockup,.login-brand-copy,.login-brand-foot{position:relative;z-index:1}.login-brand-lockup{display:flex;align-items:center;gap:13px;font-size:18px;font-weight:800}.login-brand-copy{max-width:520px}.login-kicker{font-size:12px;letter-spacing:.2em;color:#9db7ff;font-weight:800}.login-brand-copy h1{font-size:clamp(36px,5vw,58px);line-height:1.12;margin:18px 0}.login-brand-copy p{font-size:16px;line-height:1.9;color:#c8d6f6}.login-brand-foot{color:#91a7d5}.login-form-panel{background:#fff;padding:48px;display:grid;place-items:center}.login-box{width:min(390px,100%)}.login-box h2{font-size:30px;margin:8px 0}.login-box>p{color:var(--muted);margin:0 0 30px}.login-field{display:grid;gap:7px;margin-bottom:17px}.login-field label{font-size:12px;color:#344054;font-weight:800}.login-field input{height:46px;border:1px solid var(--line);border-radius:11px;padding:0 13px;outline:none}.login-field input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(49,94,251,.1)}.login-submit{width:100%;height:47px;margin-top:8px}.login-message{min-height:22px;margin-top:12px;color:var(--red)}.login-register{text-align:center;margin-top:19px;color:var(--muted)}.login-register button{border:0;background:transparent;color:var(--primary);font-weight:800;cursor:pointer}
+.settings-center{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}.settings-nav{position:sticky;top:88px;padding:10px;display:grid;gap:5px}.settings-nav button{border:0;background:transparent;color:#475467;border-radius:10px;padding:11px 12px;text-align:left;cursor:pointer;font-weight:700}.settings-nav button:hover{background:#f5f7fb;color:var(--text)}.settings-nav button.active{background:var(--primary-soft);color:var(--primary)}.settings-editor{min-height:520px}.admin-section{padding:22px}.admin-section[hidden]{display:none!important}.admin-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}.admin-section-head h3{margin:0 0 4px}.admin-section-head p{margin:0;color:var(--muted)}.settings-center+.admin-savebar{margin-left:238px}.admin-savebar[hidden]{display:none!important}
+@media(max-width:900px){.settings-center{grid-template-columns:1fr}.settings-nav{position:static;display:flex;overflow:auto}.settings-nav button{white-space:nowrap}.settings-center+.admin-savebar{margin-left:0}}
+@media(max-width:720px){.login-page{grid-template-columns:1fr}.login-brand-panel{display:none}.login-form-panel{padding:28px 20px}.login-box h2{font-size:26px}}
 </style>
 <style>
 /* Focused refinements: historical supplement and quarterly goal breakdown */
@@ -98,20 +103,56 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .admin-login{max-width:560px;padding:22px}.admin-login h3{margin:0 0 4px}
 .admin-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:16px;align-items:start}
 .admin-card{padding:18px}.admin-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.admin-card h3{margin:0 0 4px}
-.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
+.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row.three{grid-template-columns:1fr 1fr 150px auto}.admin-row input,.admin-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus,.admin-row select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
 .admin-ai-card{grid-column:1/-1}.admin-ai-grid{display:grid;grid-template-columns:180px minmax(220px,1fr) 180px;gap:12px}.admin-ai-grid label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.admin-ai-grid select,.admin-ai-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;outline:none}.ai-ready{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcff}.ai-ready.ok{color:var(--green);border-color:rgba(22,163,106,.25);background:var(--green-soft)}.ai-ready.warn{color:var(--orange);border-color:rgba(229,138,0,.28);background:var(--orange-soft)}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
 .admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}.admin-savebar{align-items:flex-start;flex-direction:column}}
+.auth-page{min-height:100vh;position:relative;overflow:hidden;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 12% 14%,rgba(49,94,251,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(22,163,106,.1),transparent 24%),#edf2f9}.auth-page:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(49,94,251,.14);border-radius:50%;top:-220px;right:-100px}.auth-page:after{content:"";position:absolute;width:220px;height:220px;border-radius:54px;background:rgba(49,94,251,.08);left:-70px;bottom:-100px;transform:rotate(24deg)}.auth-focus-card{position:relative;z-index:1;width:min(430px,100%);padding:34px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 70px rgba(23,50,111,.16);backdrop-filter:blur(12px);animation:auth-card-in .36s ease-out}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;font-weight:850;color:#17326f}.auth-brand .logo{width:40px;height:40px}.auth-focus-card h2{font-size:28px;line-height:1.2;margin:8px 0;text-wrap:balance}.auth-focus-card>p{color:var(--muted);margin:0 0 25px;text-wrap:pretty}.auth-focus-card .login-kicker{color:var(--primary)}.auth-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}.auth-text-btn,.auth-back{border:0;background:transparent;color:var(--primary);padding:0;cursor:pointer;font-weight:750}.auth-text-btn:hover,.auth-back:hover{text-decoration:underline}.auth-text-btn:focus-visible,.auth-back:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:4px;border-radius:4px}.auth-back{display:inline-flex;margin-bottom:22px;color:#475467}.auth-help-card{text-align:center}.auth-help-icon{width:62px;height:62px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:28px;font-weight:850}.login-message.success{color:var(--green)}.auth-duration{color:#475467;font-size:12px;font-weight:700}.auth-register-row{text-align:center;margin-top:18px;color:var(--muted)}.import-state{min-height:150px;padding:28px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#fff;color:var(--muted);text-align:center}.import-state.error{color:var(--red);background:var(--red-soft)}@keyframes auth-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.auth-focus-card{animation:none}}@media(max-width:560px){.auth-page{padding:18px}.auth-focus-card{padding:26px 22px;border-radius:18px}.auth-focus-card h2{font-size:25px}}
 </style>
 </head>
 <body>
-<div class="app">
+<main id="loginView" class="auth-page">
+    <form id="loginForm" class="auth-focus-card">
+      <div class="auth-brand"><span class="logo" aria-hidden="true">▦</span><span>部门工作台</span></div>
+      <div class="login-kicker">欢迎回来</div><h2>登录部门工作台</h2><p>使用你的账号和密码继续</p>
+      <div class="login-field"><label for="loginUsername">账号</label><input id="loginUsername" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="请输入账号" /></div>
+      <div class="login-field"><label for="loginPassword">密码</label><input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" /></div>
+      <div class="auth-actions"><span class="auth-duration" id="loginDurationHint">保持登录：30分钟</span><button class="auth-text-btn" id="loginForgotPasswordBtn" type="button">忘记密码</button></div>
+      <button class="primary-btn login-submit" id="loginSubmitBtn" type="submit">登录</button>
+      <div class="login-message" id="loginMessage" role="alert" aria-live="polite"></div>
+      <div class="auth-register-row">首次使用？<button class="auth-text-btn" id="loginRegisterBtn" type="button">注册账号</button></div>
+    </form>
+</main>
+<main id="registerView" class="auth-page" hidden>
+  <form id="registerForm" class="auth-focus-card">
+    <button class="auth-back" id="registerBackBtn" type="button">← 返回登录</button>
+    <div class="login-kicker">创建账号</div>
+    <h2>注册部门工作台</h2>
+    <p>账号须由管理员提前加入部门成员清单</p>
+    <div class="login-field"><label for="registerUsername">账号</label><input id="registerUsername" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="请输入账号" /></div>
+    <div class="login-field"><label for="registerDisplayName">姓名</label><input id="registerDisplayName" name="displayName" autocomplete="name" placeholder="请输入姓名" /></div>
+    <div class="login-field"><label for="registerPassword">密码</label><input id="registerPassword" name="password" type="password" autocomplete="new-password" placeholder="至少6位" /></div>
+    <div class="login-field"><label for="registerConfirmPassword">确认密码</label><input id="registerConfirmPassword" name="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入密码" /></div>
+    <button class="primary-btn login-submit" id="registerSubmitBtn" type="submit">完成注册</button>
+    <div class="login-message" id="registerMessage" role="alert" aria-live="polite"></div>
+  </form>
+</main>
+<main id="forgotPasswordView" class="auth-page" hidden>
+  <section class="auth-focus-card auth-help-card">
+    <div class="auth-help-icon" aria-hidden="true">?</div>
+    <div class="login-kicker">账号帮助</div>
+    <h2>忘记密码</h2>
+    <p>请联系后台管理员重置密码。为保护账号安全，此处不会查询账号是否存在。</p>
+    <button class="primary-btn login-submit" id="forgotPasswordBackBtn" type="button">返回登录</button>
+  </section>
+</main>
+<div class="app" id="workspaceShell" hidden>
   <header class="topbar">
     <div class="brand">
-      <div class="logo">DP</div>
+      <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="13" y="4" width="7" height="10" rx="1.5" fill="currentColor" opacity=".82"/><rect x="4" y="12" width="7" height="8" rx="1.5" fill="currentColor" opacity=".68"/><path d="M15.5 17h4M15.5 20h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
       <div>
-        <h1>数据产品部工作台</h1>
+        <h1 id="brandTitle">部门工作台</h1>
         <small>目标牵引 · 任务执行 · 周报沉淀</small>
       </div>
     </div>
@@ -123,8 +164,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </nav>
     <div class="top-actions">
       <span class="sync-pill" id="syncStatus">连接中...</span>
-      <button class="ghost-btn" id="adminEntryBtn">后台管理</button>
-      <button class="ghost-btn guide-btn" id="openOnboardingBtn">指引</button>
+      <button class="icon-btn" id="adminEntryBtn" title="后台管理" aria-label="后台管理"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M13 4v6M7 14v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2" stroke="currentColor" stroke-width="1.8"/></svg></button>
+      <button class="icon-btn guide-btn" id="openOnboardingBtn" title="指引" aria-label="指引"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8"/><path d="m14.9 9.1-1.7 4.1-4.1 1.7 1.7-4.1 4.1-1.7Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg></button>
       <button class="ghost-btn" id="authNavBtn">登录</button>
     </div>
   </header>
@@ -302,7 +343,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       <div class="page-head">
         <div class="title-wrap">
           <h2>后台管理</h2>
-          <p>维护周报项目类型与部门账号，保存后前台实时按配置读取。</p>
+          <p>集中维护部门、项目类型、成员账号、AI 服务与登录策略。</p>
         </div>
         <div class="head-actions">
           <button class="ghost-btn" id="backFromAdminBtn">返回工作台</button>
@@ -310,9 +351,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       </div>
       <div class="admin-login panel" id="adminLoginPanel">
         <h3>后台登录</h3>
-        <p class="subtitle">默认账号 Admin，默认密码 888888。</p>
+        <p class="subtitle">请输入部署环境中配置的后台账号与密码。</p>
         <div class="form-grid">
-          <div><label>账号</label><input id="adminUsername" autocomplete="off" value="Admin" /></div>
+          <div><label>账号</label><input id="adminUsername" autocomplete="username" /></div>
           <div><label>密码</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入后台密码" /></div>
         </div>
         <div class="actions" style="justify-content:flex-start;margin-top:12px;">
@@ -320,35 +361,47 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         </div>
       </div>
       <div id="adminManagePanel" hidden>
-        <div class="admin-grid">
-          <section class="panel admin-card">
-            <div class="admin-card-head">
-              <div><h3>周报项目类型</h3><p class="subtitle">用于周报模块、任务模块筛选和导入待办归类。</p></div>
-              <button class="ghost-btn" id="addAdminModuleBtn">+ 新增类型</button>
-            </div>
-            <div id="adminModulesList" class="admin-list"></div>
-          </section>
-          <section class="panel admin-card">
-            <div class="admin-card-head">
-              <div><h3>账号管理</h3><p class="subtitle">任务负责人、个人中心识别和注册绑定均使用该清单。</p></div>
-              <button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button>
-            </div>
-            <div id="adminAccountsList" class="admin-list"></div>
-          </section>
-          <section class="panel admin-card admin-ai-card">
-            <div class="admin-card-head">
-              <div><h3>AI周报提炼</h3><p class="subtitle">密钥仅从 Netlify 环境变量读取，不会保存到网页或业务数据。</p></div>
-            </div>
-            <div class="admin-ai-grid">
-              <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
-              <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-v4-flash" /></div>
-              <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
-            </div>
-            <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API Key...</div>
-            <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;"></div>
-          </section>
+        <div class="settings-center">
+          <nav class="settings-nav panel" aria-label="后台设置分类">
+            <button class="active" data-admin-section="departments">部门管理</button>
+            <button data-admin-section="modules">项目类型</button>
+            <button data-admin-section="accounts">账号管理</button>
+            <button data-admin-section="ai">AI 服务</button>
+            <button data-admin-section="session">登录策略</button>
+          </nav>
+          <div class="settings-editor">
+            <section class="panel admin-section" data-admin-panel="departments">
+              <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门名称与启用状态；已有部门请停用，不直接删除。</p></div><button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
+              <div id="adminDepartmentsList" class="admin-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="modules" hidden>
+              <div class="admin-section-head"><div><h3>项目类型</h3><p>用于任务筛选、周报模块和导入待办归类。</p></div><button class="ghost-btn" id="addAdminModuleBtn">+ 新增类型</button></div>
+              <div style="margin-bottom:14px;"><label class="subtitle" for="adminDepartmentModulesSelect">所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
+              <div id="adminModulesList" class="admin-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="accounts" hidden>
+              <div class="admin-section-head"><div><h3>账号管理</h3><p>维护可注册成员及其所属部门。</p></div><button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button></div>
+              <div id="adminAccountsList" class="admin-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="ai" hidden>
+              <div class="admin-section-head"><div><h3>AI 服务</h3><p>配置模型和 API 密钥；完整密钥不会再次显示。</p></div></div>
+              <div class="admin-ai-grid">
+                <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
+                <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-chat" /></div>
+                <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
+                <div><label>API 密钥</label><input id="adminAiApiKey" type="password" autocomplete="new-password" placeholder="输入新密钥以配置或替换" /></div>
+              </div>
+              <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API 密钥...</div>
+              <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="ghost-btn" id="adminAiTestBtn">测试连接</button><button class="danger-btn" id="adminAiClearBtn">清除密钥</button></div>
+              <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;">密钥将由服务端加密保存。</div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="session" hidden>
+              <div class="admin-section-head"><div><h3>登录策略</h3><p>设置普通用户登录状态的保持时间。</p></div></div>
+              <div class="form-group" style="max-width:360px;"><label for="adminSessionDurationMinutes">登录保持时间（分钟）</label><input id="adminSessionDurationMinutes" type="number" min="5" max="43200" step="1" /></div>
+            </section>
+          </div>
         </div>
-        <div class="admin-savebar panel">
+        <div class="admin-savebar panel" hidden>
           <span id="adminSaveHint">修改后点击保存配置。</span>
           <div class="actions">
             <button class="ghost-btn" id="adminReloadBtn">重新加载</button>
@@ -388,40 +441,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <button class="btn small ghost" id="closeTaskModal">×</button>
       </div>
       <div class="modal-body" id="taskDetail"></div>
-    </section>
-  </div>
-
-  <div class="modal-mask" id="authModal" hidden>
-    <section class="modal">
-      <div class="modal-head">
-        <strong id="authModalTitle">登录</strong>
-        <button class="btn small ghost" id="closeAuthModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="actions" style="justify-content:flex-start;margin-bottom:10px;">
-          <button class="btn small secondary" id="showLoginBtn">登录</button>
-          <button class="btn small ghost" id="showRegisterBtn">注册</button>
-        </div>
-        <div class="form-grid">
-          <div>
-            <label>用户名</label>
-            <input id="authUsername" placeholder="例如 zhangsan" />
-          </div>
-          <div id="displayNameField">
-            <label>显示名称</label>
-            <input id="authDisplayName" placeholder="例如 张三" />
-          </div>
-          <div class="field-full">
-            <label>密码</label>
-            <input id="authPassword" type="password" placeholder="至少6位" />
-          </div>
-        </div>
-        <div class="actions" style="margin-top:12px;justify-content:flex-start;">
-          <button class="btn" id="submitAuthBtn">登录</button>
-          <span class="subtitle" id="authHint">首次使用请先注册。</span>
-        </div>
-        <div id="authMessage" class="subtitle" style="margin-top:10px;"></div>
-      </div>
     </section>
   </div>
 
@@ -520,6 +539,33 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       <div class="modal-foot">
         <button class="ghost-btn" id="cancelReportTaskImportBtn">取消</button>
         <button class="primary-btn" id="confirmReportTaskImportBtn">导入选中</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-mask" id="adminResetPasswordModal" hidden>
+    <section class="modal">
+      <div class="modal-head">
+        <strong>重置成员密码</strong>
+        <button class="btn small ghost" id="closeAdminResetPasswordModal" type="button">×</button>
+      </div>
+      <div class="modal-body">
+        <p class="subtitle" id="adminResetPasswordAccount"></p>
+        <div class="form-grid">
+          <div class="field-full">
+            <label for="adminResetPassword">新密码</label>
+            <input id="adminResetPassword" type="password" autocomplete="new-password" placeholder="至少6位" />
+          </div>
+          <div class="field-full">
+            <label for="adminResetPasswordConfirm">确认新密码</label>
+            <input id="adminResetPasswordConfirm" type="password" autocomplete="new-password" placeholder="再次输入新密码" />
+          </div>
+        </div>
+        <div class="login-message" id="adminResetPasswordMessage" role="alert"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="ghost-btn" id="cancelAdminResetPasswordBtn" type="button">取消</button>
+        <button class="primary-btn" id="confirmAdminResetPasswordBtn" type="button">确认重置</button>
       </div>
     </section>
   </div>
@@ -640,6 +686,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
   <script>
     const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
     let modules = [...defaultModules];
+    const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, modules: [...defaultModules] };
+    let departments = [{ ...defaultDepartment, modules: [...defaultModules] }];
+    let sessionDurationMinutes = 30;
     const reportTypes = {
       weekly: { label: "周总结", title: "数据产品部周重点工作汇报", dateLabel: "汇报周期" },
       monthly: { label: "月总结", title: "数据产品部月度工作总结", dateLabel: "总结周期" },
@@ -653,14 +702,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       ["钟南海", "zhongnanhai"], ["宋泉辰", "songquanchen"], ["高竹林", "gaozhulin"], ["林徵", "linzheng"],
       ["黄嘉颖", "huangjiaying"], ["梁思嘉", "liangsijia"], ["杨俊华", "yangjunhua"], ["吴健浩", "wujianhao"],
       ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
-    ].map(([name, username]) => ({ name, username }));
+    ].map(([name, username]) => ({ name, username, departmentId: defaultDepartment.id }));
     const storageKey = "dp-weekly-workbench-v1";
-    const syncKeyStorageKey = `${storageKey}-sync-key`;
     const userStorageKey = `${storageKey}-user`;
     const userTokenStorageKey = `${storageKey}-user-token`;
     const userTokenExpiresStorageKey = `${storageKey}-user-token-expires-at`;
     const onboardingSeenStorageKey = "dp-workbench-onboarding-seen";
-    const loginKeepAliveMs = 30 * 60 * 1000;
 
     let weeks = [];
     let currentWeek = null;
@@ -676,6 +723,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let reportLastLocalEditAt = 0;
     let reportLastSyncedAt = 0;
     let reportTaskImportContext = { moduleIndex: 0, sectionIndex: 0 };
+    let reportImportTasks = [];
+    let reportImportState = "idle";
+    let reportImportError = "";
     let reportYearFilter = "all";
     let reportQuarterFilter = "all";
     let reportMonthFilter = "all";
@@ -687,15 +737,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let currentUser = JSON.parse(localStorage.getItem(userStorageKey) || "null");
     let userToken = localStorage.getItem(userTokenStorageKey) || "";
     let userTokenExpiresAt = Number(localStorage.getItem(userTokenExpiresStorageKey) || 0);
-    let authMode = "login";
     let goalsRows = [];
     let goalLinkedTasks = [];
     let goalsYear = "2026";
     let accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
     let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
     let aiGenerating = false;
-    let adminDraftSettings = { modules: [...modules], accounts: accountRows.map((account) => ({ ...account })), ai: { ...aiSettings } };
-    let adminAuthed = sessionStorage.getItem(`${storageKey}-admin-auth`) === "true";
+    let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
+    let adminModulesDepartmentId = defaultDepartment.id;
+    const adminSessionStorageKey = `${storageKey}-admin-session`;
+    let adminSession = JSON.parse(sessionStorage.getItem(adminSessionStorageKey) || "null") || { token: "", expiresAt: 0 };
+    let adminSessionToken = adminSession.token || "";
+    let adminAuthed = Boolean(adminSessionToken && Number(adminSession.expiresAt) > Date.now());
+    let adminActiveSection = "departments";
+    let adminDirty = false;
+    let adminResetUsername = "";
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
     let taskModuleFilter = "all";
@@ -789,6 +845,37 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return Math.max(0, Math.ceil((userTokenExpiresAt - Date.now()) / 60000));
     }
 
+    function formatSessionDuration(minutes) {
+      const value = Math.max(1, Number(minutes) || 30);
+      if (value % 1440 === 0) return `${value / 1440}天`;
+      if (value % 60 === 0) return `${value / 60}小时`;
+      return `${value}分钟`;
+    }
+
+    function showAuthView(view = "login", message = "") {
+      $("loginView").hidden = view !== "login";
+      $("registerView").hidden = view !== "register";
+      $("forgotPasswordView").hidden = view !== "forgot-password";
+      $("workspaceShell").hidden = true;
+      if (view === "login") {
+        $("loginDurationHint").textContent = `保持登录：${formatSessionDuration(sessionDurationMinutes)}`;
+        $("loginMessage").textContent = message;
+        setTimeout(() => $("loginUsername").focus(), 0);
+      }
+    }
+
+    function showLoginPage(message = "") {
+      showAuthView("login", message);
+    }
+
+    function showAuthenticatedWorkspace() {
+      $("loginView").hidden = true;
+      $("registerView").hidden = true;
+      $("forgotPasswordView").hidden = true;
+      $("workspaceShell").hidden = false;
+      $("loginMessage").textContent = "";
+    }
+
     function clearLoginState(message = "") {
       currentUser = null;
       userToken = "";
@@ -796,9 +883,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       localStorage.removeItem(userStorageKey);
       localStorage.removeItem(userTokenStorageKey);
       localStorage.removeItem(userTokenExpiresStorageKey);
+      applyDepartmentBranding();
       renderProfile();
       updateReportControls();
       if (message) setSyncStatus(message, "warn");
+      if (!isAdminRoute()) showLoginPage(message);
     }
 
     function ensureLoginAlive() {
@@ -807,32 +896,15 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return false;
     }
 
-    function getSyncKey(force = false) {
-      let key = localStorage.getItem(syncKeyStorageKey) || "";
-      if (!key || force) {
-        key = prompt("请输入周报协同口令") || "";
-        if (key) localStorage.setItem(syncKeyStorageKey, key);
-      }
-      return key;
-    }
-
     async function authedFetch(url, options = {}) {
       ensureLoginAlive();
-      const key = getSyncKey();
-      if (!key) throw new Error("missing key");
-      const request = () => fetch(url, {
+      const response = await fetch(url, {
         ...options,
-        headers: { ...(options.headers || {}), "x-report-key": key, ...(userToken ? { "x-user-token": userToken } : {}) },
+        headers: { ...(options.headers || {}), ...(userToken ? { "x-user-token": userToken } : {}) },
       });
-      let response = await request();
-      if (response.status === 401) {
-        localStorage.removeItem(syncKeyStorageKey);
-        const nextKey = getSyncKey(true);
-        if (!nextKey) throw new Error("unauthorized");
-        response = await fetch(url, {
-          ...options,
-          headers: { ...(options.headers || {}), "x-report-key": nextKey, ...(userToken ? { "x-user-token": userToken } : {}) },
-        });
+      if (response.status === 401 && !isAdminRoute() && !url.includes("/api/auth/")) {
+        clearLoginState("登录已过期，请重新登录");
+        showLoginPage("登录已过期，请重新登录");
       }
       return response;
     }
@@ -1293,6 +1365,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         .map((account) => ({
           name: String(account?.name || "").trim(),
           username: String(account?.username || "").trim().toLowerCase(),
+          departmentId: String(account?.departmentId || departments[0]?.id || defaultDepartment.id).trim(),
+          registered: account?.registered === true,
         }))
         .filter((account) => account.name && account.username)
         .filter((account) => {
@@ -1303,30 +1377,88 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return rows.length ? rows : defaultDepartmentAccounts.map((account) => ({ ...account }));
     }
 
+    function departmentIdFromName(name) {
+      const ascii = String(name || "").trim().toLowerCase()
+        .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+        .replace(/^-|-$/g, "");
+      return ascii || `department-${Date.now().toString(36)}`;
+    }
+
+    function normalizeDepartmentsList(list) {
+      const seen = new Set();
+      const rows = (Array.isArray(list) ? list : []).map((department) => ({
+        id: String(department?.id || departmentIdFromName(department?.name)).trim(),
+        name: String(department?.name || "").trim(),
+        enabled: department?.enabled !== false,
+        modules: normalizeModulesList(department?.modules),
+      })).filter((department) => department.id && department.name).filter((department) => {
+        if (seen.has(department.id)) return false;
+        seen.add(department.id);
+        return true;
+      });
+      return rows.length ? rows : [{ ...defaultDepartment, modules: [...defaultModules] }];
+    }
+
+    function currentDepartment() {
+      const departmentId = currentUser?.departmentId || currentUser?.department?.id;
+      return departments.find((department) => department.id === departmentId) || departments[0] || defaultDepartment;
+    }
+
+    function defaultGoalsForCurrentDepartment() {
+      return currentDepartment().id === defaultDepartment.id
+        ? JSON.parse(JSON.stringify(initialGoalsRows))
+        : [];
+    }
+
+    function applyDepartmentBranding() {
+      const department = currentDepartment();
+      const departmentName = currentUser?.department?.name || department.name || "部门";
+      $("brandTitle").textContent = currentUser ? `${departmentName}工作台` : "部门工作台";
+      reportTypes.weekly.title = `${departmentName}周重点工作汇报`;
+      reportTypes.monthly.title = `${departmentName}月度工作总结`;
+      reportTypes.quarterly.title = `${departmentName}季度工作总结`;
+      modules = normalizeModulesList(department.modules);
+      renderModuleFilterOptions();
+    }
+
     function applySettings(settings = {}) {
-      modules = normalizeModulesList(settings.modules);
+      departments = normalizeDepartmentsList(settings.departments);
       accountRows = normalizeAccountsList(settings.accounts);
+      sessionDurationMinutes = Number.isInteger(Number(settings.sessionDurationMinutes)) ? Number(settings.sessionDurationMinutes) : 30;
       aiSettings = {
         enabled: settings.ai?.enabled === true,
         provider: ["deepseek", "kimi"].includes(settings.ai?.provider) ? settings.ai.provider : "deepseek",
         providerLabel: settings.ai?.providerLabel || (settings.ai?.provider === "kimi" ? "Kimi" : "DeepSeek"),
         model: settings.ai?.model || (settings.ai?.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash"),
         configured: settings.ai?.configured === true,
+        apiKeyMask: settings.ai?.apiKeyMask || "",
       };
       adminDraftSettings = {
-        modules: [...modules],
+        departments: departments.map((department) => ({ ...department, modules: [...department.modules] })),
         accounts: accountRows.map((account) => ({ ...account })),
+        sessionDurationMinutes,
         ai: { ...aiSettings },
       };
-      renderModuleFilterOptions();
+      if (!departments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = departments[0].id;
+      applyDepartmentBranding();
+      if ($("loginDurationHint")) {
+        $("loginDurationHint").textContent = `保持登录：${formatSessionDuration(sessionDurationMinutes)}`;
+      }
     }
 
-    async function loadSettings() {
+    function adminRequestHeaders() {
+      return adminSessionToken ? { Authorization: `Bearer ${adminSessionToken}` } : {};
+    }
+
+    async function loadSettings({ admin = false } = {}) {
       try {
-        const result = await apiJson("/api/settings");
+        const result = await apiJson(admin ? "/api/admin/settings" : "/api/settings", admin ? {
+          headers: adminRequestHeaders(),
+        } : {});
         applySettings(result.settings || {});
-      } catch {
-        applySettings({ modules: defaultModules, accounts: defaultDepartmentAccounts });
+      } catch (error) {
+        if (admin) throw error;
+        applySettings({ departments: [defaultDepartment], accounts: defaultDepartmentAccounts, sessionDurationMinutes: 30 });
         setSyncStatus("配置读取失败，已使用默认配置", "warn");
       }
     }
@@ -1372,13 +1504,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       try {
         const result = await apiJson("/api/goals");
         goalsYear = String(result.year || "2026");
-        goalsRows = Array.isArray(result.rows) && result.rows.length ? result.rows : JSON.parse(JSON.stringify(initialGoalsRows));
+        goalsRows = Array.isArray(result.rows) && result.rows.length ? result.rows : defaultGoalsForCurrentDepartment();
         resequenceGoals();
         renderGoals();
         renderGoalsMeta(result);
       } catch {
         goalsYear = "2026";
-        goalsRows = JSON.parse(JSON.stringify(initialGoalsRows));
+        goalsRows = defaultGoalsForCurrentDepartment();
         resequenceGoals();
         renderGoals();
         setSyncStatus("目标读取失败", "warn");
@@ -2650,14 +2782,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return `${sequence}、${task.title || "未命名任务"}：整体进度${taskProgressPercent(task)}%${progressText ? `，${progressText}` : ""}`;
     }
 
-    function openReportTaskImport(moduleIndex, sectionIndex) {
+    async function openReportTaskImport(moduleIndex, sectionIndex) {
       if (reportStatus === "final") return setSyncStatus("总结已归档，无法导入", "warn");
       reportTaskImportContext = { moduleIndex, sectionIndex };
       const moduleName = reportData.modules[moduleIndex]?.title || modules[0];
       $("reportImportModuleFilter").innerHTML = modules.map((item) => `<option ${item === moduleName ? "selected" : ""}>${escapeHtml(item)}</option>`).join("");
       $("reportImportSectionSelect").value = reportData.modules[moduleIndex]?.sections?.[sectionIndex]?.title || "本周进展";
-      renderReportTaskImportList();
       $("reportTaskImportModal").hidden = false;
+      await loadReportImportTasks();
     }
 
     function closeReportTaskImportModal() {
@@ -2665,9 +2797,23 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderReportTaskImportList() {
+      $("confirmReportTaskImportBtn").disabled = reportImportState !== "success";
+      $("selectAllReportImportTasks").disabled = reportImportState !== "success";
+      if (reportImportState === "loading") {
+        $("reportTaskImportList").innerHTML = `<div class="import-state">正在加载待办…</div>`;
+        return;
+      }
+      if (reportImportState === "error") {
+        $("reportTaskImportList").innerHTML = `
+          <div class="import-state error">
+            <span>${escapeHtml(reportImportError || "待办加载失败")}</span>
+            <button class="ghost-btn" data-retry-report-task-import>重新加载</button>
+          </div>`;
+        return;
+      }
       const moduleName = $("reportImportModuleFilter")?.value || reportData.modules[reportTaskImportContext.moduleIndex]?.title || modules[0];
       const sectionTitle = $("reportImportSectionSelect")?.value || reportData.modules[reportTaskImportContext.moduleIndex]?.sections?.[reportTaskImportContext.sectionIndex]?.title || "本周进展";
-      const rows = tasks
+      const rows = reportImportTasks
         .filter((task) => task.module === moduleName)
         .filter((task) => task.includeInReport !== false)
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -2681,7 +2827,27 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <span>${taskProgressPercent(task)}%</span>
           </label>
         `;
-      }).join("") || `<div class="import-preview-row" style="grid-template-columns:1fr;"><span>当前模块暂无可导入待办</span></div>`;
+      }).join("") || `<div class="import-state">当前周期和模块暂无可导入待办</div>`;
+    }
+
+    async function loadReportImportTasks() {
+      reportImportState = "loading";
+      reportImportError = "";
+      renderReportTaskImportList();
+      try {
+        const query = new URLSearchParams({
+          startDate: reportData.startDate,
+          endDate: reportData.endDate,
+        });
+        const result = await apiJson(`/api/tasks?${query}`);
+        reportImportTasks = result.tasks || [];
+        reportImportState = "success";
+      } catch (error) {
+        reportImportTasks = [];
+        reportImportState = "error";
+        reportImportError = error.message || "待办加载失败";
+      }
+      renderReportTaskImportList();
     }
 
     function confirmReportTaskImport() {
@@ -2690,7 +2856,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!mod || !section) return;
       const sectionTitle = $("reportImportSectionSelect").value || section.title;
       const selectedIds = [...document.querySelectorAll("[data-report-task-import]:checked")].map((input) => input.dataset.reportTaskImport);
-      const selectedTasks = selectedIds.map((id) => tasks.find((task) => task.id === id)).filter(Boolean);
+      const selectedTasks = selectedIds.map((id) => reportImportTasks.find((task) => task.id === id)).filter(Boolean);
       if (!selectedTasks.length) return setSyncStatus("请选择要导入的待办", "warn");
       const existingItems = parseReportItems(reportItemsToText(section.items || []));
       const existing = new Set(existingItems.map((text) => normalizeText(cleanReportLine(text, { stripNumbering: true }))));
@@ -3066,6 +3232,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderProfile() {
+      applyDepartmentBranding();
       const accountName = currentAccountName();
       const myTasks = accountName ? tasks.filter((task) => normalizeText(task.owner).includes(normalizeText(accountName))) : [];
       const myGoals = accountName ? goalsRows.filter((goal) => normalizeText(goal.owner).includes(normalizeText(accountName))) : [];
@@ -3134,9 +3301,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       document.body.classList.add("admin-mode");
       setView("admin");
       renderAdmin();
-      if (adminAuthed) {
-        loadSettings().then(renderAdmin).catch(() => renderAdmin());
-      }
     }
 
     function renderAdmin() {
@@ -3145,101 +3309,155 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("syncStatus").textContent = adminAuthed ? "后台已登录" : "后台未登录";
       $("syncStatus").className = adminAuthed ? "sync-pill ok" : "sync-pill warn";
       if (!adminAuthed) return;
-      $("adminModulesList").innerHTML = adminDraftSettings.modules.map((moduleName, index) => `
+      document.querySelectorAll("[data-admin-section]").forEach((button) => button.classList.toggle("active", button.dataset.adminSection === adminActiveSection));
+      document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== adminActiveSection; });
+      document.querySelector(".admin-savebar").hidden = !adminDirty;
+      const draftDepartments = adminDraftSettings.departments || [];
+      if (!draftDepartments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = draftDepartments[0]?.id || "";
+      const selectedDepartment = draftDepartments.find((department) => department.id === adminModulesDepartmentId) || draftDepartments[0];
+      $("adminDepartmentsList").innerHTML = draftDepartments.map((department, index) => `
+        <div class="admin-row two" data-admin-department-row="${index}">
+          <input data-admin-department-name="${index}" value="${escapeHtml(department.name)}" placeholder="部门名称" />
+          <select data-admin-department-enabled="${index}"><option value="true" ${department.enabled !== false ? "selected" : ""}>启用</option><option value="false" ${department.enabled === false ? "selected" : ""}>停用</option></select>
+          <span class="subtitle">${escapeHtml(department.id)}</span>
+        </div>
+      `).join("");
+      $("adminDepartmentModulesSelect").innerHTML = draftDepartments.map((department) => `<option value="${escapeHtml(department.id)}" ${department.id === adminModulesDepartmentId ? "selected" : ""}>${escapeHtml(department.name)}</option>`).join("");
+      $("adminModulesList").innerHTML = (selectedDepartment?.modules || []).map((moduleName, index) => `
         <div class="admin-row" data-admin-module-row="${index}">
           <input data-admin-module="${index}" value="${escapeHtml(moduleName)}" placeholder="例如 AI+X项目" />
-          <button class="btn small danger" data-remove-admin-module="${index}" ${adminDraftSettings.modules.length <= 1 ? "disabled" : ""}>删除</button>
+          <button class="btn small danger" data-remove-admin-module="${index}" ${(selectedDepartment?.modules || []).length <= 1 ? "disabled" : ""}>删除</button>
         </div>
       `).join("");
       $("adminAccountsList").innerHTML = adminDraftSettings.accounts.map((account, index) => `
-        <div class="admin-row two" data-admin-account-row="${index}">
+        <div class="admin-row three" data-admin-account-row="${index}">
           <input data-admin-account-name="${index}" value="${escapeHtml(account.name)}" placeholder="姓名" />
           <input data-admin-account-username="${index}" value="${escapeHtml(account.username)}" placeholder="用户名" />
-          <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
+          <select data-admin-account-department="${index}">${draftDepartments.map((department) => `<option value="${escapeHtml(department.id)}" ${department.id === account.departmentId ? "selected" : ""}>${escapeHtml(department.name)}</option>`).join("")}</select>
+          <div class="row-actions">
+            ${account.registered ? `<button class="btn small ghost" data-admin-reset-password="${escapeHtml(account.username)}">重置密码</button>` : ""}
+            <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
+          </div>
         </div>
       `).join("");
       const ai = adminDraftSettings.ai || aiSettings;
       $("adminAiProvider").value = ai.provider || "deepseek";
       $("adminAiModel").value = ai.model || (ai.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash");
       $("adminAiEnabled").value = String(ai.enabled === true);
+      $("adminSessionDurationMinutes").value = String(adminDraftSettings.sessionDurationMinutes || 30);
       $("adminAiKeyStatus").className = `ai-ready ${ai.configured ? "ok" : "warn"}`;
       $("adminAiKeyStatus").textContent = ai.configured
-        ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 已配置`
-        : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} API Key 未配置`;
-      $("adminAiEnvHint").textContent = ai.provider === "kimi"
-        ? "请在 Netlify 环境变量中配置 MOONSHOT_API_KEY（也兼容 KIMI_API_KEY）。"
-        : "请在 Netlify 环境变量中配置 DEEPSEEK_API_KEY。";
+        ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥已配置${ai.apiKeyMask ? ` · ${ai.apiKeyMask}` : ""}`
+        : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥未配置`;
+      $("adminAiEnvHint").textContent = "新密钥只在本次输入时可见，保存后由服务端加密存储。";
+    }
+
+    function markAdminDirty(message = "存在未保存修改") {
+      adminDirty = true;
+      $("adminSaveHint").textContent = message;
+      document.querySelector(".admin-savebar").hidden = false;
+    }
+
+    function openAdminPasswordReset(username) {
+      adminResetUsername = String(username || "").trim().toLowerCase();
+      $("adminResetPasswordAccount").textContent = `为账号 ${adminResetUsername} 设置新密码。重置后，该账号现有登录会立即失效。`;
+      $("adminResetPassword").value = "";
+      $("adminResetPasswordConfirm").value = "";
+      $("adminResetPasswordMessage").textContent = "";
+      $("adminResetPasswordModal").hidden = false;
+      setTimeout(() => $("adminResetPassword").focus(), 0);
+    }
+
+    function closeAdminPasswordReset() {
+      $("adminResetPasswordModal").hidden = true;
+      adminResetUsername = "";
+    }
+
+    async function submitAdminPasswordReset() {
+      const password = $("adminResetPassword").value;
+      const confirmPassword = $("adminResetPasswordConfirm").value;
+      if (password.length < 6) throw new Error("密码至少6位");
+      if (password !== confirmPassword) throw new Error("两次输入的密码不一致");
+      await apiJson(`/api/admin/users/${encodeURIComponent(adminResetUsername)}/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...adminRequestHeaders(),
+        },
+        body: JSON.stringify({ password }),
+      });
+      const username = adminResetUsername;
+      closeAdminPasswordReset();
+      setSyncStatus(`已重置 ${username} 的密码`, "ok");
     }
 
     async function saveAdminSettings() {
-      adminDraftSettings.modules = normalizeModulesList(adminDraftSettings.modules);
+      adminDraftSettings.departments = normalizeDepartmentsList(adminDraftSettings.departments);
       adminDraftSettings.accounts = normalizeAccountsList(adminDraftSettings.accounts);
+      adminDraftSettings.sessionDurationMinutes = Number($("adminSessionDurationMinutes").value);
+      if (!Number.isInteger(adminDraftSettings.sessionDurationMinutes) || adminDraftSettings.sessionDurationMinutes < 5 || adminDraftSettings.sessionDurationMinutes > 43200) {
+        throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
+      }
+      const apiKey = $("adminAiApiKey").value.trim();
       adminDraftSettings.ai = {
         enabled: adminDraftSettings.ai?.enabled === true,
         provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek",
         model: String(adminDraftSettings.ai?.model || "").trim(),
+        ...(apiKey ? { apiKey } : {}),
       };
-      const result = await apiJson("/api/settings", {
-        method: "POST",
+      const result = await apiJson("/api/admin/settings", {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-user": "Admin",
-          "x-admin-password": "888888",
+          ...adminRequestHeaders(),
         },
         body: JSON.stringify(adminDraftSettings),
       });
+      $("adminAiApiKey").value = "";
       applySettings(result.settings || adminDraftSettings);
+      adminDirty = false;
       renderAdmin();
       $("adminSaveHint").textContent = `已保存配置 · ${new Date().toLocaleTimeString()}`;
       setSyncStatus("后台配置已保存", "ok");
     }
 
-    function renderAuthModal() {
-      const isLogin = authMode === "login";
-      $("authModalTitle").textContent = isLogin ? "登录" : "注册";
-      $("submitAuthBtn").textContent = isLogin ? "登录" : "注册";
-      $("displayNameField").hidden = isLogin;
-      $("authHint").textContent = isLogin ? "首次使用请先注册。" : "注册后会自动登录，并保持登录状态。";
-      $("showLoginBtn").className = isLogin ? "btn small secondary" : "btn small ghost";
-      $("showRegisterBtn").className = isLogin ? "btn small ghost" : "btn small secondary";
-      $("authMessage").textContent = "";
-    }
-
-    function openAuthModal(mode = "login") {
-      authMode = mode;
-      renderAuthModal();
-      $("authModal").hidden = false;
-    }
-
-    function closeAuthModal() {
-      $("authModal").hidden = true;
-    }
-
-    async function authAction(action) {
-      const username = $("authUsername").value.trim();
-      const password = $("authPassword").value;
-      const displayName = $("authDisplayName").value.trim();
+    async function authAction(credentials) {
+      const username = credentials?.username?.trim() || "";
+      const password = credentials?.password ?? "";
       if (!username || !password) {
-        $("authMessage").textContent = "请填写用户名和密码。";
-        return;
+        throw new Error("请填写用户名和密码。");
       }
-      $("authMessage").textContent = action === "login" ? "正在登录..." : "正在注册...";
-      const result = await apiJson(`/api/auth/${action}`, {
+      const result = await apiJson("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      currentUser = result.user;
+      userToken = result.token;
+      userTokenExpiresAt = Number(result.expiresAt || 0) || Date.now() + sessionDurationMinutes * 60_000;
+      localStorage.setItem(userStorageKey, JSON.stringify(currentUser));
+      localStorage.setItem(userTokenStorageKey, userToken);
+      localStorage.setItem(userTokenExpiresStorageKey, String(userTokenExpiresAt));
+      applyDepartmentBranding();
+      showAuthenticatedWorkspace();
+      renderProfile();
+      await loadSettings();
+      await loadWeeks();
+      setSyncStatus("已登录", "ok");
+      return result;
+    }
+
+    async function registerAccount({ username, password, confirmPassword, displayName }) {
+      if (!username || !displayName || !password || !confirmPassword) {
+        throw new Error("请完整填写注册信息");
+      }
+      if (password.length < 6) throw new Error("密码至少6位");
+      if (password !== confirmPassword) throw new Error("两次输入的密码不一致");
+      await apiJson("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password, displayName }),
       });
-      currentUser = result.user;
-      userToken = result.token;
-      userTokenExpiresAt = Number(result.expiresAt || 0) || Date.now() + loginKeepAliveMs;
-      localStorage.setItem(userStorageKey, JSON.stringify(currentUser));
-      localStorage.setItem(userTokenStorageKey, userToken);
-      localStorage.setItem(userTokenExpiresStorageKey, String(userTokenExpiresAt));
-      renderProfile();
-      $("authMessage").innerHTML = action === "login"
-        ? `登录成功，欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}，本次登录将保持30分钟。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`
-        : `注册成功，已自动登录，本次登录将保持30分钟。欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`;
-      setSyncStatus(action === "login" ? "已登录" : "已注册", "ok");
     }
 
     document.addEventListener("click", async (event) => {
@@ -3677,10 +3895,33 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("reportImportModuleFilter").addEventListener("change", renderReportTaskImportList);
     $("reportImportSectionSelect").addEventListener("change", renderReportTaskImportList);
+    $("reportTaskImportList").addEventListener("click", (event) => {
+      if (event.target.closest("[data-retry-report-task-import]")) loadReportImportTasks();
+    });
     $("selectAllReportImportTasks").addEventListener("click", () => {
       document.querySelectorAll("[data-report-task-import]").forEach((input) => input.checked = true);
     });
     $("confirmReportTaskImportBtn").addEventListener("click", confirmReportTaskImport);
+
+    $("closeAdminResetPasswordModal").addEventListener("click", closeAdminPasswordReset);
+    $("cancelAdminResetPasswordBtn").addEventListener("click", closeAdminPasswordReset);
+    $("adminResetPasswordModal").addEventListener("click", (event) => {
+      if (event.target.id === "adminResetPasswordModal") closeAdminPasswordReset();
+    });
+    $("confirmAdminResetPasswordBtn").addEventListener("click", async () => {
+      const button = $("confirmAdminResetPasswordBtn");
+      button.disabled = true;
+      button.textContent = "重置中...";
+      $("adminResetPasswordMessage").textContent = "";
+      try {
+        await submitAdminPasswordReset();
+      } catch (error) {
+        $("adminResetPasswordMessage").textContent = error.message || "密码重置失败";
+      } finally {
+        button.disabled = false;
+        button.textContent = "确认重置";
+      }
+    });
 
     $("closeGoalTaskModal").addEventListener("click", closeGoalTaskModal);
     $("goalTaskModal").addEventListener("click", (event) => {
@@ -3700,7 +3941,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     $("authNavBtn").addEventListener("click", () => {
       if (currentUser) setView("profile");
-      else openAuthModal("login");
+      else showLoginPage();
     });
     $("adminEntryBtn").addEventListener("click", () => {
       location.href = "/admin";
@@ -3708,27 +3949,72 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("backFromAdminBtn").addEventListener("click", () => {
       location.href = "/";
     });
-    $("adminLoginBtn").addEventListener("click", () => {
-      const username = $("adminUsername").value.trim().toLowerCase();
+    $("adminLoginBtn").addEventListener("click", async () => {
+      const username = $("adminUsername").value.trim();
       const password = $("adminPassword").value;
-      if (username !== "admin" || password !== "888888") {
-        $("adminSaveHint").textContent = "后台账号或密码不正确";
+      if (!username || !password) {
+        $("adminSaveHint").textContent = "请输入后台账号和密码";
         return setSyncStatus("后台登录失败", "warn");
       }
-      adminAuthed = true;
-      sessionStorage.setItem(`${storageKey}-admin-auth`, "true");
-      loadSettings().then(renderAdmin).catch(() => renderAdmin());
+      try {
+        const session = await apiJson("/api/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        adminSession = session;
+        adminSessionToken = session.token;
+        adminAuthed = true;
+        sessionStorage.setItem(adminSessionStorageKey, JSON.stringify(session));
+        await loadSettings({ admin: true });
+      } catch (error) {
+        adminSession = { token: "", expiresAt: 0 };
+        adminSessionToken = "";
+        adminAuthed = false;
+        sessionStorage.removeItem(adminSessionStorageKey);
+        $("adminSaveHint").textContent = error.message || "后台账号或密码不正确";
+        return setSyncStatus("后台登录失败", "warn");
+      }
+      $("adminPassword").value = "";
+      renderAdmin();
       setSyncStatus("后台登录成功", "ok");
     });
+    $("addAdminDepartmentBtn").addEventListener("click", () => {
+      const name = `新部门${adminDraftSettings.departments.length + 1}`;
+      let id = departmentIdFromName(name);
+      let suffix = 2;
+      while (adminDraftSettings.departments.some((department) => department.id === id)) id = `${departmentIdFromName(name)}-${suffix++}`;
+      adminDraftSettings.departments.push({ id, name, enabled: true, modules: [...defaultModules] });
+      adminModulesDepartmentId = id;
+      markAdminDirty();
+      renderAdmin();
+    });
+    $("adminDepartmentsList").addEventListener("input", (event) => {
+      const nameIndex = event.target.dataset.adminDepartmentName;
+      if (nameIndex !== undefined) adminDraftSettings.departments[Number(nameIndex)].name = event.target.value;
+      markAdminDirty();
+    });
+    $("adminDepartmentsList").addEventListener("change", (event) => {
+      const enabledIndex = event.target.dataset.adminDepartmentEnabled;
+      if (enabledIndex !== undefined) adminDraftSettings.departments[Number(enabledIndex)].enabled = event.target.value === "true";
+      markAdminDirty();
+    });
+    $("adminDepartmentModulesSelect").addEventListener("change", (event) => {
+      adminModulesDepartmentId = event.target.value;
+      renderAdmin();
+    });
     $("addAdminModuleBtn").addEventListener("click", () => {
-      adminDraftSettings.modules.push("");
+      const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
+      if (department) department.modules.push("");
+      markAdminDirty();
       renderAdmin();
     });
     $("addAdminAccountBtn").addEventListener("click", () => {
-      adminDraftSettings.accounts.push({ name: "", username: "" });
+      adminDraftSettings.accounts.push({ name: "", username: "", departmentId: adminDraftSettings.departments[0]?.id || defaultDepartment.id });
+      markAdminDirty();
       renderAdmin();
     });
-    $("adminReloadBtn").addEventListener("click", () => loadSettings().then(renderAdmin).catch(() => setSyncStatus("配置读取失败", "warn")));
+    $("adminReloadBtn").addEventListener("click", () => loadSettings({ admin: true }).then(() => { adminDirty = false; renderAdmin(); }).catch(() => setSyncStatus("配置读取失败", "warn")));
     $("adminSaveBtn").addEventListener("click", () => saveAdminSettings().catch((error) => {
       $("adminSaveHint").textContent = error.message || "保存失败";
       setSyncStatus("后台配置保存失败", "warn");
@@ -3736,24 +4022,41 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("adminModulesList").addEventListener("input", (event) => {
       const index = event.target.dataset.adminModule;
       if (index === undefined) return;
-      adminDraftSettings.modules[Number(index)] = event.target.value;
+      const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
+      if (department) department.modules[Number(index)] = event.target.value;
+      markAdminDirty();
     });
     $("adminModulesList").addEventListener("click", (event) => {
       const index = event.target.closest("[data-remove-admin-module]")?.dataset.removeAdminModule;
       if (index === undefined) return;
-      adminDraftSettings.modules.splice(Number(index), 1);
+      const department = adminDraftSettings.departments.find((item) => item.id === adminModulesDepartmentId);
+      if (department) department.modules.splice(Number(index), 1);
+      markAdminDirty();
       renderAdmin();
     });
     $("adminAccountsList").addEventListener("input", (event) => {
       const nameIndex = event.target.dataset.adminAccountName;
       const usernameIndex = event.target.dataset.adminAccountUsername;
+      const departmentIndex = event.target.dataset.adminAccountDepartment;
       if (nameIndex !== undefined) adminDraftSettings.accounts[Number(nameIndex)].name = event.target.value;
       if (usernameIndex !== undefined) adminDraftSettings.accounts[Number(usernameIndex)].username = event.target.value;
+      if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
+      markAdminDirty();
+    });
+    $("adminAccountsList").addEventListener("change", (event) => {
+      const departmentIndex = event.target.dataset.adminAccountDepartment;
+      if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
     });
     $("adminAccountsList").addEventListener("click", (event) => {
+      const resetUsername = event.target.closest("[data-admin-reset-password]")?.dataset.adminResetPassword;
+      if (resetUsername) {
+        openAdminPasswordReset(resetUsername);
+        return;
+      }
       const index = event.target.closest("[data-remove-admin-account]")?.dataset.removeAdminAccount;
       if (index === undefined) return;
       adminDraftSettings.accounts.splice(Number(index), 1);
+      markAdminDirty();
       renderAdmin();
     });
     $("adminAiProvider").addEventListener("change", (event) => {
@@ -3763,49 +4066,125 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         provider,
         providerLabel: provider === "kimi" ? "Kimi" : "DeepSeek",
         model: provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash",
-        configured: false,
       };
+      markAdminDirty();
       renderAdmin();
     });
     $("adminAiModel").addEventListener("input", (event) => {
       adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), model: event.target.value };
+      markAdminDirty();
     });
     $("adminAiEnabled").addEventListener("change", (event) => {
       adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), enabled: event.target.value === "true" };
+      markAdminDirty();
     });
-    $("openAuthModalBtn").addEventListener("click", () => openAuthModal("login"));
-    $("closeAuthModal").addEventListener("click", closeAuthModal);
-    $("authModal").addEventListener("click", (event) => {
-      if (event.target.id === "authModal") closeAuthModal();
+    document.querySelector(".settings-nav").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admin-section]");
+      if (!button) return;
+      adminActiveSection = button.dataset.adminSection;
+      renderAdmin();
     });
-    $("showLoginBtn").addEventListener("click", () => {
-      authMode = "login";
-      renderAuthModal();
-    });
-    $("showRegisterBtn").addEventListener("click", () => {
-      authMode = "register";
-      renderAuthModal();
-    });
-    $("authMessage").addEventListener("click", (event) => {
-      if (event.target.id === "enterAfterAuthBtn") {
-        closeAuthModal();
-        setView("tasks");
+    $("adminSessionDurationMinutes").addEventListener("input", () => markAdminDirty());
+    $("adminAiApiKey").addEventListener("input", () => markAdminDirty("输入了新密钥，保存后生效"));
+    $("adminAiTestBtn").addEventListener("click", async () => {
+      $("adminAiKeyStatus").className = "ai-ready warn";
+      $("adminAiKeyStatus").textContent = "正在测试连接...";
+      try {
+        const result = await apiJson("/api/admin/ai/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+          body: JSON.stringify({
+            provider: $("adminAiProvider").value,
+            model: $("adminAiModel").value.trim(),
+            apiKey: $("adminAiApiKey").value.trim(),
+          }),
+        });
+        $("adminAiKeyStatus").className = "ai-ready ok";
+        $("adminAiKeyStatus").textContent = result.message || "连接成功";
+      } catch (error) {
+        $("adminAiKeyStatus").className = "ai-ready warn";
+        $("adminAiKeyStatus").textContent = error.message || "连接失败";
       }
     });
-    $("submitAuthBtn").addEventListener("click", () => authAction(authMode).catch((error) => {
-      $("authMessage").textContent = error.message || (authMode === "login" ? "登录失败" : "注册失败");
-      setSyncStatus(authMode === "login" ? "登录失败" : "注册失败", "warn");
-    }));
+    $("adminAiClearBtn").addEventListener("click", async () => {
+      if (!confirm("确认清除当前 AI API 密钥？清除后 AI 功能将停用。")) return;
+      try {
+        const result = await apiJson("/api/admin/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+          body: JSON.stringify({ ai: { clearApiKey: true } }),
+        });
+        applySettings(result.settings || {});
+        adminDirty = false;
+        $("adminAiApiKey").value = "";
+        renderAdmin();
+        setSyncStatus("AI 密钥已清除", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "清除失败", "warn");
+      }
+    });
+    window.addEventListener("beforeunload", (event) => {
+      if (!adminDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    $("openAuthModalBtn").addEventListener("click", () => clearLoginState("请登录其他账号"));
+    $("loginForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = $("loginSubmitBtn");
+      button.disabled = true;
+      button.textContent = "登录中...";
+      $("loginMessage").textContent = "";
+      try {
+        await authAction({ username: $("loginUsername").value, password: $("loginPassword").value });
+        $("loginPassword").value = "";
+        setView("tasks");
+      } catch (error) {
+        $("loginMessage").textContent = error.message || "账号或密码错误";
+      } finally {
+        button.disabled = false;
+        button.textContent = "登录";
+      }
+    });
+    $("loginRegisterBtn").addEventListener("click", () => {
+      $("registerUsername").value = $("loginUsername").value.trim();
+      $("registerMessage").textContent = "";
+      $("registerMessage").classList.remove("success");
+      showAuthView("register");
+    });
+    $("loginForgotPasswordBtn").addEventListener("click", () => showAuthView("forgot-password"));
+    $("registerBackBtn").addEventListener("click", () => showAuthView("login"));
+    $("forgotPasswordBackBtn").addEventListener("click", () => showAuthView("login"));
+    $("registerForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = $("registerSubmitBtn");
+      button.disabled = true;
+      button.textContent = "注册中...";
+      $("registerMessage").textContent = "";
+      $("registerMessage").classList.remove("success");
+      try {
+        const username = $("registerUsername").value.trim();
+        await registerAccount({
+          username,
+          displayName: $("registerDisplayName").value.trim(),
+          password: $("registerPassword").value,
+          confirmPassword: $("registerConfirmPassword").value,
+        });
+        $("registerMessage").textContent = "注册成功，请重新登录";
+        $("registerMessage").classList.add("success");
+        $("loginUsername").value = username;
+        $("registerPassword").value = "";
+        $("registerConfirmPassword").value = "";
+        setTimeout(() => showAuthView("login"), 2000);
+      } catch (error) {
+        $("registerMessage").textContent = error.message || "注册失败";
+      } finally {
+        button.disabled = false;
+        button.textContent = "完成注册";
+      }
+    });
     $("logoutBtn").addEventListener("click", () => {
-      currentUser = null;
-      userToken = "";
-      userTokenExpiresAt = 0;
-      localStorage.removeItem(userStorageKey);
-      localStorage.removeItem(userTokenStorageKey);
-      localStorage.removeItem(userTokenExpiresStorageKey);
-      renderProfile();
-      setView("tasks");
-      setSyncStatus("已退出", "ok");
+      clearLoginState("已退出登录");
     });
 
     async function generateCurrentWeekReport() {
@@ -3847,7 +4226,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!currentUser) {
         setAiReportStatus("请先登录后使用AI提炼", "error");
         $("aiReportModal").hidden = true;
-        openAuthModal("login");
+        showLoginPage("请先登录后使用AI提炼");
         return;
       }
       if (!aiSettings.enabled) return setAiReportStatus("后台尚未启用AI提炼", "error");
@@ -3986,7 +4365,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     $("resetGoalsBtn").addEventListener("click", () => {
       if (!confirm("确认恢复为初始目标？当前目标表会被覆盖。")) return;
-      goalsRows = JSON.parse(JSON.stringify(initialGoalsRows));
+      goalsRows = defaultGoalsForCurrentDepartment();
       goalsRows.forEach((row, index) => {
         row.id = goalRowId(row, index);
       });
@@ -4038,12 +4417,39 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }, 60 * 1000);
     async function initializeApp() {
       if (isAdminRoute()) {
-        await loadSettings();
+        showAuthenticatedWorkspace();
         enterAdminMode();
+        try {
+          await loadSettings({ admin: adminAuthed });
+        } catch {
+          adminSession = { token: "", expiresAt: 0 };
+          adminSessionToken = "";
+          adminAuthed = false;
+          sessionStorage.removeItem(adminSessionStorageKey);
+          await loadSettings();
+        }
+        renderAdmin();
         return;
       }
       await loadSettings();
+      if (userToken) {
+        const session = await apiJson("/api/auth/me");
+        currentUser = session.user;
+        userTokenExpiresAt = Number(session.expiresAt || 0);
+        if (currentUser) {
+          localStorage.setItem(userStorageKey, JSON.stringify(currentUser));
+          localStorage.setItem(userTokenExpiresStorageKey, String(userTokenExpiresAt));
+        } else {
+          clearLoginState();
+        }
+      }
       renderProfile();
+      if (!currentUser) {
+        setSyncStatus("请先登录", "warn");
+        showLoginPage();
+        return;
+      }
+      showAuthenticatedWorkspace();
       await loadWeeks();
       setSyncStatus("已同步", "ok");
       maybeShowOnboarding();

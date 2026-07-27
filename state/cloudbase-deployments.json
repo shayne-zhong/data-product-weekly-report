@@ -1,0 +1,47 @@
+[
+  {
+    "deployedAt": "2026-07-22T03:49:15.0264547Z",
+    "environmentId": "shayen-d0g1qu7hfe1045db1",
+    "environmentAlias": "shayen",
+    "region": "ap-shanghai",
+    "service": "department-workbench",
+    "cloudVersion": "department-workbench-003",
+    "sourceVersion": "18c61f3b9aef79d3042715c3ac877b5cb40836f1",
+    "url": "https://department-workbench-4144803-1301331867.ap-shanghai.run.tcloudbase.com",
+    "status": "normal",
+    "checks": {
+      "health": 200,
+      "home": 200,
+      "anonymousApi": 401,
+      "adminLogin": true,
+      "adminSettings": true
+    }
+  },
+  {
+    "deployedAt": "2026-07-27T02:06:25.1517508Z",
+    "environmentId": "shayen-d0g1qu7hfe1045db1",
+    "environmentAlias": "shayen",
+    "region": "ap-shanghai",
+    "service": "department-workbench",
+    "cloudVersion": "department-workbench-005",
+    "buildId": 2601434357,
+    "sourceVersion": "d37523b1b4578d0ed904e05614134e1b5d542fc6",
+    "url": "https://department-workbench-4144803-1301331867.ap-shanghai.run.tcloudbase.com",
+    "status": "normal",
+    "trafficPercent": 100,
+    "checks": {
+      "testsPassed": 71,
+      "dependencyVulnerabilities": 0,
+      "productionBuild": true,
+      "health": 200,
+      "healthVersionMatchesSource": true,
+      "home": 200,
+      "settings": 200,
+      "anonymousApi": 401,
+      "browserLoginPage": true,
+      "browserRegistrationPage": true,
+      "browserPasswordHelp": true,
+      "browserConsoleErrors": 0
+    }
+  }
+]

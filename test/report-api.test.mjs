@@ -5,6 +5,11 @@ import { randomUUID } from "node:crypto";
 import handler from "../api/[...path].mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
+process.env.REPORT_SYNC_KEY = syncKey;
+process.env.ADMIN_USERNAME = "Admin";
+process.env.ADMIN_PASSWORD = "888888";
+process.env.ADMIN_SESSION_SECRET = "report-api-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 5).toString("base64");
 
 function mockRes() {
   return {
@@ -25,17 +30,91 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", headers = {} } = {}) {
+let defaultToken = "";
+let adminToken = "";
+
+async function api(path, { method = "GET", body, token, headers = {}, query = {} } = {}) {
+  const resolvedToken = token === undefined ? defaultToken : token;
   const req = {
     method,
-    headers: { "x-report-key": syncKey, ...(token ? { "x-user-token": token } : {}), ...headers },
-    query: { path: path.split("/").filter(Boolean) },
+    headers: { "x-report-key": syncKey, ...(resolvedToken ? { "x-user-token": resolvedToken } : {}), ...headers },
+    query: { path: path.split("/").filter(Boolean), ...query },
     body,
   };
   const res = mockRes();
   await handler(req, res);
   return res;
 }
+
+test.before(async () => {
+  const adminLogin = await api("/admin/login", { method: "POST", body: { username: "Admin", password: "888888" } });
+  assert.equal(adminLogin.statusCode, 200);
+  adminToken = adminLogin.body.token;
+  const username = `report${randomUUID().replaceAll("-", "").slice(0, 10)}`;
+  const current = await api("/settings");
+  const settings = current.body.settings;
+  const saved = await api("/admin/settings", {
+    method: "POST",
+    headers: { authorization: `Bearer ${adminToken}` },
+    body: {
+      departments: settings.departments,
+      accounts: [...settings.accounts, { name: "报告测试", username, departmentId: settings.departments[0].id }],
+      sessionDurationMinutes: settings.sessionDurationMinutes,
+      ai: settings.ai,
+    },
+  });
+  assert.equal(saved.statusCode, 200);
+  const registered = await api("/auth/register", {
+    method: "POST",
+    body: { username, password: "12345678", displayName: "报告测试" },
+  });
+  assert.equal(registered.statusCode, 201);
+  const loggedIn = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "12345678" },
+  });
+  assert.equal(loggedIn.statusCode, 200);
+  defaultToken = loggedIn.body.token;
+});
+
+test("task range returns every matching week in the signed-in department", async () => {
+  const settings = await api("/settings");
+  const module = settings.body.settings.modules[0];
+  for (const week of [
+    { startDate: "2098-07-06", endDate: "2098-07-12", title: "Week one" },
+    { startDate: "2098-07-13", endDate: "2098-07-19", title: "Week two" },
+  ]) {
+    const createdWeek = await api("/weeks", { method: "POST", body: week });
+    assert.equal(createdWeek.statusCode, 201);
+    const createdTask = await api(`/week/${week.startDate}_${week.endDate}/tasks`, {
+      method: "POST",
+      body: { task: { title: week.title, module } },
+    });
+    assert.equal(createdTask.statusCode, 201);
+  }
+
+  const response = await api("/tasks", {
+    query: { startDate: "2098-07-01", endDate: "2098-07-31" },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(
+    response.body.tasks.map((task) => task.title).sort(),
+    ["Week one", "Week two"],
+  );
+});
+
+test("task range rejects invalid dates and anonymous access", async () => {
+  const invalid = await api("/tasks", {
+    query: { startDate: "2098-07-31", endDate: "2098-07-01" },
+  });
+  assert.equal(invalid.statusCode, 400);
+
+  const anonymous = await api("/tasks", {
+    token: "",
+    query: { startDate: "2098-07-01", endDate: "2098-07-31" },
+  });
+  assert.equal(anonymous.statusCode, 401);
+});
 
 test("AI settings expose readiness without exposing API keys", async () => {
   const originalKey = process.env.DEEPSEEK_API_KEY;
@@ -59,20 +138,14 @@ test("AI settings expose readiness without exposing API keys", async () => {
 test("AI report summary requires login and returns a reviewable candidate", async () => {
   const anonymous = await api("/ai/report-summary", {
     method: "POST",
+    token: "",
     body: { sourceText: "这是一段足够长的周报原始内容，用于验证未登录状态。" },
   });
   assert.equal(anonymous.statusCode, 401);
 
-  const suffix = randomUUID().replaceAll("-", "").slice(0, 10);
-  const registered = await api("/auth/register", {
+  const saved = await api("/admin/settings", {
     method: "POST",
-    body: { username: `aiuser${suffix}`, password: "12345678", displayName: "AI测试用户" },
-  });
-  assert.equal(registered.statusCode, 201);
-
-  const saved = await api("/settings", {
-    method: "POST",
-    headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+    headers: { authorization: `Bearer ${adminToken}` },
     body: { ai: { enabled: true, provider: "deepseek", model: "deepseek-v4-flash" } },
   });
   assert.equal(saved.statusCode, 200);
@@ -99,7 +172,7 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
   try {
     const generated = await api("/ai/report-summary", {
       method: "POST",
-      token: registered.body.token,
+      token: defaultToken,
       body: {
         sourceText: "数据产品部周重点工作汇报\n汇报周期：2026/07/13—2026/07/19\n本周完成重点任务。",
         summaryType: "weekly",
@@ -112,15 +185,15 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
     assert.equal(upstreamRequest.url, "https://api.deepseek.com/chat/completions");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-placeholder");
 
-    const kimiSettings = await api("/settings", {
+    const kimiSettings = await api("/admin/settings", {
       method: "POST",
-      headers: { "x-admin-user": "Admin", "x-admin-password": "888888" },
+      headers: { authorization: `Bearer ${adminToken}` },
       body: { ai: { enabled: true, provider: "kimi", model: "kimi-k2.6" } },
     });
     assert.equal(kimiSettings.statusCode, 200);
     const kimiGenerated = await api("/ai/report-summary", {
       method: "POST",
-      token: registered.body.token,
+      token: defaultToken,
       body: {
         sourceText: "数据产品部周重点工作汇报\n汇报周期：2026/07/13—2026/07/19\n本周完成重点任务。",
         summaryType: "weekly",
