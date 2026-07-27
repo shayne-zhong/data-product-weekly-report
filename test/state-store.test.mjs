@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import { createStateStore, defaultLocalStatePath } from "../lib/state-store.mjs";
 
@@ -65,4 +66,10 @@ test("production never falls back to temporary disk", async () => {
 test("local fallback state survives a server process restart", () => {
   assert.equal(defaultLocalStatePath(4321, {}), defaultLocalStatePath(9876, {}));
   assert.match(defaultLocalStatePath(4321, {}), /data-product-weekly-report-state-v1\.json$/);
+});
+
+test("production pins the CloudBase server SDK before the v4 client rewrite", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+
+  assert.equal(manifest.dependencies["@cloudbase/node-sdk"], "3.18.5");
 });

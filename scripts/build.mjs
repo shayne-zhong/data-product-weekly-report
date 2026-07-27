@@ -6,7 +6,7 @@ import { join } from "node:path";
 const execFileAsync = promisify(execFile);
 const root = process.cwd();
 const output = join(root, "build");
-const entries = ["server.mjs", "api", "lib", "public", "package.json", "package-lock.json"];
+const entries = ["server.mjs", "api", "lib", "public", "vendor", "package.json", "package-lock.json"];
 
 const html = await readFile(join(root, "public", "index.html"), "utf8");
 const inlineScript = html.match(/<script>([\s\S]*?)<\/script>/);

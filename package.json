@@ -8,11 +8,15 @@
     "start": "node server.mjs"
   },
   "dependencies": {
-    "@cloudbase/node-sdk": "^4.0.3",
+    "@cloudbase/node-sdk": "3.18.5",
     "@netlify/blobs": "^9.1.2",
-    "@vercel/blob": "^2.4.1"
+    "@vercel/blob": "^2.4.1",
+    "lodash.set": "file:vendor/lodash.set",
+    "lodash.unset": "file:vendor/lodash.unset"
   },
   "overrides": {
-    "axios": "1.18.1"
+    "axios": "1.18.1",
+    "lodash.set": "$lodash.set",
+    "lodash.unset": "$lodash.unset"
   }
 }
