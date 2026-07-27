@@ -836,6 +836,26 @@ function bearerToken(req) {
   return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 }
 
+async function resetUserPassword(req, res, state, username, now) {
+  if (req.method !== "POST") return methodNotAllowed(res);
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const { password } = await readBody(req);
+  const nextPassword = String(password || "");
+  if (nextPassword.length < 6) return json(res, { error: "密码至少6位" }, 400);
+
+  const user = state.users[normalizedUsername];
+  if (!user) return json(res, { error: "账号尚未注册" }, 404);
+
+  user.salt = randomId("salt");
+  user.passwordHash = await hashPassword(nextPassword, user.salt);
+  user.updatedAt = now;
+  for (const [token, session] of Object.entries(state.sessions || {})) {
+    if (session.username === normalizedUsername) delete state.sessions[token];
+  }
+  await saveState(state);
+  return json(res, { ok: true, username: normalizedUsername });
+}
+
 async function handleAdmin(req, res, state, parts, now) {
   const action = parts[1] || "";
   if (action === "login") {
@@ -849,6 +869,9 @@ async function handleAdmin(req, res, state, parts, now) {
   const admin = await verifyAdminToken(bearerToken(req), { now });
   if (!admin) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
+  if (action === "users" && parts[3] === "reset-password") {
+    return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now);
+  }
   if (action === "ai" && parts[2] === "test" && req.method === "POST") {
     const body = await readBody(req);
     const ai = normalizeAiSettings({ ...getSettings(state).ai, ...body });

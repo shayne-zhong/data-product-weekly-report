@@ -169,6 +169,76 @@ test("registration and login do not require the legacy report sync key", async (
   assert.ok(loggedIn.body.token);
 });
 
+test("admin resets a member password and invalidates existing sessions", async () => {
+  const username = uniqueUsername("reset");
+  const current = await api("/settings", { admin: true });
+  await saveSettings({
+    departments: current.body.settings.departments,
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "Reset User", username, departmentId: current.body.settings.departments[0].id },
+    ],
+    sessionDurationMinutes: 60,
+  });
+
+  const registered = await api("/auth/register", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username, password: "old-password" },
+  });
+  assert.equal(registered.statusCode, 201);
+  const oldLogin = await api("/auth/login", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username, password: "old-password" },
+  });
+  assert.equal(oldLogin.statusCode, 200);
+
+  const reset = await api(`/admin/users/${username}/reset-password`, {
+    method: "POST",
+    admin: true,
+    includeSyncKey: false,
+    body: { password: "new-password" },
+  });
+  assert.equal(reset.statusCode, 200);
+  assert.equal(reset.body.ok, true);
+
+  const oldSession = await api("/weeks", {
+    token: oldLogin.body.token,
+    includeSyncKey: false,
+  });
+  assert.equal(oldSession.statusCode, 401);
+  const oldPassword = await api("/auth/login", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username, password: "old-password" },
+  });
+  assert.equal(oldPassword.statusCode, 401);
+  const newPassword = await api("/auth/login", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username, password: "new-password" },
+  });
+  assert.equal(newPassword.statusCode, 200);
+});
+
+test("password reset requires an admin session and a valid password", async () => {
+  const anonymous = await api("/admin/users/member/reset-password", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { password: "new-password" },
+  });
+  assert.equal(anonymous.statusCode, 401);
+
+  const weak = await api("/admin/users/member/reset-password", {
+    method: "POST",
+    admin: true,
+    includeSyncKey: false,
+    body: { password: "12345" },
+  });
+  assert.equal(weak.statusCode, 400);
+});
+
 test("business data still requires a user session without a sync key", async () => {
   const response = await api("/weeks", { includeSyncKey: false });
   assert.equal(response.statusCode, 401);
