@@ -68,8 +68,8 @@ test("local fallback state survives a server process restart", () => {
   assert.match(defaultLocalStatePath(4321, {}), /data-product-weekly-report-state-v1\.json$/);
 });
 
-test("production pins the CloudBase server SDK before the v4 client rewrite", async () => {
+test("production uses the CloudBase SDK version that supports API key authentication", async () => {
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-  assert.equal(manifest.dependencies["@cloudbase/node-sdk"], "3.18.5");
+  assert.equal(manifest.dependencies["@cloudbase/node-sdk"], "4.0.3");
 });

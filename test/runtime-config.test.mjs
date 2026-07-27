@@ -9,8 +9,19 @@ import {
 test("production rejects missing secrets", () => {
   assert.throws(
     () => validateProductionConfig({ NODE_ENV: "production" }),
-    /ADMIN_USERNAME.*ADMIN_PASSWORD.*ADMIN_SESSION_SECRET.*SETTINGS_ENCRYPTION_KEY/,
+    /ADMIN_USERNAME.*ADMIN_PASSWORD.*ADMIN_SESSION_SECRET.*SETTINGS_ENCRYPTION_KEY.*CLOUDBASE_APIKEY/,
   );
+});
+
+test("production accepts a complete server-side CloudBase configuration", () => {
+  assert.doesNotThrow(() => validateProductionConfig({
+    NODE_ENV: "production",
+    ADMIN_USERNAME: "operator",
+    ADMIN_PASSWORD: "admin-test-value",
+    ADMIN_SESSION_SECRET: "session-test-value",
+    SETTINGS_ENCRYPTION_KEY: "settings-test-value",
+    CLOUDBASE_APIKEY: "cloudbase-server-test-value",
+  }));
 });
 
 test("credentials come only from environment variables", () => {
