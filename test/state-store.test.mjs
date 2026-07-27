@@ -62,6 +62,7 @@ test("production never falls back to temporary disk", async () => {
   await assert.rejects(() => store.save({}), /durable state storage is not configured/i);
 });
 
-test("local fallback files are isolated by process", () => {
-  assert.match(defaultLocalStatePath(4321), /data-product-weekly-report-state-v1-4321\.json$/);
+test("local fallback state survives a server process restart", () => {
+  assert.equal(defaultLocalStatePath(4321, {}), defaultLocalStatePath(9876, {}));
+  assert.match(defaultLocalStatePath(4321, {}), /data-product-weekly-report-state-v1\.json$/);
 });
