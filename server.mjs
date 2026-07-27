@@ -88,6 +88,12 @@ async function serveStatic(req, res, url, publicRoot) {
   }
 }
 
+export function apiQueryFromUrl(url) {
+  const query = { path: url.pathname.slice(5).split("/").filter(Boolean) };
+  for (const [key, value] of url.searchParams) query[key] = value;
+  return query;
+}
+
 export function createProductionServer({
   publicRoot = defaultPublicRoot,
   deploymentVersion = process.env.DEPLOYMENT_VERSION || "local",
@@ -98,7 +104,7 @@ export function createProductionServer({
       const url = new URL(req.url || "/", "http://localhost");
       if (url.pathname === "/healthz") return sendJson(res, { status: "ok", version: deploymentVersion });
       if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-        req.query = { path: url.pathname.slice(5).split("/").filter(Boolean) };
+        req.query = apiQueryFromUrl(url);
         return await apiHandler(req, adaptApiResponse(res));
       }
       return await serveStatic(req, res, url, publicRoot);

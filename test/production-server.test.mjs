@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createProductionServer } from "../server.mjs";
+import * as productionServer from "../server.mjs";
 
 process.env.ADMIN_USERNAME = "admin-test";
 process.env.ADMIN_PASSWORD = "admin-password-test";
@@ -18,6 +19,18 @@ function listen(server) {
 function close(server) {
   return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
+
+test("production server forwards API query parameters", () => {
+  assert.equal(typeof productionServer.apiQueryFromUrl, "function");
+  const query = productionServer.apiQueryFromUrl(
+    new URL("http://localhost/api/tasks?startDate=2026-07-01&endDate=2026-07-31"),
+  );
+  assert.deepEqual(query, {
+    path: ["tasks"],
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
+  });
+});
 
 test("production server serves health, UI, and protected API", async () => {
   const server = createProductionServer({ deploymentVersion: "test-version" });

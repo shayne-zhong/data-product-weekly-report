@@ -98,6 +98,16 @@ test("admin account management exposes registered-user password reset", () => {
   assert.match(html, /\/api\/admin\/users\/\$\{encodeURIComponent\(adminResetUsername\)\}\/reset-password/);
 });
 
+test("report import loads candidates for the report period", () => {
+  assert.match(html, /let reportImportTasks = \[\]/);
+  assert.match(html, /let reportImportState = "idle"/);
+  assert.match(html, /\/api\/tasks\?\$\{query\}/);
+  assert.match(html, /正在加载待办/);
+  assert.match(html, /当前周期和模块暂无可导入待办/);
+  assert.match(html, /data-retry-report-task-import/);
+  assert.match(html, /reportImportTasks[\s\S]{0,500}\.filter\(\(task\) => task\.module === moduleName\)/);
+});
+
 test("admin uses categorized settings and safe AI key controls", () => {
   for (const section of ["departments", "modules", "accounts", "ai", "session"]) {
     assert.match(html, new RegExp(`data-admin-section="${section}"`));

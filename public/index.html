@@ -108,7 +108,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
 .admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}.admin-savebar{align-items:flex-start;flex-direction:column}}
-.auth-page{min-height:100vh;position:relative;overflow:hidden;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 12% 14%,rgba(49,94,251,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(22,163,106,.1),transparent 24%),#edf2f9}.auth-page:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(49,94,251,.14);border-radius:50%;top:-220px;right:-100px}.auth-page:after{content:"";position:absolute;width:220px;height:220px;border-radius:54px;background:rgba(49,94,251,.08);left:-70px;bottom:-100px;transform:rotate(24deg)}.auth-focus-card{position:relative;z-index:1;width:min(430px,100%);padding:34px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 70px rgba(23,50,111,.16);backdrop-filter:blur(12px);animation:auth-card-in .36s ease-out}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;font-weight:850;color:#17326f}.auth-brand .logo{width:40px;height:40px}.auth-focus-card h2{font-size:28px;line-height:1.2;margin:8px 0}.auth-focus-card>p{color:var(--muted);margin:0 0 25px}.auth-focus-card .login-kicker{color:var(--primary)}.auth-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}.auth-text-btn,.auth-back{border:0;background:transparent;color:var(--primary);padding:0;cursor:pointer;font-weight:750}.auth-back{display:inline-flex;margin-bottom:22px;color:#475467}.auth-help-card{text-align:center}.auth-help-icon{width:62px;height:62px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:28px;font-weight:850}.login-message.success{color:var(--green)}.auth-duration{color:#475467;font-size:12px;font-weight:700}.auth-register-row{text-align:center;margin-top:18px;color:var(--muted)}@keyframes auth-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@media(max-width:560px){.auth-page{padding:18px}.auth-focus-card{padding:26px 22px;border-radius:18px}.auth-focus-card h2{font-size:25px}}
+.auth-page{min-height:100vh;position:relative;overflow:hidden;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 12% 14%,rgba(49,94,251,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(22,163,106,.1),transparent 24%),#edf2f9}.auth-page:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(49,94,251,.14);border-radius:50%;top:-220px;right:-100px}.auth-page:after{content:"";position:absolute;width:220px;height:220px;border-radius:54px;background:rgba(49,94,251,.08);left:-70px;bottom:-100px;transform:rotate(24deg)}.auth-focus-card{position:relative;z-index:1;width:min(430px,100%);padding:34px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 70px rgba(23,50,111,.16);backdrop-filter:blur(12px);animation:auth-card-in .36s ease-out}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;font-weight:850;color:#17326f}.auth-brand .logo{width:40px;height:40px}.auth-focus-card h2{font-size:28px;line-height:1.2;margin:8px 0}.auth-focus-card>p{color:var(--muted);margin:0 0 25px}.auth-focus-card .login-kicker{color:var(--primary)}.auth-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}.auth-text-btn,.auth-back{border:0;background:transparent;color:var(--primary);padding:0;cursor:pointer;font-weight:750}.auth-back{display:inline-flex;margin-bottom:22px;color:#475467}.auth-help-card{text-align:center}.auth-help-icon{width:62px;height:62px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:28px;font-weight:850}.login-message.success{color:var(--green)}.auth-duration{color:#475467;font-size:12px;font-weight:700}.auth-register-row{text-align:center;margin-top:18px;color:var(--muted)}.import-state{min-height:150px;padding:28px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#fff;color:var(--muted);text-align:center}.import-state.error{color:var(--red);background:var(--red-soft)}@keyframes auth-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@media(max-width:560px){.auth-page{padding:18px}.auth-focus-card{padding:26px 22px;border-radius:18px}.auth-focus-card h2{font-size:25px}}
 </style>
 </head>
 <body>
@@ -723,6 +723,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let reportLastLocalEditAt = 0;
     let reportLastSyncedAt = 0;
     let reportTaskImportContext = { moduleIndex: 0, sectionIndex: 0 };
+    let reportImportTasks = [];
+    let reportImportState = "idle";
+    let reportImportError = "";
     let reportYearFilter = "all";
     let reportQuarterFilter = "all";
     let reportMonthFilter = "all";
@@ -2779,14 +2782,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return `${sequence}、${task.title || "未命名任务"}：整体进度${taskProgressPercent(task)}%${progressText ? `，${progressText}` : ""}`;
     }
 
-    function openReportTaskImport(moduleIndex, sectionIndex) {
+    async function openReportTaskImport(moduleIndex, sectionIndex) {
       if (reportStatus === "final") return setSyncStatus("总结已归档，无法导入", "warn");
       reportTaskImportContext = { moduleIndex, sectionIndex };
       const moduleName = reportData.modules[moduleIndex]?.title || modules[0];
       $("reportImportModuleFilter").innerHTML = modules.map((item) => `<option ${item === moduleName ? "selected" : ""}>${escapeHtml(item)}</option>`).join("");
       $("reportImportSectionSelect").value = reportData.modules[moduleIndex]?.sections?.[sectionIndex]?.title || "本周进展";
-      renderReportTaskImportList();
       $("reportTaskImportModal").hidden = false;
+      await loadReportImportTasks();
     }
 
     function closeReportTaskImportModal() {
@@ -2794,9 +2797,23 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderReportTaskImportList() {
+      $("confirmReportTaskImportBtn").disabled = reportImportState !== "success";
+      $("selectAllReportImportTasks").disabled = reportImportState !== "success";
+      if (reportImportState === "loading") {
+        $("reportTaskImportList").innerHTML = `<div class="import-state">正在加载待办…</div>`;
+        return;
+      }
+      if (reportImportState === "error") {
+        $("reportTaskImportList").innerHTML = `
+          <div class="import-state error">
+            <span>${escapeHtml(reportImportError || "待办加载失败")}</span>
+            <button class="ghost-btn" data-retry-report-task-import>重新加载</button>
+          </div>`;
+        return;
+      }
       const moduleName = $("reportImportModuleFilter")?.value || reportData.modules[reportTaskImportContext.moduleIndex]?.title || modules[0];
       const sectionTitle = $("reportImportSectionSelect")?.value || reportData.modules[reportTaskImportContext.moduleIndex]?.sections?.[reportTaskImportContext.sectionIndex]?.title || "本周进展";
-      const rows = tasks
+      const rows = reportImportTasks
         .filter((task) => task.module === moduleName)
         .filter((task) => task.includeInReport !== false)
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -2810,7 +2827,27 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <span>${taskProgressPercent(task)}%</span>
           </label>
         `;
-      }).join("") || `<div class="import-preview-row" style="grid-template-columns:1fr;"><span>当前模块暂无可导入待办</span></div>`;
+      }).join("") || `<div class="import-state">当前周期和模块暂无可导入待办</div>`;
+    }
+
+    async function loadReportImportTasks() {
+      reportImportState = "loading";
+      reportImportError = "";
+      renderReportTaskImportList();
+      try {
+        const query = new URLSearchParams({
+          startDate: reportData.startDate,
+          endDate: reportData.endDate,
+        });
+        const result = await apiJson(`/api/tasks?${query}`);
+        reportImportTasks = result.tasks || [];
+        reportImportState = "success";
+      } catch (error) {
+        reportImportTasks = [];
+        reportImportState = "error";
+        reportImportError = error.message || "待办加载失败";
+      }
+      renderReportTaskImportList();
     }
 
     function confirmReportTaskImport() {
@@ -2819,7 +2856,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!mod || !section) return;
       const sectionTitle = $("reportImportSectionSelect").value || section.title;
       const selectedIds = [...document.querySelectorAll("[data-report-task-import]:checked")].map((input) => input.dataset.reportTaskImport);
-      const selectedTasks = selectedIds.map((id) => tasks.find((task) => task.id === id)).filter(Boolean);
+      const selectedTasks = selectedIds.map((id) => reportImportTasks.find((task) => task.id === id)).filter(Boolean);
       if (!selectedTasks.length) return setSyncStatus("请选择要导入的待办", "warn");
       const existingItems = parseReportItems(reportItemsToText(section.items || []));
       const existing = new Set(existingItems.map((text) => normalizeText(cleanReportLine(text, { stripNumbering: true }))));
@@ -3858,6 +3895,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("reportImportModuleFilter").addEventListener("change", renderReportTaskImportList);
     $("reportImportSectionSelect").addEventListener("change", renderReportTaskImportList);
+    $("reportTaskImportList").addEventListener("click", (event) => {
+      if (event.target.closest("[data-retry-report-task-import]")) loadReportImportTasks();
+    });
     $("selectAllReportImportTasks").addEventListener("click", () => {
       document.querySelectorAll("[data-report-task-import]").forEach((input) => input.checked = true);
     });
