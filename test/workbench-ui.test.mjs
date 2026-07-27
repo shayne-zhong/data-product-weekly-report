@@ -66,6 +66,30 @@ test("unauthenticated visitors see a dedicated login page without sync keys", ()
   assert.doesNotMatch(html, /syncKeyStorageKey|getSyncKey|x-report-key|周报协同口令/);
 });
 
+test("registration and password help are dedicated authentication views", () => {
+  assert.match(html, /id="registerView"/);
+  assert.match(html, /id="registerForm"/);
+  assert.match(html, /id="registerConfirmPassword"/);
+  assert.match(html, /id="forgotPasswordView"/);
+  assert.match(html, /id="loginForgotPasswordBtn"/);
+  assert.doesNotMatch(html, /id="showRegisterBtn"/);
+  assert.doesNotMatch(html, /id="displayNameField"/);
+});
+
+test("registration returns to login without storing a session", () => {
+  assert.match(html, /注册成功，请重新登录/);
+  assert.match(html, /showAuthView\("login"/);
+  assert.match(html, /async function registerAccount/);
+  assert.doesNotMatch(html, /action === "register"[\s\S]{0,800}localStorage\.setItem\(userTokenStorageKey/);
+});
+
+test("login page shows the configured session duration directly", () => {
+  assert.match(html, /id="loginDurationHint"/);
+  assert.match(html, /保持登录：/);
+  assert.match(html, /function formatSessionDuration/);
+  assert.doesNotMatch(html, /登录状态将按后台设置的时间保持/);
+});
+
 test("admin uses categorized settings and safe AI key controls", () => {
   for (const section of ["departments", "modules", "accounts", "ai", "session"]) {
     assert.match(html, new RegExp(`data-admin-section="${section}"`));

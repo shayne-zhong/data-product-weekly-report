@@ -108,25 +108,43 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
 .admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}.admin-savebar{align-items:flex-start;flex-direction:column}}
+.auth-page{min-height:100vh;position:relative;overflow:hidden;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 12% 14%,rgba(49,94,251,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(22,163,106,.1),transparent 24%),#edf2f9}.auth-page:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(49,94,251,.14);border-radius:50%;top:-220px;right:-100px}.auth-page:after{content:"";position:absolute;width:220px;height:220px;border-radius:54px;background:rgba(49,94,251,.08);left:-70px;bottom:-100px;transform:rotate(24deg)}.auth-focus-card{position:relative;z-index:1;width:min(430px,100%);padding:34px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 70px rgba(23,50,111,.16);backdrop-filter:blur(12px);animation:auth-card-in .36s ease-out}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;font-weight:850;color:#17326f}.auth-brand .logo{width:40px;height:40px}.auth-focus-card h2{font-size:28px;line-height:1.2;margin:8px 0}.auth-focus-card>p{color:var(--muted);margin:0 0 25px}.auth-focus-card .login-kicker{color:var(--primary)}.auth-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}.auth-text-btn,.auth-back{border:0;background:transparent;color:var(--primary);padding:0;cursor:pointer;font-weight:750}.auth-back{display:inline-flex;margin-bottom:22px;color:#475467}.auth-help-card{text-align:center}.auth-help-icon{width:62px;height:62px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:28px;font-weight:850}.login-message.success{color:var(--green)}.auth-duration{color:#475467;font-size:12px;font-weight:700}.auth-register-row{text-align:center;margin-top:18px;color:var(--muted)}@keyframes auth-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@media(max-width:560px){.auth-page{padding:18px}.auth-focus-card{padding:26px 22px;border-radius:18px}.auth-focus-card h2{font-size:25px}}
 </style>
 </head>
 <body>
-<main id="loginView" class="login-page">
-  <section class="login-brand-panel" aria-label="部门工作台介绍">
-    <div class="login-brand-lockup"><span class="logo" aria-hidden="true">▦</span><span>部门工作台</span></div>
-    <div class="login-brand-copy"><div class="login-kicker">WORK WITH CLARITY</div><h1>目标有方向，<br />工作有沉淀。</h1><p>统一管理部门目标、任务执行和周期总结，让每一次推进都有迹可循。</p></div>
-    <div class="login-brand-foot">安全登录 · 部门数据独立管理</div>
-  </section>
-  <section class="login-form-panel">
-    <form id="loginForm" class="login-box">
+<main id="loginView" class="auth-page">
+    <form id="loginForm" class="auth-focus-card">
+      <div class="auth-brand"><span class="logo" aria-hidden="true">▦</span><span>部门工作台</span></div>
       <div class="login-kicker">欢迎回来</div><h2>登录部门工作台</h2><p>使用你的账号和密码继续</p>
       <div class="login-field"><label for="loginUsername">账号</label><input id="loginUsername" autocomplete="username" placeholder="请输入账号" /></div>
       <div class="login-field"><label for="loginPassword">密码</label><input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" /></div>
-      <div class="subtitle">登录状态将按后台设置的时间保持</div>
+      <div class="auth-actions"><span class="auth-duration" id="loginDurationHint">保持登录：30分钟</span><button class="auth-text-btn" id="loginForgotPasswordBtn" type="button">忘记密码</button></div>
       <button class="primary-btn login-submit" id="loginSubmitBtn" type="submit">登录</button>
       <div class="login-message" id="loginMessage" role="alert"></div>
-      <div class="login-register">首次使用？<button id="loginRegisterBtn" type="button">注册账号</button></div>
+      <div class="auth-register-row">首次使用？<button class="auth-text-btn" id="loginRegisterBtn" type="button">注册账号</button></div>
     </form>
+</main>
+<main id="registerView" class="auth-page" hidden>
+  <form id="registerForm" class="auth-focus-card">
+    <button class="auth-back" id="registerBackBtn" type="button">← 返回登录</button>
+    <div class="login-kicker">创建账号</div>
+    <h2>注册部门工作台</h2>
+    <p>账号须由管理员提前加入部门成员清单</p>
+    <div class="login-field"><label for="registerUsername">账号</label><input id="registerUsername" autocomplete="username" placeholder="请输入账号" /></div>
+    <div class="login-field"><label for="registerDisplayName">姓名</label><input id="registerDisplayName" autocomplete="name" placeholder="请输入姓名" /></div>
+    <div class="login-field"><label for="registerPassword">密码</label><input id="registerPassword" type="password" autocomplete="new-password" placeholder="至少6位" /></div>
+    <div class="login-field"><label for="registerConfirmPassword">确认密码</label><input id="registerConfirmPassword" type="password" autocomplete="new-password" placeholder="再次输入密码" /></div>
+    <button class="primary-btn login-submit" id="registerSubmitBtn" type="submit">完成注册</button>
+    <div class="login-message" id="registerMessage" role="alert"></div>
+  </form>
+</main>
+<main id="forgotPasswordView" class="auth-page" hidden>
+  <section class="auth-focus-card auth-help-card">
+    <div class="auth-help-icon" aria-hidden="true">?</div>
+    <div class="login-kicker">账号帮助</div>
+    <h2>忘记密码</h2>
+    <p>请联系后台管理员重置密码。为保护账号安全，此处不会查询账号是否存在。</p>
+    <button class="primary-btn login-submit" id="forgotPasswordBackBtn" type="button">返回登录</button>
   </section>
 </main>
 <div class="app" id="workspaceShell" hidden>
@@ -426,40 +444,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </section>
   </div>
 
-  <div class="modal-mask" id="authModal" hidden>
-    <section class="modal">
-      <div class="modal-head">
-        <strong id="authModalTitle">登录</strong>
-        <button class="btn small ghost" id="closeAuthModal">×</button>
-      </div>
-      <div class="modal-body">
-        <div class="actions" style="justify-content:flex-start;margin-bottom:10px;">
-          <button class="btn small secondary" id="showLoginBtn">登录</button>
-          <button class="btn small ghost" id="showRegisterBtn">注册</button>
-        </div>
-        <div class="form-grid">
-          <div>
-            <label>用户名</label>
-            <input id="authUsername" placeholder="例如 zhangsan" />
-          </div>
-          <div id="displayNameField">
-            <label>显示名称</label>
-            <input id="authDisplayName" placeholder="例如 张三" />
-          </div>
-          <div class="field-full">
-            <label>密码</label>
-            <input id="authPassword" type="password" placeholder="至少6位" />
-          </div>
-        </div>
-        <div class="actions" style="margin-top:12px;justify-content:flex-start;">
-          <button class="btn" id="submitAuthBtn">登录</button>
-          <span class="subtitle" id="authHint">首次使用请先注册。</span>
-        </div>
-        <div id="authMessage" class="subtitle" style="margin-top:10px;"></div>
-      </div>
-    </section>
-  </div>
-
   <div class="modal-mask" id="copyReportModal" hidden>
     <section class="modal copy-modal">
       <div class="modal-head">
@@ -723,7 +707,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let currentUser = JSON.parse(localStorage.getItem(userStorageKey) || "null");
     let userToken = localStorage.getItem(userTokenStorageKey) || "";
     let userTokenExpiresAt = Number(localStorage.getItem(userTokenExpiresStorageKey) || 0);
-    let authMode = "login";
     let goalsRows = [];
     let goalLinkedTasks = [];
     let goalsYear = "2026";
@@ -831,15 +814,33 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return Math.max(0, Math.ceil((userTokenExpiresAt - Date.now()) / 60000));
     }
 
-    function showLoginPage(message = "") {
-      $("loginView").hidden = false;
+    function formatSessionDuration(minutes) {
+      const value = Math.max(1, Number(minutes) || 30);
+      if (value % 1440 === 0) return `${value / 1440}天`;
+      if (value % 60 === 0) return `${value / 60}小时`;
+      return `${value}分钟`;
+    }
+
+    function showAuthView(view = "login", message = "") {
+      $("loginView").hidden = view !== "login";
+      $("registerView").hidden = view !== "register";
+      $("forgotPasswordView").hidden = view !== "forgot-password";
       $("workspaceShell").hidden = true;
-      $("loginMessage").textContent = message;
-      setTimeout(() => $("loginUsername").focus(), 0);
+      if (view === "login") {
+        $("loginDurationHint").textContent = `保持登录：${formatSessionDuration(sessionDurationMinutes)}`;
+        $("loginMessage").textContent = message;
+        setTimeout(() => $("loginUsername").focus(), 0);
+      }
+    }
+
+    function showLoginPage(message = "") {
+      showAuthView("login", message);
     }
 
     function showAuthenticatedWorkspace() {
       $("loginView").hidden = true;
+      $("registerView").hidden = true;
+      $("forgotPasswordView").hidden = true;
       $("workspaceShell").hidden = false;
       $("loginMessage").textContent = "";
     }
@@ -1408,6 +1409,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       };
       if (!departments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = departments[0].id;
       applyDepartmentBranding();
+      if ($("loginDurationHint")) {
+        $("loginDurationHint").textContent = `保持登录：${formatSessionDuration(sessionDurationMinutes)}`;
+      }
     }
 
     function adminRequestHeaders() {
@@ -3315,41 +3319,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setSyncStatus("后台配置已保存", "ok");
     }
 
-    function renderAuthModal() {
-      const isLogin = authMode === "login";
-      $("authModalTitle").textContent = isLogin ? "登录" : "注册";
-      $("submitAuthBtn").textContent = isLogin ? "登录" : "注册";
-      $("displayNameField").hidden = isLogin;
-      $("authHint").textContent = isLogin ? "首次使用请先注册。" : "注册后会自动登录，并保持登录状态。";
-      $("showLoginBtn").className = isLogin ? "btn small secondary" : "btn small ghost";
-      $("showRegisterBtn").className = isLogin ? "btn small ghost" : "btn small secondary";
-      $("authMessage").textContent = "";
-    }
-
-    function openAuthModal(mode = "login") {
-      authMode = mode;
-      renderAuthModal();
-      if (!$("loginView").hidden) $("workspaceShell").hidden = false;
-      $("authModal").hidden = false;
-    }
-
-    function closeAuthModal() {
-      $("authModal").hidden = true;
-      if (!currentUser && !isAdminRoute()) $("workspaceShell").hidden = true;
-    }
-
-    async function authAction(action, credentials = null) {
-      const username = credentials?.username?.trim() || $("authUsername").value.trim();
-      const password = credentials?.password ?? $("authPassword").value;
-      const displayName = credentials?.displayName?.trim() || $("authDisplayName").value.trim();
+    async function authAction(credentials) {
+      const username = credentials?.username?.trim() || "";
+      const password = credentials?.password ?? "";
       if (!username || !password) {
         throw new Error("请填写用户名和密码。");
       }
-      $("authMessage").textContent = action === "login" ? "正在登录..." : "正在注册...";
-      const result = await apiJson(`/api/auth/${action}`, {
+      const result = await apiJson("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, displayName }),
+        body: JSON.stringify({ username, password }),
       });
       currentUser = result.user;
       userToken = result.token;
@@ -3362,12 +3341,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderProfile();
       await loadSettings();
       await loadWeeks();
-      const keepMinutes = authRemainingMinutes();
-      $("authMessage").innerHTML = action === "login"
-        ? `登录成功，欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}，本次登录约保持${keepMinutes}分钟。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`
-        : `注册成功，已自动登录，本次登录约保持${keepMinutes}分钟。欢迎 ${escapeHtml(currentUser.displayName || currentUser.username)}。<button class="btn small secondary" id="enterAfterAuthBtn">进入部门待办</button>`;
-      setSyncStatus(action === "login" ? "已登录" : "已注册", "ok");
+      setSyncStatus("已登录", "ok");
       return result;
+    }
+
+    async function registerAccount({ username, password, confirmPassword, displayName }) {
+      if (!username || !displayName || !password || !confirmPassword) {
+        throw new Error("请完整填写注册信息");
+      }
+      if (password.length < 6) throw new Error("密码至少6位");
+      if (password !== confirmPassword) throw new Error("两次输入的密码不一致");
+      await apiJson("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password, displayName }),
+      });
     }
 
     document.addEventListener("click", async (event) => {
@@ -3828,7 +3816,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     $("authNavBtn").addEventListener("click", () => {
       if (currentUser) setView("profile");
-      else openAuthModal("login");
+      else showLoginPage();
     });
     $("adminEntryBtn").addEventListener("click", () => {
       location.href = "/admin";
@@ -4010,29 +3998,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       event.preventDefault();
       event.returnValue = "";
     });
-    $("openAuthModalBtn").addEventListener("click", () => openAuthModal("login"));
-    $("closeAuthModal").addEventListener("click", closeAuthModal);
-    $("authModal").addEventListener("click", (event) => {
-      if (event.target.id === "authModal") closeAuthModal();
-    });
-    $("showLoginBtn").addEventListener("click", () => {
-      authMode = "login";
-      renderAuthModal();
-    });
-    $("showRegisterBtn").addEventListener("click", () => {
-      authMode = "register";
-      renderAuthModal();
-    });
-    $("authMessage").addEventListener("click", (event) => {
-      if (event.target.id === "enterAfterAuthBtn") {
-        closeAuthModal();
-        setView("tasks");
-      }
-    });
-    $("submitAuthBtn").addEventListener("click", () => authAction(authMode).catch((error) => {
-      $("authMessage").textContent = error.message || (authMode === "login" ? "登录失败" : "注册失败");
-      setSyncStatus(authMode === "login" ? "登录失败" : "注册失败", "warn");
-    }));
+    $("openAuthModalBtn").addEventListener("click", () => clearLoginState("请登录其他账号"));
     $("loginForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const button = $("loginSubmitBtn");
@@ -4040,9 +4006,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       button.textContent = "登录中...";
       $("loginMessage").textContent = "";
       try {
-        await authAction("login", { username: $("loginUsername").value, password: $("loginPassword").value });
+        await authAction({ username: $("loginUsername").value, password: $("loginPassword").value });
         $("loginPassword").value = "";
-        closeAuthModal();
         setView("tasks");
       } catch (error) {
         $("loginMessage").textContent = error.message || "账号或密码错误";
@@ -4052,8 +4017,41 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
     });
     $("loginRegisterBtn").addEventListener("click", () => {
-      $("authUsername").value = $("loginUsername").value.trim();
-      openAuthModal("register");
+      $("registerUsername").value = $("loginUsername").value.trim();
+      $("registerMessage").textContent = "";
+      $("registerMessage").classList.remove("success");
+      showAuthView("register");
+    });
+    $("loginForgotPasswordBtn").addEventListener("click", () => showAuthView("forgot-password"));
+    $("registerBackBtn").addEventListener("click", () => showAuthView("login"));
+    $("forgotPasswordBackBtn").addEventListener("click", () => showAuthView("login"));
+    $("registerForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = $("registerSubmitBtn");
+      button.disabled = true;
+      button.textContent = "注册中...";
+      $("registerMessage").textContent = "";
+      $("registerMessage").classList.remove("success");
+      try {
+        const username = $("registerUsername").value.trim();
+        await registerAccount({
+          username,
+          displayName: $("registerDisplayName").value.trim(),
+          password: $("registerPassword").value,
+          confirmPassword: $("registerConfirmPassword").value,
+        });
+        $("registerMessage").textContent = "注册成功，请重新登录";
+        $("registerMessage").classList.add("success");
+        $("loginUsername").value = username;
+        $("registerPassword").value = "";
+        $("registerConfirmPassword").value = "";
+        setTimeout(() => showAuthView("login"), 2000);
+      } catch (error) {
+        $("registerMessage").textContent = error.message || "注册失败";
+      } finally {
+        button.disabled = false;
+        button.textContent = "完成注册";
+      }
     });
     $("logoutBtn").addEventListener("click", () => {
       clearLoginState("已退出登录");
@@ -4098,7 +4096,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!currentUser) {
         setAiReportStatus("请先登录后使用AI提炼", "error");
         $("aiReportModal").hidden = true;
-        openAuthModal("login");
+        showLoginPage("请先登录后使用AI提炼");
         return;
       }
       if (!aiSettings.enabled) return setAiReportStatus("后台尚未启用AI提炼", "error");
