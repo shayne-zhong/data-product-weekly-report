@@ -70,8 +70,13 @@ test("registration and password help are dedicated authentication views", () => 
   assert.match(html, /id="registerView"/);
   assert.match(html, /id="registerForm"/);
   assert.match(html, /id="registerConfirmPassword"/);
+  assert.match(html, /id="registerMessage"[^>]+aria-live="polite"/);
   assert.match(html, /id="forgotPasswordView"/);
   assert.match(html, /id="loginForgotPasswordBtn"/);
+  assert.match(html, /id="loginUsername"[^>]+name="username"/);
+  assert.match(html, /id="loginPassword"[^>]+name="password"/);
+  assert.match(html, /id="registerDisplayName"[^>]+name="displayName"/);
+  assert.match(html, /@media\(prefers-reduced-motion:reduce\)/);
   assert.doesNotMatch(html, /id="showRegisterBtn"/);
   assert.doesNotMatch(html, /id="displayNameField"/);
 });
