@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { assertStateFingerprint, fingerprintState } from "../lib/state-fingerprint.mjs";
+import { assertStateFingerprint } from "../lib/state-fingerprint.mjs";
 
 const stateFile = process.env.MIGRATION_STATE_FILE;
 const metadataFile = process.env.MIGRATION_METADATA_FILE;

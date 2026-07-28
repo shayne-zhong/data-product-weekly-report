@@ -1,0 +1,9 @@
+node_modules
+build
+coverage
+state
+docs
+public
+.netlify
+.vercel
+package-lock.json
