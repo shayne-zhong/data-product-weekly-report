@@ -3,6 +3,9 @@ import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
+import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
+import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
+import { createMutationLock } from "../lib/mutation-lock.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -34,6 +37,7 @@ const defaultDepartmentAccounts = [
 ].map(([name, username]) => ({ name, username }));
 let memoryState = null;
 const stateStore = createStateStore();
+const mutationLock = createMutationLock();
 
 function json(res, body, status = 200) {
   Object.entries(jsonHeaders).forEach(([key, value]) => res.setHeader(key, value));
@@ -42,6 +46,20 @@ function json(res, body, status = 200) {
 
 function methodNotAllowed(res) {
   return json(res, { error: "Method not allowed" }, 405);
+}
+
+function ensureLoginAttemptsBucket(state) {
+  if (!state.loginAttempts || typeof state.loginAttempts !== "object") state.loginAttempts = {};
+  return state.loginAttempts;
+}
+
+function loginThrottleKey(scope, identifier) {
+  return `${scope}:${identifier}`;
+}
+
+function loginLockedResponse(res, throttle) {
+  const minutes = Math.max(1, Math.ceil(throttle.retryAfterMs / 60_000));
+  return json(res, { error: `登录尝试次数过多，请${minutes}分钟后再试` }, 429);
 }
 
 function randomId(prefix) {
@@ -255,7 +273,7 @@ function departmentRecordKey(departmentId, recordId) {
 }
 
 function emptyState() {
-  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {} };
+  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {}, loginAttempts: {} };
 }
 
 function hydrateState(state = {}) {
@@ -302,12 +320,6 @@ async function readBody(req) {
   for await (const chunk of req) chunks.push(chunk);
   const text = Buffer.concat(chunks).toString("utf8");
   return text ? JSON.parse(text) : {};
-}
-
-async function hashPassword(password, salt) {
-  const input = new TextEncoder().encode(`${salt}:${password}`);
-  const digest = await crypto.subtle.digest("SHA-256", input);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function publicUser(user, state = null) {
@@ -463,14 +475,29 @@ async function handleAuth(req, res, state, action, now) {
     if (password.length < 6) return json(res, { error: "密码至少6位" }, 400);
     if (state.users[username]) return json(res, { error: "用户名已存在" }, 409);
     const salt = randomId("salt");
-    const user = { id: randomId("user"), username, displayName, departmentId: department.id, salt, passwordHash: await hashPassword(password, salt), createdAt: now, updatedAt: now };
+    const { hashAlgorithm, passwordHash } = await hashPassword(password, salt);
+    const user = { id: randomId("user"), username, displayName, departmentId: department.id, salt, hashAlgorithm, passwordHash, createdAt: now, updatedAt: now };
     state.users[username] = user;
     await saveState(state);
     return json(res, { ok: true, user: publicUser(user, state) }, 201);
   }
   if (action === "login") {
+    const attempts = ensureLoginAttemptsBucket(state);
+    const throttleKey = loginThrottleKey("user", username);
+    const throttle = loginThrottleStatus(attempts, throttleKey, now);
+    if (!throttle.allowed) return loginLockedResponse(res, throttle);
     const user = state.users[username];
-    if (!user || await hashPassword(password, user.salt) !== user.passwordHash) return json(res, { error: "用户名或密码错误" }, 401);
+    if (!user || !(await verifyPassword(password, user))) {
+      registerLoginFailure(attempts, throttleKey, now);
+      await saveState(state);
+      return json(res, { error: "用户名或密码错误" }, 401);
+    }
+    clearLoginFailures(attempts, throttleKey);
+    if (needsRehash(user)) {
+      const rehashed = await hashPassword(password, user.salt);
+      user.hashAlgorithm = rehashed.hashAlgorithm;
+      user.passwordHash = rehashed.passwordHash;
+    }
     if (!account || !department) return json(res, { error: "账号未分配有效部门" }, 403);
     if (!department.enabled) return json(res, { error: "所属部门已停用" }, 403);
     user.departmentId = department.id;
@@ -744,7 +771,7 @@ async function requestAiSummary({ sourceText, style, summaryType, departmentName
       usage: payload.usage || null,
     };
   } catch (error) {
-    if (error?.name === "AbortError") throw new Error("AI生成超时，请稍后重试");
+    if (error?.name === "AbortError") throw new Error("AI生成超时，请稍后重试", { cause: error });
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -764,7 +791,7 @@ function consumeAiQuota(state, actor, now = Date.now()) {
   return { allowed: true, limit, remaining: limit - count - 1 };
 }
 
-async function handleAi(req, res, state, parts, actor) {
+async function handleAi(req, res, state, parts, actor, release = () => {}) {
   if (req.method === "GET" && parts[1] === "status") {
     return json(res, { ai: publicAiSettings(getSettings(state).ai) });
   }
@@ -783,6 +810,7 @@ async function handleAi(req, res, state, parts, actor) {
   const quota = consumeAiQuota(state, actor);
   if (!quota.allowed) return json(res, { error: `今日AI提炼次数已达上限（${quota.limit}次）` }, 429);
   await saveState(state);
+  release();
   try {
     const result = await requestAiSummary({ sourceText, style, summaryType, departmentName: departmentSettings.department.name, ai });
     return json(res, { result, quota });
@@ -890,7 +918,9 @@ async function resetUserPassword(req, res, state, username, now) {
   if (!user) return json(res, { error: "账号尚未注册" }, 404);
 
   user.salt = randomId("salt");
-  user.passwordHash = await hashPassword(nextPassword, user.salt);
+  const { hashAlgorithm, passwordHash } = await hashPassword(nextPassword, user.salt);
+  user.hashAlgorithm = hashAlgorithm;
+  user.passwordHash = passwordHash;
   user.updatedAt = now;
   for (const [token, session] of Object.entries(state.sessions || {})) {
     if (session.username === normalizedUsername) delete state.sessions[token];
@@ -899,12 +929,22 @@ async function resetUserPassword(req, res, state, username, now) {
   return json(res, { ok: true, username: normalizedUsername });
 }
 
-async function handleAdmin(req, res, state, parts, now) {
+async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   const action = parts[1] || "";
   if (action === "login") {
     if (req.method !== "POST") return methodNotAllowed(res);
+    const attempts = ensureLoginAttemptsBucket(state);
+    const throttleKey = loginThrottleKey("admin", "admin");
+    const throttle = loginThrottleStatus(attempts, throttleKey, now);
+    if (!throttle.allowed) return loginLockedResponse(res, throttle);
     const { username, password } = await readBody(req);
-    if (!credentialsMatch(username, password)) return json(res, { error: "后台账号或密码错误" }, 401);
+    if (!credentialsMatch(username, password)) {
+      registerLoginFailure(attempts, throttleKey, now);
+      await saveState(state);
+      return json(res, { error: "后台账号或密码错误" }, 401);
+    }
+    clearLoginFailures(attempts, throttleKey);
+    await saveState(state);
     const session = await issueAdminToken({ username, now });
     return json(res, session);
   }
@@ -916,6 +956,7 @@ async function handleAdmin(req, res, state, parts, now) {
     return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now);
   }
   if (action === "ai" && parts[2] === "test" && req.method === "POST") {
+    release();
     const body = await readBody(req);
     const ai = normalizeAiSettings({ ...getSettings(state).ai, ...body });
     try {
@@ -930,24 +971,26 @@ async function handleAdmin(req, res, state, parts, now) {
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
-  const state = await loadState();
-  const now = Date.now();
-  const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
-  const parts = routePath.split("/").filter(Boolean);
-  const actor = currentUser(req, state, now);
+  const mutating = !["GET", "HEAD"].includes(req.method);
+  const release = mutating ? await mutationLock.acquire() : () => {};
   try {
-    if (parts[0] === "auth") return handleAuth(req, res, state, parts[1], now);
-    if (parts[0] === "admin") return handleAdmin(req, res, state, parts, now);
-    if (parts[0] === "settings") return handleSettings(req, res, state, now);
+    const state = await loadState();
+    const now = Date.now();
+    const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
+    const parts = routePath.split("/").filter(Boolean);
+    const actor = currentUser(req, state, now);
+    if (parts[0] === "auth") return await handleAuth(req, res, state, parts[1], now);
+    if (parts[0] === "admin") return await handleAdmin(req, res, state, parts, now, release);
+    if (parts[0] === "settings") return await handleSettings(req, res, state, now);
     if (!actor) return json(res, { error: "请先登录" }, 401);
-    if (parts[0] === "weeks") return handleWeeks(req, res, state, parts, now, actor);
-    if (parts[0] === "week") return handleWeek(req, res, state, parts, now, actor);
+    if (parts[0] === "weeks") return await handleWeeks(req, res, state, parts, now, actor);
+    if (parts[0] === "week") return await handleWeek(req, res, state, parts, now, actor);
     if (parts[0] === "tasks") return handleTasksByPeriod(req, res, state, actor);
-    if (parts[0] === "task") return handleTask(req, res, state, parts, now, actor);
-    if (parts[0] === "reports" || parts[0] === "report") return handleReports(req, res, state, parts, now, actor);
-    if (parts[0] === "goals") return handleGoals(req, res, state, now, actor);
+    if (parts[0] === "task") return await handleTask(req, res, state, parts, now, actor);
+    if (parts[0] === "reports" || parts[0] === "report") return await handleReports(req, res, state, parts, now, actor);
+    if (parts[0] === "goals") return await handleGoals(req, res, state, now, actor);
     if (parts[0] === "accounts") return handleAccounts(req, res, state, actor);
-    if (parts[0] === "ai") return handleAi(req, res, state, parts, actor);
+    if (parts[0] === "ai") return await handleAi(req, res, state, parts, actor, release);
     return json(res, { error: "Not found" }, 404);
   } catch (error) {
     if (["无效任务状态", "进入阻塞状态必须填写阻塞原因", "完成任务前必须关联年度指标并填写贡献数"].includes(error.message)) {
@@ -955,5 +998,7 @@ export default async function handler(req, res) {
     }
     console.error(error);
     return json(res, { error: "Unexpected server error" }, 500);
+  } finally {
+    release();
   }
 }
