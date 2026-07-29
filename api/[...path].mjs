@@ -555,10 +555,19 @@ function listTasksForPeriod(state, departmentId, startDate, endDate) {
     .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
 }
 
+function listTasksForDepartment(state, departmentId) {
+  return Object.values(state.tasks || {})
+    .filter((task) => task.departmentId === departmentId)
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+}
+
 function handleTasksByPeriod(req, res, state, actor) {
   if (req.method !== "GET") return methodNotAllowed(res);
   const startDate = String(req.query.startDate || "");
   const endDate = String(req.query.endDate || "");
+  if (!startDate && !endDate) {
+    return json(res, { tasks: listTasksForDepartment(state, actor.departmentId) });
+  }
   if (!validIsoDate(startDate) || !validIsoDate(endDate) || endDate < startDate) {
     return json(res, { error: "请输入有效的开始日期和结束日期" }, 400);
   }

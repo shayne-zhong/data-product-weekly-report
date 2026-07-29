@@ -116,6 +116,26 @@ test("task range rejects invalid dates and anonymous access", async () => {
   assert.equal(anonymous.statusCode, 401);
 });
 
+test("task range without dates returns every task in the signed-in department", async () => {
+  const settings = await api("/settings");
+  const module = settings.body.settings.modules[0];
+  const week = { startDate: "2099-02-02", endDate: "2099-02-08" };
+  const createdWeek = await api("/weeks", { method: "POST", body: week });
+  assert.equal(createdWeek.statusCode, 201);
+  const createdTask = await api(`/week/${week.startDate}_${week.endDate}/tasks`, {
+    method: "POST",
+    body: { task: { title: "No date filter task", module } },
+  });
+  assert.equal(createdTask.statusCode, 201);
+
+  const response = await api("/tasks");
+  assert.equal(response.statusCode, 200);
+  assert.ok(response.body.tasks.some((task) => task.id === createdTask.body.task.id));
+
+  const anonymous = await api("/tasks", { token: "" });
+  assert.equal(anonymous.statusCode, 401);
+});
+
 test("AI settings expose readiness without exposing API keys", async () => {
   const originalKey = process.env.DEEPSEEK_API_KEY;
   const originalMoonshotKey = process.env.MOONSHOT_API_KEY;

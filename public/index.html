@@ -531,6 +531,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <option>当前风险</option>
             <option>下周重点</option>
           </select>
+          <select class="chip-select" id="reportImportScopeFilter">
+            <option value="week" selected>本周有更新</option>
+            <option value="all">全部待办</option>
+          </select>
           <div class="spacer"></div>
           <button class="ghost-btn" id="selectAllReportImportTasks">全选可见</button>
         </div>
@@ -2788,6 +2792,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const moduleName = reportData.modules[moduleIndex]?.title || modules[0];
       $("reportImportModuleFilter").innerHTML = modules.map((item) => `<option ${item === moduleName ? "selected" : ""}>${escapeHtml(item)}</option>`).join("");
       $("reportImportSectionSelect").value = reportData.modules[moduleIndex]?.sections?.[sectionIndex]?.title || "本周进展";
+      $("reportImportScopeFilter").value = "week";
       $("reportTaskImportModal").hidden = false;
       await loadReportImportTasks();
     }
@@ -2813,9 +2818,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
       const moduleName = $("reportImportModuleFilter")?.value || reportData.modules[reportTaskImportContext.moduleIndex]?.title || modules[0];
       const sectionTitle = $("reportImportSectionSelect")?.value || reportData.modules[reportTaskImportContext.moduleIndex]?.sections?.[reportTaskImportContext.sectionIndex]?.title || "本周进展";
+      const scope = $("reportImportScopeFilter")?.value || "week";
+      const thisWeek = weekRange();
       const rows = reportImportTasks
         .filter((task) => task.module === moduleName)
         .filter((task) => task.includeInReport !== false)
+        .filter((task) => scope === "all" || dateInWeek(new Date(task.updatedAt || 0).toISOString().slice(0, 10), thisWeek))
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
       $("reportTaskImportList").innerHTML = rows.map((task) => {
         const text = reportTaskImportText(task, sectionTitle, 1);
@@ -2835,11 +2843,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       reportImportError = "";
       renderReportTaskImportList();
       try {
-        const query = new URLSearchParams({
-          startDate: reportData.startDate,
-          endDate: reportData.endDate,
-        });
-        const result = await apiJson(`/api/tasks?${query}`);
+        const result = await apiJson("/api/tasks");
         reportImportTasks = result.tasks || [];
         reportImportState = "success";
       } catch (error) {
@@ -3895,6 +3899,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("reportImportModuleFilter").addEventListener("change", renderReportTaskImportList);
     $("reportImportSectionSelect").addEventListener("change", renderReportTaskImportList);
+    $("reportImportScopeFilter").addEventListener("change", renderReportTaskImportList);
     $("reportTaskImportList").addEventListener("click", (event) => {
       if (event.target.closest("[data-retry-report-task-import]")) loadReportImportTasks();
     });
