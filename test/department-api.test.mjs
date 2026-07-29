@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 
 import handler from "../api/[...path].mjs";
 import { defaultLocalStatePath } from "../lib/state-store.mjs";
+import { maxLoginAttempts } from "../lib/login-throttle.mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
@@ -400,6 +401,87 @@ test("business data requires login", async () => {
     const response = await api(path);
     assert.equal(response.statusCode, 401, path);
   }
+});
+
+test("an invalid task status transition surfaces as a 400 error instead of crashing the request", async () => {
+  const username = uniqueUsername("statuscheck");
+  const current = await api("/settings", { admin: true });
+  await saveSettings({
+    departments: current.body.settings.departments,
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "Status Check", username, departmentId: current.body.settings.departments[0].id },
+    ],
+    sessionDurationMinutes: 60,
+  });
+  await api("/auth/register", { method: "POST", body: { username, password: "12345678" } });
+  const loggedIn = await api("/auth/login", { method: "POST", body: { username, password: "12345678" } });
+  assert.equal(loggedIn.statusCode, 200);
+
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 8);
+  const week = await api("/weeks", {
+    method: "POST",
+    token: loggedIn.body.token,
+    body: { startDate: `2098-01-${suffix}`, endDate: `2098-01-${suffix}` },
+  });
+  assert.equal(week.statusCode, 201);
+
+  const blocked = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
+    method: "POST",
+    token: loggedIn.body.token,
+    body: { task: { title: "缺少阻塞原因", status: "阻塞" } },
+  });
+  assert.equal(blocked.statusCode, 400);
+  assert.equal(blocked.body.error, "进入阻塞状态必须填写阻塞原因");
+});
+
+test("repeated failed logins lock out a member account temporarily", async () => {
+  const username = uniqueUsername("lockout");
+  const current = await api("/settings", { admin: true });
+  await saveSettings({
+    departments: current.body.settings.departments,
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "Lockout Test", username, departmentId: current.body.settings.departments[0].id },
+    ],
+    sessionDurationMinutes: 60,
+  });
+  const registered = await api("/auth/register", {
+    method: "POST",
+    body: { username, password: "correct-password" },
+  });
+  assert.equal(registered.statusCode, 201);
+
+  for (let attempt = 0; attempt < maxLoginAttempts; attempt += 1) {
+    const failed = await api("/auth/login", {
+      method: "POST",
+      body: { username, password: "wrong-password" },
+    });
+    assert.equal(failed.statusCode, 401, `attempt ${attempt}`);
+  }
+
+  const lockedOut = await api("/auth/login", {
+    method: "POST",
+    body: { username, password: "correct-password" },
+  });
+  assert.equal(lockedOut.statusCode, 429);
+});
+
+test("a single failed admin login does not block a subsequent correct login", async () => {
+  const failed = await api("/admin/login", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username: "Admin", password: "wrong-password" },
+  });
+  assert.equal(failed.statusCode, 401);
+
+  const succeeded = await api("/admin/login", {
+    method: "POST",
+    includeSyncKey: false,
+    body: { username: "Admin", password: "888888" },
+  });
+  assert.equal(succeeded.statusCode, 200);
+  assert.ok(succeeded.body.token);
 });
 
 test("departments cannot read or update each other's workbench data", async () => {

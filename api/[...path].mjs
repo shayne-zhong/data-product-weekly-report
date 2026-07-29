@@ -3,13 +3,16 @@ import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
+import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
+import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
+import { createMutationLock } from "../lib/mutation-lock.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
 };
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
-const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true };
+const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, leaderUsername: "", leaderAssignedAt: 0 };
 const defaultSessionDurationMinutes = 30;
 const minSessionDurationMinutes = 5;
 const maxSessionDurationMinutes = 43_200;
@@ -34,6 +37,7 @@ const defaultDepartmentAccounts = [
 ].map(([name, username]) => ({ name, username }));
 let memoryState = null;
 const stateStore = createStateStore();
+const mutationLock = createMutationLock();
 
 function json(res, body, status = 200) {
   Object.entries(jsonHeaders).forEach(([key, value]) => res.setHeader(key, value));
@@ -42,6 +46,20 @@ function json(res, body, status = 200) {
 
 function methodNotAllowed(res) {
   return json(res, { error: "Method not allowed" }, 405);
+}
+
+function ensureLoginAttemptsBucket(state) {
+  if (!state.loginAttempts || typeof state.loginAttempts !== "object") state.loginAttempts = {};
+  return state.loginAttempts;
+}
+
+function loginThrottleKey(scope, identifier) {
+  return `${scope}:${identifier}`;
+}
+
+function loginLockedResponse(res, throttle) {
+  const minutes = Math.max(1, Math.ceil(throttle.retryAfterMs / 60_000));
+  return json(res, { error: `登录尝试次数过多，请${minutes}分钟后再试` }, 429);
 }
 
 function randomId(prefix) {
@@ -83,6 +101,7 @@ function normalizeAccounts(list, fallbackDepartmentId = defaultDepartment.id) {
       name: String(account?.name || "").trim(),
       username: String(account?.username || "").trim().toLowerCase(),
       departmentId: safeId(account?.departmentId || fallbackDepartmentId).toLowerCase(),
+      enabled: account?.enabled !== false,
     }))
     .filter((account) => account.name && account.username)
     .filter((account) => {
@@ -103,6 +122,8 @@ function normalizeDepartments(value, fallbackModules = defaultModules) {
       modules: normalizeModules(department?.modules).length
         ? normalizeModules(department.modules)
         : [...fallbackModules],
+      leaderUsername: String(department?.leaderUsername || "").trim().toLowerCase(),
+      leaderAssignedAt: Number(department?.leaderAssignedAt) || 0,
     }))
     .filter((department) => department.id && department.name)
     .filter((department) => {
@@ -169,7 +190,7 @@ function defaultSettings() {
   return {
     modules: [...defaultModules],
     departments,
-    accounts: defaultDepartmentAccounts.map((account) => ({ ...account, departmentId: defaultDepartment.id })),
+    accounts: defaultDepartmentAccounts.map((account) => ({ ...account, departmentId: defaultDepartment.id, enabled: true })),
     sessionDurationMinutes: defaultSessionDurationMinutes,
     ai: normalizeAiSettings(),
   };
@@ -255,7 +276,7 @@ function departmentRecordKey(departmentId, recordId) {
 }
 
 function emptyState() {
-  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {} };
+  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {}, loginAttempts: {} };
 }
 
 function hydrateState(state = {}) {
@@ -304,12 +325,6 @@ async function readBody(req) {
   return text ? JSON.parse(text) : {};
 }
 
-async function hashPassword(password, salt) {
-  const input = new TextEncoder().encode(`${salt}:${password}`);
-  const digest = await crypto.subtle.digest("SHA-256", input);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function publicUser(user, state = null) {
   if (!user) return null;
   const department = state
@@ -351,7 +366,7 @@ function currentSession(req, state, now = Date.now()) {
   const settings = getSettings(state);
   const account = settings.accounts.find((item) => item.username === session.username);
   const department = settings.departments.find((item) => item.id === departmentId);
-  if (!user || !account || account.departmentId !== departmentId || !department?.enabled) return null;
+  if (!user || !account || account.enabled === false || account.departmentId !== departmentId || !department?.enabled) return null;
   session.departmentId = departmentId;
   return session;
 }
@@ -458,21 +473,38 @@ async function handleAuth(req, res, state, action, now) {
   if (action === "register") {
     if (!account || !department) return json(res, { error: "该用户名未在后台成员账号中配置" }, 403);
     if (!department.enabled) return json(res, { error: "所属部门已停用" }, 403);
+    if (account.enabled === false) return json(res, { error: "账号已被停用" }, 403);
     const displayName = account.name || String(body.displayName || username).trim();
     if (!/^[a-z0-9_.-]{3,32}$/.test(username)) return json(res, { error: "用户名需为3-32位英文、数字或._-" }, 400);
     if (password.length < 6) return json(res, { error: "密码至少6位" }, 400);
     if (state.users[username]) return json(res, { error: "用户名已存在" }, 409);
     const salt = randomId("salt");
-    const user = { id: randomId("user"), username, displayName, departmentId: department.id, salt, passwordHash: await hashPassword(password, salt), createdAt: now, updatedAt: now };
+    const { hashAlgorithm, passwordHash } = await hashPassword(password, salt);
+    const user = { id: randomId("user"), username, displayName, departmentId: department.id, salt, hashAlgorithm, passwordHash, createdAt: now, updatedAt: now };
     state.users[username] = user;
     await saveState(state);
     return json(res, { ok: true, user: publicUser(user, state) }, 201);
   }
   if (action === "login") {
+    const attempts = ensureLoginAttemptsBucket(state);
+    const throttleKey = loginThrottleKey("user", username);
+    const throttle = loginThrottleStatus(attempts, throttleKey, now);
+    if (!throttle.allowed) return loginLockedResponse(res, throttle);
     const user = state.users[username];
-    if (!user || await hashPassword(password, user.salt) !== user.passwordHash) return json(res, { error: "用户名或密码错误" }, 401);
+    if (!user || !(await verifyPassword(password, user))) {
+      registerLoginFailure(attempts, throttleKey, now);
+      await saveState(state);
+      return json(res, { error: "用户名或密码错误" }, 401);
+    }
+    clearLoginFailures(attempts, throttleKey);
+    if (needsRehash(user)) {
+      const rehashed = await hashPassword(password, user.salt);
+      user.hashAlgorithm = rehashed.hashAlgorithm;
+      user.passwordHash = rehashed.passwordHash;
+    }
     if (!account || !department) return json(res, { error: "账号未分配有效部门" }, 403);
     if (!department.enabled) return json(res, { error: "所属部门已停用" }, 403);
+    if (account.enabled === false) return json(res, { error: "账号已被停用" }, 403);
     user.departmentId = department.id;
     user.displayName = account.name || user.displayName;
     user.updatedAt = now;
@@ -528,10 +560,19 @@ function listTasksForPeriod(state, departmentId, startDate, endDate) {
     .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
 }
 
+function listTasksForDepartment(state, departmentId) {
+  return Object.values(state.tasks || {})
+    .filter((task) => task.departmentId === departmentId)
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+}
+
 function handleTasksByPeriod(req, res, state, actor) {
   if (req.method !== "GET") return methodNotAllowed(res);
   const startDate = String(req.query.startDate || "");
   const endDate = String(req.query.endDate || "");
+  if (!startDate && !endDate) {
+    return json(res, { tasks: listTasksForDepartment(state, actor.departmentId) });
+  }
   if (!validIsoDate(startDate) || !validIsoDate(endDate) || endDate < startDate) {
     return json(res, { error: "请输入有效的开始日期和结束日期" }, 400);
   }
@@ -744,7 +785,7 @@ async function requestAiSummary({ sourceText, style, summaryType, departmentName
       usage: payload.usage || null,
     };
   } catch (error) {
-    if (error?.name === "AbortError") throw new Error("AI生成超时，请稍后重试");
+    if (error?.name === "AbortError") throw new Error("AI生成超时，请稍后重试", { cause: error });
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -764,7 +805,7 @@ function consumeAiQuota(state, actor, now = Date.now()) {
   return { allowed: true, limit, remaining: limit - count - 1 };
 }
 
-async function handleAi(req, res, state, parts, actor) {
+async function handleAi(req, res, state, parts, actor, release = () => {}) {
   if (req.method === "GET" && parts[1] === "status") {
     return json(res, { ai: publicAiSettings(getSettings(state).ai) });
   }
@@ -783,6 +824,7 @@ async function handleAi(req, res, state, parts, actor) {
   const quota = consumeAiQuota(state, actor);
   if (!quota.allowed) return json(res, { error: `今日AI提炼次数已达上限（${quota.limit}次）` }, 429);
   await saveState(state);
+  release();
   try {
     const result = await requestAiSummary({ sourceText, style, summaryType, departmentName: departmentSettings.department.name, ai });
     return json(res, { result, quota });
@@ -826,9 +868,18 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   if (accounts.some((account) => !departments.some((department) => department.id === account.departmentId))) {
     return json(res, { error: "成员账号必须关联有效部门" }, 400);
   }
+  const departmentsWithLeaders = departments.map((department) => {
+    const stillValid = !department.leaderUsername || accounts.some((account) =>
+      account.username === department.leaderUsername && account.departmentId === department.id
+    );
+    const leaderUsername = stillValid ? department.leaderUsername : "";
+    const previous = current.departments.find((item) => item.id === department.id);
+    const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
+    return { ...department, leaderUsername, leaderAssignedAt: leaderChanged ? now : previous?.leaderAssignedAt || 0 };
+  });
   const next = {
-    modules: departments[0].modules,
-    departments,
+    modules: departmentsWithLeaders[0].modules,
+    departments: departmentsWithLeaders,
     accounts,
     sessionDurationMinutes: Object.hasOwn(body, "sessionDurationMinutes")
       ? Number(body.sessionDurationMinutes)
@@ -879,9 +930,18 @@ function bearerToken(req) {
   return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 }
 
-async function resetUserPassword(req, res, state, username, now) {
+function resolveLeaderDepartment(state, username) {
+  const settings = getSettings(state);
+  return settings.departments.find((department) => department.leaderUsername === username) || null;
+}
+
+async function resetUserPassword(req, res, state, username, now, actor = { role: "admin" }) {
   if (req.method !== "POST") return methodNotAllowed(res);
   const normalizedUsername = String(username || "").trim().toLowerCase();
+  if (actor.role === "leader") {
+    const account = getSettings(state).accounts.find((item) => item.username === normalizedUsername);
+    if (!account || account.departmentId !== actor.departmentId) return json(res, { error: "Not found" }, 404);
+  }
   const { password } = await readBody(req);
   const nextPassword = String(password || "");
   if (nextPassword.length < 6) return json(res, { error: "密码至少6位" }, 400);
@@ -890,7 +950,9 @@ async function resetUserPassword(req, res, state, username, now) {
   if (!user) return json(res, { error: "账号尚未注册" }, 404);
 
   user.salt = randomId("salt");
-  user.passwordHash = await hashPassword(nextPassword, user.salt);
+  const { hashAlgorithm, passwordHash } = await hashPassword(nextPassword, user.salt);
+  user.hashAlgorithm = hashAlgorithm;
+  user.passwordHash = passwordHash;
   user.updatedAt = now;
   for (const [token, session] of Object.entries(state.sessions || {})) {
     if (session.username === normalizedUsername) delete state.sessions[token];
@@ -899,23 +961,117 @@ async function resetUserPassword(req, res, state, username, now) {
   return json(res, { ok: true, username: normalizedUsername });
 }
 
-async function handleAdmin(req, res, state, parts, now) {
+async function handleLeaderAdmin(req, res, state, parts, now, leader) {
+  if (parts[1] === "users" && parts[3] === "reset-password") {
+    return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now, {
+      role: "leader",
+      departmentId: leader.department.id,
+    });
+  }
+  if (parts[1] === "leader" && parts[2] === "accounts" && parts.length === 3) {
+    if (req.method !== "GET") return methodNotAllowed(res);
+    const accounts = getSettings(state).accounts
+      .filter((account) => account.departmentId === leader.department.id)
+      .map((account) => ({ ...account, registered: Boolean(state.users?.[account.username]) }));
+    return json(res, { accounts });
+  }
+  if (parts[1] === "leader" && parts[2] === "accounts" && parts[4] === "enabled") {
+    if (req.method !== "POST") return methodNotAllowed(res);
+    const targetUsername = decodeURIComponent(parts[3] || "");
+    const settings = getSettings(state);
+    const targetAccount = settings.accounts.find((account) =>
+      account.username === targetUsername && account.departmentId === leader.department.id
+    );
+    if (!targetAccount) return json(res, { error: "Not found" }, 404);
+    const body = await readBody(req);
+    const nextEnabled = body.enabled !== false;
+    if (targetUsername === leader.username && !nextEnabled) {
+      return json(res, { error: "不能停用自己的账号" }, 400);
+    }
+    const nextAccounts = settings.accounts.map((account) =>
+      account.username === targetUsername ? { ...account, enabled: nextEnabled } : account
+    );
+    state.settings = { ...settings, accounts: nextAccounts, updatedAt: now };
+    if (!nextEnabled) {
+      for (const [token, session] of Object.entries(state.sessions || {})) {
+        if (session.username === targetUsername) delete state.sessions[token];
+      }
+    }
+    await saveState(state);
+    return json(res, { ok: true, username: targetUsername, enabled: nextEnabled });
+  }
+  if (parts[1] === "leader" && parts[2] === "modules") {
+    const settings = getSettings(state);
+    const department = settings.departments.find((item) => item.id === leader.department.id);
+    if (req.method === "GET") return json(res, { modules: department.modules });
+    if (req.method === "POST" || req.method === "PATCH") {
+      const body = await readBody(req);
+      const modules = normalizeModules(body.modules);
+      if (!modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
+      const nextDepartments = settings.departments.map((item) =>
+        item.id === leader.department.id ? { ...item, modules } : item
+      );
+      state.settings = { ...settings, departments: nextDepartments, updatedAt: now };
+      await saveState(state);
+      return json(res, { modules });
+    }
+    return methodNotAllowed(res);
+  }
+  return json(res, { error: "Not found" }, 404);
+}
+
+async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   const action = parts[1] || "";
   if (action === "login") {
     if (req.method !== "POST") return methodNotAllowed(res);
     const { username, password } = await readBody(req);
-    if (!credentialsMatch(username, password)) return json(res, { error: "后台账号或密码错误" }, 401);
-    const session = await issueAdminToken({ username, now });
-    return json(res, session);
+    const normalizedUsername = String(username || "").trim().toLowerCase();
+    const attempts = ensureLoginAttemptsBucket(state);
+    const throttleKey = loginThrottleKey("admin", normalizedUsername);
+    const throttle = loginThrottleStatus(attempts, throttleKey, now);
+    if (!throttle.allowed) return loginLockedResponse(res, throttle);
+
+    if (credentialsMatch(username, password)) {
+      clearLoginFailures(attempts, throttleKey);
+      await saveState(state);
+      const session = await issueAdminToken({ username, role: "admin", now });
+      return json(res, { ...session, role: "admin" });
+    }
+
+    const leaderDepartment = resolveLeaderDepartment(state, normalizedUsername);
+    const leaderAccount = leaderDepartment
+      && getSettings(state).accounts.find((account) => account.username === normalizedUsername && account.enabled !== false);
+    const leaderUser = state.users[normalizedUsername];
+    if (leaderDepartment?.enabled && leaderAccount && leaderUser && await verifyPassword(password, leaderUser)) {
+      clearLoginFailures(attempts, throttleKey);
+      await saveState(state);
+      const session = await issueAdminToken({ username: normalizedUsername, role: "leader", now });
+      return json(res, { ...session, role: "leader", departmentId: leaderDepartment.id, departmentName: leaderDepartment.name });
+    }
+
+    registerLoginFailure(attempts, throttleKey, now);
+    await saveState(state);
+    return json(res, { error: "后台账号或密码错误" }, 401);
   }
 
-  const admin = await verifyAdminToken(bearerToken(req), { now });
-  if (!admin) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
+  const decoded = await verifyAdminToken(bearerToken(req), { now });
+  if (!decoded) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
+
+  if (decoded.role === "leader") {
+    const department = resolveLeaderDepartment(state, decoded.username);
+    const stale = department && Number(department.leaderAssignedAt || 0) > Number(decoded.issuedAt || 0);
+    if (!department || !department.enabled || stale) {
+      return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
+    }
+    return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
+  }
+
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
   if (action === "users" && parts[3] === "reset-password") {
     return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now);
   }
   if (action === "ai" && parts[2] === "test" && req.method === "POST") {
+    release();
     const body = await readBody(req);
     const ai = normalizeAiSettings({ ...getSettings(state).ai, ...body });
     try {
@@ -930,24 +1086,26 @@ async function handleAdmin(req, res, state, parts, now) {
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
-  const state = await loadState();
-  const now = Date.now();
-  const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
-  const parts = routePath.split("/").filter(Boolean);
-  const actor = currentUser(req, state, now);
+  const mutating = !["GET", "HEAD"].includes(req.method);
+  const release = mutating ? await mutationLock.acquire() : () => {};
   try {
-    if (parts[0] === "auth") return handleAuth(req, res, state, parts[1], now);
-    if (parts[0] === "admin") return handleAdmin(req, res, state, parts, now);
-    if (parts[0] === "settings") return handleSettings(req, res, state, now);
+    const state = await loadState();
+    const now = Date.now();
+    const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
+    const parts = routePath.split("/").filter(Boolean);
+    const actor = currentUser(req, state, now);
+    if (parts[0] === "auth") return await handleAuth(req, res, state, parts[1], now);
+    if (parts[0] === "admin") return await handleAdmin(req, res, state, parts, now, release);
+    if (parts[0] === "settings") return await handleSettings(req, res, state, now);
     if (!actor) return json(res, { error: "请先登录" }, 401);
-    if (parts[0] === "weeks") return handleWeeks(req, res, state, parts, now, actor);
-    if (parts[0] === "week") return handleWeek(req, res, state, parts, now, actor);
+    if (parts[0] === "weeks") return await handleWeeks(req, res, state, parts, now, actor);
+    if (parts[0] === "week") return await handleWeek(req, res, state, parts, now, actor);
     if (parts[0] === "tasks") return handleTasksByPeriod(req, res, state, actor);
-    if (parts[0] === "task") return handleTask(req, res, state, parts, now, actor);
-    if (parts[0] === "reports" || parts[0] === "report") return handleReports(req, res, state, parts, now, actor);
-    if (parts[0] === "goals") return handleGoals(req, res, state, now, actor);
+    if (parts[0] === "task") return await handleTask(req, res, state, parts, now, actor);
+    if (parts[0] === "reports" || parts[0] === "report") return await handleReports(req, res, state, parts, now, actor);
+    if (parts[0] === "goals") return await handleGoals(req, res, state, now, actor);
     if (parts[0] === "accounts") return handleAccounts(req, res, state, actor);
-    if (parts[0] === "ai") return handleAi(req, res, state, parts, actor);
+    if (parts[0] === "ai") return await handleAi(req, res, state, parts, actor, release);
     return json(res, { error: "Not found" }, 404);
   } catch (error) {
     if (["无效任务状态", "进入阻塞状态必须填写阻塞原因", "完成任务前必须关联年度指标并填写贡献数"].includes(error.message)) {
@@ -955,5 +1113,7 @@ export default async function handler(req, res) {
     }
     console.error(error);
     return json(res, { error: "Unexpected server error" }, 500);
+  } finally {
+    release();
   }
 }

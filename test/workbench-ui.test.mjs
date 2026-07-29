@@ -103,14 +103,17 @@ test("admin account management exposes registered-user password reset", () => {
   assert.match(html, /\/api\/admin\/users\/\$\{encodeURIComponent\(adminResetUsername\)\}\/reset-password/);
 });
 
-test("report import loads candidates for the report period", () => {
+test("report import shows all permitted department tasks with a this-week/all scope toggle", () => {
   assert.match(html, /let reportImportTasks = \[\]/);
   assert.match(html, /let reportImportState = "idle"/);
-  assert.match(html, /\/api\/tasks\?\$\{query\}/);
+  assert.match(html, /apiJson\("\/api\/tasks"\)/);
+  assert.match(html, /id="reportImportScopeFilter"/);
+  assert.match(html, /<option value="week" selected>本周有更新<\/option>/);
   assert.match(html, /正在加载待办/);
   assert.match(html, /当前周期和模块暂无可导入待办/);
   assert.match(html, /data-retry-report-task-import/);
   assert.match(html, /reportImportTasks[\s\S]{0,500}\.filter\(\(task\) => task\.module === moduleName\)/);
+  assert.match(html, /scope === "all" \|\| dateInWeek/);
 });
 
 test("admin uses categorized settings and safe AI key controls", () => {
@@ -121,4 +124,22 @@ test("admin uses categorized settings and safe AI key controls", () => {
   assert.match(html, /id="adminAiTestBtn"/);
   assert.match(html, /id="adminAiClearBtn"/);
   assert.match(html, /adminDirty/);
+});
+
+test("department rows expose a leader picker and account rows expose an enable toggle", () => {
+  assert.match(html, /data-admin-department-leader="\$\{index\}"/);
+  assert.match(html, /department\.leaderUsername/);
+  assert.match(html, /data-admin-account-enabled="\$\{index\}"/);
+  assert.match(html, /account\.enabled !== false/);
+});
+
+test("a department leader gets a cut-down admin panel scoped to their own department", () => {
+  assert.match(html, /let adminRole = adminSession\.role === "leader" \? "leader" : "admin"/);
+  assert.match(html, /function renderLeaderAdmin\(\)/);
+  assert.match(html, /async function loadLeaderWorkspace\(\)/);
+  assert.match(html, /\/api\/admin\/leader\/accounts/);
+  assert.match(html, /\/api\/admin\/leader\/modules/);
+  assert.match(html, /data-admin-section="leader-accounts"/);
+  assert.match(html, /data-admin-section="leader-modules"/);
+  assert.match(html, /data-leader-account-enabled=/);
 });

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 
@@ -21,4 +22,26 @@ test("admin sessions reject missing or weak signing secrets", async () => {
     /ADMIN_SESSION_SECRET/,
   );
   assert.equal(await verifyAdminToken("invalid", { env: {} }), null);
+});
+
+test("tokens carry a role claim that round-trips, defaulting to admin", async () => {
+  const leaderToken = await issueAdminToken({ username: "leaduser", role: "leader", now: 1_000, ttlMs: 60_000, env });
+  const decodedLeader = await verifyAdminToken(leaderToken.token, { now: 2_000, env });
+  assert.equal(decodedLeader.role, "leader");
+
+  const adminToken = await issueAdminToken({ username: "admin", now: 1_000, ttlMs: 60_000, env });
+  const decodedAdmin = await verifyAdminToken(adminToken.token, { now: 2_000, env });
+  assert.equal(decodedAdmin.role, "admin");
+});
+
+function signPayloadForTest(payload) {
+  return createHmac("sha256", env.ADMIN_SESSION_SECRET).update(payload).digest("base64url");
+}
+
+test("a legacy token minted before the role claim existed still decodes as admin", async () => {
+  const legacyPayload = Buffer.from(JSON.stringify({ username: "admin", issuedAt: 1_000, expiresAt: 61_000 }), "utf8").toString("base64url");
+  const legacyToken = `${legacyPayload}.${signPayloadForTest(legacyPayload)}`;
+
+  const decoded = await verifyAdminToken(legacyToken, { now: 2_000, env });
+  assert.equal(decoded.role, "admin");
 });
