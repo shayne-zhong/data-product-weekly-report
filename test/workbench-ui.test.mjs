@@ -125,3 +125,21 @@ test("admin uses categorized settings and safe AI key controls", () => {
   assert.match(html, /id="adminAiClearBtn"/);
   assert.match(html, /adminDirty/);
 });
+
+test("department rows expose a leader picker and account rows expose an enable toggle", () => {
+  assert.match(html, /data-admin-department-leader="\$\{index\}"/);
+  assert.match(html, /department\.leaderUsername/);
+  assert.match(html, /data-admin-account-enabled="\$\{index\}"/);
+  assert.match(html, /account\.enabled !== false/);
+});
+
+test("a department leader gets a cut-down admin panel scoped to their own department", () => {
+  assert.match(html, /let adminRole = adminSession\.role === "leader" \? "leader" : "admin"/);
+  assert.match(html, /function renderLeaderAdmin\(\)/);
+  assert.match(html, /async function loadLeaderWorkspace\(\)/);
+  assert.match(html, /\/api\/admin\/leader\/accounts/);
+  assert.match(html, /\/api\/admin\/leader\/modules/);
+  assert.match(html, /data-admin-section="leader-accounts"/);
+  assert.match(html, /data-admin-section="leader-modules"/);
+  assert.match(html, /data-leader-account-enabled=/);
+});
