@@ -28,12 +28,4 @@ export default [
       "no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
-  {
-    files: ["netlify/functions/**/*.mjs"],
-    languageOptions: {
-      globals: {
-        Netlify: "readonly",
-      },
-    },
-  },
 ];
