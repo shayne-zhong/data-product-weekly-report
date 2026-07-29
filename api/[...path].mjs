@@ -12,7 +12,7 @@ const jsonHeaders = {
   "Cache-Control": "no-store",
 };
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
-const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true };
+const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, leaderUsername: "", leaderAssignedAt: 0 };
 const defaultSessionDurationMinutes = 30;
 const minSessionDurationMinutes = 5;
 const maxSessionDurationMinutes = 43_200;
@@ -101,6 +101,7 @@ function normalizeAccounts(list, fallbackDepartmentId = defaultDepartment.id) {
       name: String(account?.name || "").trim(),
       username: String(account?.username || "").trim().toLowerCase(),
       departmentId: safeId(account?.departmentId || fallbackDepartmentId).toLowerCase(),
+      enabled: account?.enabled !== false,
     }))
     .filter((account) => account.name && account.username)
     .filter((account) => {
@@ -121,6 +122,8 @@ function normalizeDepartments(value, fallbackModules = defaultModules) {
       modules: normalizeModules(department?.modules).length
         ? normalizeModules(department.modules)
         : [...fallbackModules],
+      leaderUsername: String(department?.leaderUsername || "").trim().toLowerCase(),
+      leaderAssignedAt: Number(department?.leaderAssignedAt) || 0,
     }))
     .filter((department) => department.id && department.name)
     .filter((department) => {
@@ -187,7 +190,7 @@ function defaultSettings() {
   return {
     modules: [...defaultModules],
     departments,
-    accounts: defaultDepartmentAccounts.map((account) => ({ ...account, departmentId: defaultDepartment.id })),
+    accounts: defaultDepartmentAccounts.map((account) => ({ ...account, departmentId: defaultDepartment.id, enabled: true })),
     sessionDurationMinutes: defaultSessionDurationMinutes,
     ai: normalizeAiSettings(),
   };
@@ -363,7 +366,7 @@ function currentSession(req, state, now = Date.now()) {
   const settings = getSettings(state);
   const account = settings.accounts.find((item) => item.username === session.username);
   const department = settings.departments.find((item) => item.id === departmentId);
-  if (!user || !account || account.departmentId !== departmentId || !department?.enabled) return null;
+  if (!user || !account || account.enabled === false || account.departmentId !== departmentId || !department?.enabled) return null;
   session.departmentId = departmentId;
   return session;
 }
@@ -470,6 +473,7 @@ async function handleAuth(req, res, state, action, now) {
   if (action === "register") {
     if (!account || !department) return json(res, { error: "该用户名未在后台成员账号中配置" }, 403);
     if (!department.enabled) return json(res, { error: "所属部门已停用" }, 403);
+    if (account.enabled === false) return json(res, { error: "账号已被停用" }, 403);
     const displayName = account.name || String(body.displayName || username).trim();
     if (!/^[a-z0-9_.-]{3,32}$/.test(username)) return json(res, { error: "用户名需为3-32位英文、数字或._-" }, 400);
     if (password.length < 6) return json(res, { error: "密码至少6位" }, 400);
@@ -500,6 +504,7 @@ async function handleAuth(req, res, state, action, now) {
     }
     if (!account || !department) return json(res, { error: "账号未分配有效部门" }, 403);
     if (!department.enabled) return json(res, { error: "所属部门已停用" }, 403);
+    if (account.enabled === false) return json(res, { error: "账号已被停用" }, 403);
     user.departmentId = department.id;
     user.displayName = account.name || user.displayName;
     user.updatedAt = now;
@@ -863,9 +868,18 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   if (accounts.some((account) => !departments.some((department) => department.id === account.departmentId))) {
     return json(res, { error: "成员账号必须关联有效部门" }, 400);
   }
+  const departmentsWithLeaders = departments.map((department) => {
+    const stillValid = !department.leaderUsername || accounts.some((account) =>
+      account.username === department.leaderUsername && account.departmentId === department.id
+    );
+    const leaderUsername = stillValid ? department.leaderUsername : "";
+    const previous = current.departments.find((item) => item.id === department.id);
+    const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
+    return { ...department, leaderUsername, leaderAssignedAt: leaderChanged ? now : previous?.leaderAssignedAt || 0 };
+  });
   const next = {
-    modules: departments[0].modules,
-    departments,
+    modules: departmentsWithLeaders[0].modules,
+    departments: departmentsWithLeaders,
     accounts,
     sessionDurationMinutes: Object.hasOwn(body, "sessionDurationMinutes")
       ? Number(body.sessionDurationMinutes)
@@ -916,9 +930,18 @@ function bearerToken(req) {
   return header.startsWith("Bearer ") ? header.slice(7).trim() : "";
 }
 
-async function resetUserPassword(req, res, state, username, now) {
+function resolveLeaderDepartment(state, username) {
+  const settings = getSettings(state);
+  return settings.departments.find((department) => department.leaderUsername === username) || null;
+}
+
+async function resetUserPassword(req, res, state, username, now, actor = { role: "admin" }) {
   if (req.method !== "POST") return methodNotAllowed(res);
   const normalizedUsername = String(username || "").trim().toLowerCase();
+  if (actor.role === "leader") {
+    const account = getSettings(state).accounts.find((item) => item.username === normalizedUsername);
+    if (!account || account.departmentId !== actor.departmentId) return json(res, { error: "Not found" }, 404);
+  }
   const { password } = await readBody(req);
   const nextPassword = String(password || "");
   if (nextPassword.length < 6) return json(res, { error: "密码至少6位" }, 400);
@@ -938,28 +961,111 @@ async function resetUserPassword(req, res, state, username, now) {
   return json(res, { ok: true, username: normalizedUsername });
 }
 
+async function handleLeaderAdmin(req, res, state, parts, now, leader) {
+  if (parts[1] === "users" && parts[3] === "reset-password") {
+    return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now, {
+      role: "leader",
+      departmentId: leader.department.id,
+    });
+  }
+  if (parts[1] === "leader" && parts[2] === "accounts" && parts.length === 3) {
+    if (req.method !== "GET") return methodNotAllowed(res);
+    const accounts = getSettings(state).accounts
+      .filter((account) => account.departmentId === leader.department.id)
+      .map((account) => ({ ...account, registered: Boolean(state.users?.[account.username]) }));
+    return json(res, { accounts });
+  }
+  if (parts[1] === "leader" && parts[2] === "accounts" && parts[4] === "enabled") {
+    if (req.method !== "POST") return methodNotAllowed(res);
+    const targetUsername = decodeURIComponent(parts[3] || "");
+    const settings = getSettings(state);
+    const targetAccount = settings.accounts.find((account) =>
+      account.username === targetUsername && account.departmentId === leader.department.id
+    );
+    if (!targetAccount) return json(res, { error: "Not found" }, 404);
+    const body = await readBody(req);
+    const nextEnabled = body.enabled !== false;
+    if (targetUsername === leader.username && !nextEnabled) {
+      return json(res, { error: "不能停用自己的账号" }, 400);
+    }
+    const nextAccounts = settings.accounts.map((account) =>
+      account.username === targetUsername ? { ...account, enabled: nextEnabled } : account
+    );
+    state.settings = { ...settings, accounts: nextAccounts, updatedAt: now };
+    if (!nextEnabled) {
+      for (const [token, session] of Object.entries(state.sessions || {})) {
+        if (session.username === targetUsername) delete state.sessions[token];
+      }
+    }
+    await saveState(state);
+    return json(res, { ok: true, username: targetUsername, enabled: nextEnabled });
+  }
+  if (parts[1] === "leader" && parts[2] === "modules") {
+    const settings = getSettings(state);
+    const department = settings.departments.find((item) => item.id === leader.department.id);
+    if (req.method === "GET") return json(res, { modules: department.modules });
+    if (req.method === "POST" || req.method === "PATCH") {
+      const body = await readBody(req);
+      const modules = normalizeModules(body.modules);
+      if (!modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
+      const nextDepartments = settings.departments.map((item) =>
+        item.id === leader.department.id ? { ...item, modules } : item
+      );
+      state.settings = { ...settings, departments: nextDepartments, updatedAt: now };
+      await saveState(state);
+      return json(res, { modules });
+    }
+    return methodNotAllowed(res);
+  }
+  return json(res, { error: "Not found" }, 404);
+}
+
 async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   const action = parts[1] || "";
   if (action === "login") {
     if (req.method !== "POST") return methodNotAllowed(res);
+    const { username, password } = await readBody(req);
+    const normalizedUsername = String(username || "").trim().toLowerCase();
     const attempts = ensureLoginAttemptsBucket(state);
-    const throttleKey = loginThrottleKey("admin", "admin");
+    const throttleKey = loginThrottleKey("admin", normalizedUsername);
     const throttle = loginThrottleStatus(attempts, throttleKey, now);
     if (!throttle.allowed) return loginLockedResponse(res, throttle);
-    const { username, password } = await readBody(req);
-    if (!credentialsMatch(username, password)) {
-      registerLoginFailure(attempts, throttleKey, now);
+
+    if (credentialsMatch(username, password)) {
+      clearLoginFailures(attempts, throttleKey);
       await saveState(state);
-      return json(res, { error: "后台账号或密码错误" }, 401);
+      const session = await issueAdminToken({ username, role: "admin", now });
+      return json(res, { ...session, role: "admin" });
     }
-    clearLoginFailures(attempts, throttleKey);
+
+    const leaderDepartment = resolveLeaderDepartment(state, normalizedUsername);
+    const leaderAccount = leaderDepartment
+      && getSettings(state).accounts.find((account) => account.username === normalizedUsername && account.enabled !== false);
+    const leaderUser = state.users[normalizedUsername];
+    if (leaderDepartment?.enabled && leaderAccount && leaderUser && await verifyPassword(password, leaderUser)) {
+      clearLoginFailures(attempts, throttleKey);
+      await saveState(state);
+      const session = await issueAdminToken({ username: normalizedUsername, role: "leader", now });
+      return json(res, { ...session, role: "leader", departmentId: leaderDepartment.id, departmentName: leaderDepartment.name });
+    }
+
+    registerLoginFailure(attempts, throttleKey, now);
     await saveState(state);
-    const session = await issueAdminToken({ username, now });
-    return json(res, session);
+    return json(res, { error: "后台账号或密码错误" }, 401);
   }
 
-  const admin = await verifyAdminToken(bearerToken(req), { now });
-  if (!admin) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
+  const decoded = await verifyAdminToken(bearerToken(req), { now });
+  if (!decoded) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
+
+  if (decoded.role === "leader") {
+    const department = resolveLeaderDepartment(state, decoded.username);
+    const stale = department && Number(department.leaderAssignedAt || 0) > Number(decoded.issuedAt || 0);
+    if (!department || !department.enabled || stale) {
+      return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
+    }
+    return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
+  }
+
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
   if (action === "users" && parts[3] === "reset-password") {
     return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now);
