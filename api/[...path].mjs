@@ -6,6 +6,7 @@ import { createStateStore } from "../lib/state-store.mjs";
 import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
 import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
 import { createMutationLock } from "../lib/mutation-lock.mjs";
+import { canManageGoalArtifact, ensureGoalIds, mergeGoalRows, publicGoalRows } from "../lib/goal-artifact-core.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -702,13 +703,35 @@ async function handleReports(req, res, state, parts, now, actor) {
 
 async function handleGoals(req, res, state, now, actor) {
   const departmentId = actor.departmentId;
-  if (req.method === "GET") return json(res, state.goalsByDepartment[departmentId] || { year: "2026", rows: [], updatedAt: 0, updatedBy: null });
+  const current = state.goalsByDepartment[departmentId] || { departmentId, year: "2026", rows: [], updatedAt: 0, updatedBy: null };
+  if (req.method === "GET") {
+    const normalized = ensureGoalIds(current.rows, () => randomId("goal"));
+    if (normalized.changed) {
+      current.rows = normalized.rows;
+      state.goalsByDepartment[departmentId] = current;
+      await saveState(state);
+    }
+    const settings = getSettings(state);
+    const rows = publicGoalRows(current.rows).map((row, index) => ({
+      ...row,
+      canManageArtifact: canManageGoalArtifact({ actor, departmentId, goal: current.rows[index], settings }),
+    }));
+    return json(res, { ...current, rows });
+  }
   if (req.method === "POST") {
     const body = await readBody(req);
     if (!Array.isArray(body.rows)) return json(res, { error: "Invalid goals rows" }, 400);
-    state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows: body.rows, updatedAt: now, updatedBy: actor };
+    const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"));
+    state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows, updatedAt: now, updatedBy: actor };
     await saveState(state);
-    return json(res, state.goalsByDepartment[departmentId]);
+    const settings = getSettings(state);
+    return json(res, {
+      ...state.goalsByDepartment[departmentId],
+      rows: publicGoalRows(rows).map((row, index) => ({
+        ...row,
+        canManageArtifact: canManageGoalArtifact({ actor, departmentId, goal: rows[index], settings }),
+      })),
+    });
   }
   return methodNotAllowed(res);
 }
