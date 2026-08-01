@@ -6,6 +6,11 @@ import { createStateStore } from "../lib/state-store.mjs";
 import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
 import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
 import { createMutationLock } from "../lib/mutation-lock.mjs";
+import { canManageGoalArtifact, ensureGoalIds, mergeGoalRows, publicGoalRows } from "../lib/goal-artifact-core.mjs";
+import { createArtifactStore } from "../lib/artifact-store.mjs";
+import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
+import { createGoalArtifactService } from "../lib/goal-artifact-service.mjs";
+import { parseSingleFile } from "../lib/multipart-file.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -38,6 +43,8 @@ const defaultDepartmentAccounts = [
 let memoryState = null;
 const stateStore = createStateStore();
 const mutationLock = createMutationLock();
+const artifactStore = createArtifactStore();
+const goalArtifactService = createGoalArtifactService({ store: artifactStore, convertOffice: convertOfficeToPdf });
 
 function json(res, body, status = 200) {
   Object.entries(jsonHeaders).forEach(([key, value]) => res.setHeader(key, value));
@@ -700,15 +707,86 @@ async function handleReports(req, res, state, parts, now, actor) {
   return methodNotAllowed(res);
 }
 
-async function handleGoals(req, res, state, now, actor) {
+function artifactContentDisposition(filename, inline = false) {
+  const safeAscii = String(filename || "artifact").replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  return `${inline ? "inline" : "attachment"}; filename="${safeAscii}"; filename*=UTF-8''${encodeURIComponent(filename || "artifact")}`;
+}
+
+function sendArtifact(res, artifact, { inline = false } = {}) {
+  res.setHeader("Content-Type", artifact.mimeType || "application/octet-stream");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Disposition", artifactContentDisposition(artifact.filename, inline));
+  if (inline && artifact.mimeType === "text/html") res.setHeader("Content-Security-Policy", "sandbox allow-scripts");
+  res.statusCode = 200;
+  return res.end(artifact.buffer);
+}
+
+async function handleGoals(req, res, state, parts, now, actor) {
   const departmentId = actor.departmentId;
-  if (req.method === "GET") return json(res, state.goalsByDepartment[departmentId] || { year: "2026", rows: [], updatedAt: 0, updatedBy: null });
+  const current = state.goalsByDepartment[departmentId] || { departmentId, year: "2026", rows: [], updatedAt: 0, updatedBy: null };
+  const goalId = decodeURIComponent(parts[1] || "");
+  const resource = parts[2] || "";
+  const action = parts[3] || "";
+  if (goalId && resource === "artifact") {
+    const context = { state, departmentId, goalId, actor };
+    if (req.method === "POST" && !action) {
+      const file = await parseSingleFile(req);
+      const artifact = await goalArtifactService.upload({
+        ...context,
+        settings: getSettings(state),
+        file,
+        save: () => saveState(state),
+      });
+      return json(res, { artifact }, 201);
+    }
+    if (req.method === "GET" && action === "download") {
+      return sendArtifact(res, await goalArtifactService.readOriginal(context));
+    }
+    if (req.method === "GET" && action === "preview") {
+      return sendArtifact(res, await goalArtifactService.readPreview(context), { inline: true });
+    }
+    if (req.method === "DELETE" && !action) {
+      await goalArtifactService.remove({ ...context, settings: getSettings(state), save: () => saveState(state) });
+      return json(res, { ok: true });
+    }
+    return methodNotAllowed(res);
+  }
+  if (parts.length !== 1) return json(res, { error: "Not found" }, 404);
+  if (req.method === "GET") {
+    const normalized = ensureGoalIds(current.rows, () => randomId("goal"));
+    if (normalized.changed) {
+      current.rows = normalized.rows;
+      state.goalsByDepartment[departmentId] = current;
+      await saveState(state);
+    }
+    const settings = getSettings(state);
+    const rows = publicGoalRows(current.rows).map((row, index) => ({
+      ...row,
+      canManageArtifact: canManageGoalArtifact({ actor, departmentId, goal: current.rows[index], settings }),
+    }));
+    return json(res, { ...current, rows });
+  }
   if (req.method === "POST") {
     const body = await readBody(req);
     if (!Array.isArray(body.rows)) return json(res, { error: "Invalid goals rows" }, 400);
-    state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows: body.rows, updatedAt: now, updatedBy: actor };
+    const incomingIds = new Set(body.rows.map((row) => row?.id).filter(Boolean));
+    const removedArtifactGoals = current.rows.filter((row) => row.id && row.artifact && !incomingIds.has(row.id));
+    const settings = getSettings(state);
+    if (removedArtifactGoals.some((goal) => !canManageGoalArtifact({ actor, departmentId, goal, settings }))) {
+      return json(res, { error: "无权删除带有产物的目标" }, 403);
+    }
+    const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"));
+    state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows, updatedAt: now, updatedBy: actor };
     await saveState(state);
-    return json(res, state.goalsByDepartment[departmentId]);
+    await Promise.all(removedArtifactGoals.map((goal) => goalArtifactService.cleanup(goal.artifact)));
+    return json(res, {
+      ...state.goalsByDepartment[departmentId],
+      rows: publicGoalRows(rows).map((row, index) => ({
+        ...row,
+        canManageArtifact: canManageGoalArtifact({ actor, departmentId, goal: rows[index], settings }),
+      })),
+    });
   }
   return methodNotAllowed(res);
 }
@@ -1103,11 +1181,12 @@ export default async function handler(req, res) {
     if (parts[0] === "tasks") return handleTasksByPeriod(req, res, state, actor);
     if (parts[0] === "task") return await handleTask(req, res, state, parts, now, actor);
     if (parts[0] === "reports" || parts[0] === "report") return await handleReports(req, res, state, parts, now, actor);
-    if (parts[0] === "goals") return await handleGoals(req, res, state, now, actor);
+    if (parts[0] === "goals") return await handleGoals(req, res, state, parts, now, actor);
     if (parts[0] === "accounts") return handleAccounts(req, res, state, actor);
     if (parts[0] === "ai") return await handleAi(req, res, state, parts, actor, release);
     return json(res, { error: "Not found" }, 404);
   } catch (error) {
+    if (Number.isInteger(error?.statusCode)) return json(res, { error: error.message }, error.statusCode);
     if (["无效任务状态", "进入阻塞状态必须填写阻塞原因", "完成任务前必须关联年度指标并填写贡献数"].includes(error.message)) {
       return json(res, { error: error.message }, 400);
     }
