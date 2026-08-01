@@ -99,6 +99,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .goals-table .seq-input:hover,.goals-table .seq-input:focus{border-color:#d9deea;background:#fff;outline:none}
 @media(max-width:860px){.goal-link-row{grid-template-columns:1fr 1fr}.goal-link-row .field-full-mobile{grid-column:1/-1}}
 .admin-mode .nav,.admin-mode #openOnboardingBtn,.admin-mode #authNavBtn{display:none}
+.goal-artifact-cell{min-width:180px}.goal-artifact-button{max-width:220px;text-align:left}.goal-artifact-name{display:block;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.goal-artifact-time{display:block;color:var(--muted);font-size:11px;font-weight:400;margin-top:2px}.artifact-modal{width:min(980px,calc(100% - 32px));height:min(760px,calc(100vh - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.artifact-modal .modal-body{flex:1;min-height:0;display:grid;grid-template-rows:auto 1fr;gap:12px;background:#f7f9fc}.artifact-info{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff}.artifact-info-main{min-width:0}.artifact-info-name{font-weight:800;overflow-wrap:anywhere}.artifact-preview{min-height:320px;display:grid;place-items:center;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.artifact-preview img{max-width:100%;max-height:100%;object-fit:contain}.artifact-preview iframe{width:100%;height:100%;min-height:460px;border:0;background:#fff}.artifact-preview-state{color:var(--muted);padding:28px;text-align:center}.artifact-error{color:var(--red)}.artifact-modal .modal-foot{justify-content:space-between;align-items:center;flex-wrap:wrap}.artifact-actions{display:flex;gap:10px;flex-wrap:wrap}@media(max-width:760px){.artifact-modal{width:calc(100% - 18px);height:calc(100vh - 18px)}.artifact-modal .modal-body{padding:12px}.artifact-info{align-items:flex-start;flex-direction:column}.artifact-preview iframe{min-height:360px}}
 .admin-mode .brand small{display:block}
 .admin-login{max-width:560px;padding:22px}.admin-login h3{margin:0 0 4px}
 .admin-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:16px;align-items:start}
@@ -622,6 +623,37 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </section>
   </div>
 
+  <div class="modal-mask" id="goalArtifactModal" hidden>
+    <section class="modal artifact-modal" aria-label="目标产物">
+      <div class="modal-head">
+        <div>
+          <strong id="goalArtifactTitle">目标产物</strong>
+          <div class="subtitle" id="goalArtifactSubtitle"></div>
+        </div>
+        <button class="btn small ghost" id="closeGoalArtifactModal" aria-label="关闭目标产物">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="artifact-info">
+          <div class="artifact-info-main">
+            <div class="artifact-info-name" id="goalArtifactName">尚未上传产物</div>
+            <div class="subtitle" id="goalArtifactMeta">支持 Word、Excel、PPT、PDF、图片和 HTML，最大 20 MB。</div>
+          </div>
+          <span class="status-pill status-normal" id="goalArtifactType">未上传</span>
+        </div>
+        <div class="artifact-preview" id="goalArtifactPreview"><div class="artifact-preview-state">上传产物后可在此预览</div></div>
+      </div>
+      <div class="modal-foot">
+        <div class="subtitle" id="goalArtifactMessage"></div>
+        <div class="artifact-actions">
+          <input id="goalArtifactFile" type="file" hidden accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,.png,.jpg,.jpeg,.webp,.gif,.html,.htm" />
+          <button class="ghost-btn" id="downloadGoalArtifactBtn" hidden>下载原文件</button>
+          <button class="ghost-btn" id="chooseGoalArtifactBtn" hidden>上传产物</button>
+          <button class="danger-btn" id="deleteGoalArtifactBtn" hidden>删除产物</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div class="modal-mask" id="historySupplementModal" hidden>
     <section class="modal history-supplement-modal">
       <div class="modal-head">
@@ -755,6 +787,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let goalsRows = [];
     let goalLinkedTasks = [];
     let goalsYear = "2026";
+    let goalArtifactGoalId = "";
+    let goalArtifactObjectUrl = "";
     let accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
     let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
     let aiGenerating = false;
@@ -1359,14 +1393,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     async function apiJson(url, options = {}) {
       const response = await authedFetch(url, options);
       if (!response.ok) {
-        let message = `${response.status}`;
-        try {
-          const errorBody = await response.json();
-          message = errorBody.error || message;
-        } catch {}
-        throw new Error(message);
+        throw new Error(await responseErrorMessage(response));
       }
       return response.json();
+    }
+
+    async function responseErrorMessage(response) {
+      let message = `${response.status}`;
+      try {
+        const errorBody = await response.json();
+        message = errorBody.error || message;
+      } catch {}
+      return message;
     }
 
     function normalizeModulesList(list) {
@@ -1579,6 +1617,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         : `${year}年年度目标，单元格可直接编辑，修改后自动保存。`;
     }
 
+    function artifactTypeLabel(artifact = {}) {
+      const extension = String(artifact.originalName || "").split(".").pop()?.toUpperCase() || "文件";
+      return extension === "HTM" ? "HTML" : extension;
+    }
+
+    function formatArtifactSize(size) {
+      const bytes = Math.max(0, Number(size) || 0);
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    function renderGoalArtifactCell(row) {
+      const goalId = escapeHtml(row.id || "");
+      if (!row.artifact) {
+        return row.canManageArtifact
+          ? `<button class="btn small ghost goal-artifact-button" data-goal-artifact="${goalId}">＋ 上传产物</button>`
+          : `<span class="subtitle">暂无产物</span>`;
+      }
+      const updated = row.artifact.updatedAt ? new Date(row.artifact.updatedAt).toLocaleString() : "";
+      return `<button class="btn small ghost goal-artifact-button" data-goal-artifact="${goalId}">
+        <span class="goal-artifact-name">📎 ${escapeHtml(row.artifact.originalName || "未命名产物")}</span>
+        <span class="goal-artifact-time">${escapeHtml(artifactTypeLabel(row.artifact))}${updated ? ` · ${escapeHtml(updated)}` : ""}</span>
+      </button>`;
+    }
+
     function renderGoals() {
       renderGoalsStats();
       const rows = goalsRows
@@ -1587,7 +1651,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("goalsTable").innerHTML = `
         <thead><tr>
           <th>序号</th><th>指标名称</th><th>指标定义</th><th>Owner</th>
-          <th class="goal-nowrap">上年实际</th><th>目标</th><th>已达成</th><th>完成度</th><th>状态</th><th>操作</th>
+          <th class="goal-nowrap">上年实际</th><th>目标</th><th>已达成</th><th>完成度</th><th>状态</th><th>产物</th><th>操作</th>
         </tr></thead>
         <tbody>
           ${rows.map(({ row, rowIndex }) => {
@@ -1622,6 +1686,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                     ${["正常", "风险", "滞后", "已完成"].map((item) => `<option ${item === status ? "selected" : ""}>${item}</option>`).join("")}
                   </select>
                 </td>
+                <td class="goal-artifact-cell">${renderGoalArtifactCell(row)}</td>
                 <td>
                   <div class="row-actions">
                     <button class="btn small ghost" data-quarter-edit="${rowIndex}">${hasQuarterGoals(row) ? "季度目标" : "拆解"}</button>
@@ -1631,7 +1696,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 </td>
               </tr>
             `;
-          }).join("") || `<tr><td colspan="10"><div class="empty">暂无符合条件的目标</div></td></tr>`}
+          }).join("") || `<tr><td colspan="11"><div class="empty">暂无符合条件的目标</div></td></tr>`}
         </tbody>
       `;
     }
@@ -1708,12 +1773,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     async function deleteGoal(rowIndex) {
       const goal = goalsRows[rowIndex];
       if (!goal) return;
+      if (goal.artifact && !goal.canManageArtifact) return setSyncStatus("仅目标 Owner 或部门负责人可删除带有产物的目标", "warn");
       const goalId = goalRowId(goal, rowIndex);
       const linkedTasks = tasksForGoal(goalId);
       const linkedCount = linkedTasks.length;
       const message = linkedCount
         ? `该指标已有 ${linkedCount} 个关联任务。删除后这些任务会取消年度指标关联，确认删除？`
-        : "确认删除该年度指标？";
+        : goal.artifact ? "该目标的产物也会一并删除，确认删除该年度指标？" : "确认删除该年度指标？";
       if (!confirm(message)) return;
       goalsRows.splice(rowIndex, 1);
       const changedTasks = [];
@@ -1816,6 +1882,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         body: JSON.stringify({ year: goalsYear || "2026", rows: goalsRows }),
       });
       goalsYear = String(result.year || goalsYear || "2026");
+      if (Array.isArray(result.rows)) {
+        goalsRows = result.rows;
+        resequenceGoals();
+        renderGoals();
+      }
       renderGoalsMeta(result);
       setSyncStatus("目标已保存", "ok");
     }
@@ -1827,6 +1898,141 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         goalsSaveTimer = null;
         saveGoalsNow().catch(() => setSyncStatus("目标保存失败", "warn"));
       }, 800);
+    }
+
+    function replaceArtifactObjectUrl(nextUrl = "") {
+      if (goalArtifactObjectUrl) URL.revokeObjectURL(goalArtifactObjectUrl);
+      goalArtifactObjectUrl = nextUrl;
+    }
+
+    async function loadGoalArtifactBlob(goalId, action) {
+      const response = await authedFetch(`/api/goals/${encodeURIComponent(goalId)}/artifact/${action}`);
+      if (!response.ok) throw new Error(await responseErrorMessage(response));
+      return response.blob();
+    }
+
+    function setGoalArtifactBusy(busy) {
+      ["chooseGoalArtifactBtn", "deleteGoalArtifactBtn", "downloadGoalArtifactBtn"].forEach((id) => {
+        $(id).disabled = busy;
+      });
+    }
+
+    async function openGoalArtifactModal(goalId) {
+      const row = goalsRows.find((item) => item.id === goalId);
+      if (!row) return;
+      goalArtifactGoalId = goalId;
+      replaceArtifactObjectUrl();
+      $("goalArtifactModal").hidden = false;
+      $("goalArtifactTitle").textContent = "目标产物";
+      $("goalArtifactSubtitle").textContent = row.name || "未命名目标";
+      $("goalArtifactMessage").textContent = "";
+      $("goalArtifactFile").value = "";
+      $("chooseGoalArtifactBtn").hidden = !row.canManageArtifact;
+      $("chooseGoalArtifactBtn").textContent = row.artifact ? "替换产物" : "上传产物";
+      $("deleteGoalArtifactBtn").hidden = !row.canManageArtifact || !row.artifact;
+      $("downloadGoalArtifactBtn").hidden = !row.artifact;
+      $("goalArtifactName").textContent = row.artifact?.originalName || "尚未上传产物";
+      $("goalArtifactType").textContent = row.artifact ? artifactTypeLabel(row.artifact) : "未上传";
+      const updater = row.artifact?.updatedBy?.displayName || row.artifact?.updatedBy?.username || "";
+      const updated = row.artifact?.updatedAt ? new Date(row.artifact.updatedAt).toLocaleString() : "";
+      $("goalArtifactMeta").textContent = row.artifact
+        ? `${formatArtifactSize(row.artifact.size)}${updated ? ` · ${updated}` : ""}${updater ? ` · ${updater}` : ""}`
+        : "支持 Word、Excel、PPT、PDF、图片和 HTML，最大 20 MB。";
+      const preview = $("goalArtifactPreview");
+      preview.innerHTML = `<div class="artifact-preview-state">${row.artifact ? "正在加载预览..." : "上传产物后可在此预览"}</div>`;
+      if (!row.artifact) return;
+
+      try {
+        const blob = await loadGoalArtifactBlob(goalId, "preview");
+        if (goalArtifactGoalId !== goalId) return;
+        const objectUrl = URL.createObjectURL(blob);
+        replaceArtifactObjectUrl(objectUrl);
+        preview.innerHTML = "";
+        if (String(row.artifact.previewMimeType || "").startsWith("image/")) {
+          const image = document.createElement("img");
+          image.src = objectUrl;
+          image.alt = row.artifact.originalName || "目标产物图片";
+          preview.appendChild(image);
+        } else {
+          const frame = document.createElement("iframe");
+          frame.src = objectUrl;
+          frame.title = `${row.artifact.originalName || "目标产物"}预览`;
+          if (row.artifact.previewMimeType === "text/html") frame.setAttribute("sandbox", "allow-scripts");
+          preview.appendChild(frame);
+        }
+      } catch (error) {
+        preview.innerHTML = `<div class="artifact-preview-state artifact-error">${escapeHtml(error.message || "产物预览加载失败")}</div>`;
+      }
+    }
+
+    function closeGoalArtifactModal() {
+      goalArtifactGoalId = "";
+      replaceArtifactObjectUrl();
+      $("goalArtifactModal").hidden = true;
+    }
+
+    async function uploadGoalArtifact(file) {
+      const row = goalsRows.find((item) => item.id === goalArtifactGoalId);
+      if (!row?.canManageArtifact || !file) return;
+      const allowed = new Set(["doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf", "png", "jpg", "jpeg", "webp", "gif", "html", "htm"]);
+      const extension = String(file.name || "").split(".").pop()?.toLowerCase() || "";
+      if (!allowed.has(extension)) return setSyncStatus("不支持该产物格式", "warn");
+      if (file.size > 20 * 1024 * 1024) return setSyncStatus("产物不能超过 20 MB", "warn");
+      const form = new FormData();
+      form.append("file", file);
+      setGoalArtifactBusy(true);
+      $("goalArtifactMessage").textContent = row.artifact ? "正在替换产物..." : "正在上传产物...";
+      try {
+        const response = await authedFetch(`/api/goals/${encodeURIComponent(row.id)}/artifact`, { method: "POST", body: form });
+        if (!response.ok) throw new Error(await responseErrorMessage(response));
+        const result = await response.json();
+        row.artifact = result.artifact;
+        renderGoals();
+        await openGoalArtifactModal(row.id);
+        setSyncStatus("目标产物已更新", "ok");
+      } catch (error) {
+        $("goalArtifactMessage").textContent = error.message || "产物上传失败";
+        setSyncStatus(error.message || "产物上传失败", "warn");
+      } finally {
+        setGoalArtifactBusy(false);
+      }
+    }
+
+    async function downloadGoalArtifact() {
+      const row = goalsRows.find((item) => item.id === goalArtifactGoalId);
+      if (!row?.artifact) return;
+      setGoalArtifactBusy(true);
+      try {
+        const blob = await loadGoalArtifactBlob(row.id, "download");
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = row.artifact.originalName || "artifact";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      } catch (error) {
+        setSyncStatus(error.message || "产物下载失败", "warn");
+      } finally {
+        setGoalArtifactBusy(false);
+      }
+    }
+
+    async function deleteGoalArtifact() {
+      const row = goalsRows.find((item) => item.id === goalArtifactGoalId);
+      if (!row?.artifact || !row.canManageArtifact || !confirm("确认删除该目标产物？删除后不可恢复。")) return;
+      setGoalArtifactBusy(true);
+      try {
+        await apiJson(`/api/goals/${encodeURIComponent(row.id)}/artifact`, { method: "DELETE" });
+        row.artifact = null;
+        renderGoals();
+        await openGoalArtifactModal(row.id);
+        setSyncStatus("目标产物已删除", "ok");
+      } catch (error) {
+        $("goalArtifactMessage").textContent = error.message || "产物删除失败";
+        setSyncStatus(error.message || "产物删除失败", "warn");
+      } finally {
+        setGoalArtifactBusy(false);
+      }
     }
 
     async function loadWeek(weekId) {
@@ -3573,6 +3779,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         toggleReportSectionHidden(moduleIndex, sectionIndex);
       }
 
+      const goalArtifactBtn = event.target.closest("[data-goal-artifact]");
+      if (goalArtifactBtn) {
+        await openGoalArtifactModal(goalArtifactBtn.dataset.goalArtifact);
+        return;
+      }
+
       const quarterEditBtn = event.target.closest("[data-quarter-edit]");
       if (quarterEditBtn) {
         hideQuarterGoalPopover();
@@ -3789,14 +4001,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (goalControl) {
         const rowIndex = Number(goalControl.dataset.goalRow);
         const key = goalControl.dataset.goalKey;
+        let needsArtifactHint = false;
         if (key === "seq") {
           moveGoalBySeq(rowIndex, goalControl.value);
         } else {
           const row = goalsRows[rowIndex];
           row[key] = String("value" in goalControl ? goalControl.value : goalControl.innerText).trim();
+          needsArtifactHint = key === "status" && row[key] === "已完成" && !row.artifact;
         }
         renderGoals();
         scheduleGoalsSave();
+        if (needsArtifactHint) setSyncStatus("目标已完成，建议补充产物", "warn");
         return;
       }
 
@@ -4000,6 +4215,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("quarterGoalModal").addEventListener("click", (event) => {
       if (event.target.id === "quarterGoalModal") closeQuarterGoalModal();
     });
+    $("closeGoalArtifactModal").addEventListener("click", closeGoalArtifactModal);
+    $("goalArtifactModal").addEventListener("click", (event) => {
+      if (event.target.id === "goalArtifactModal") closeGoalArtifactModal();
+    });
+    $("chooseGoalArtifactBtn").addEventListener("click", () => $("goalArtifactFile").click());
+    $("goalArtifactFile").addEventListener("change", (event) => {
+      const file = event.target.files?.[0];
+      if (file) uploadGoalArtifact(file);
+    });
+    $("downloadGoalArtifactBtn").addEventListener("click", downloadGoalArtifact);
+    $("deleteGoalArtifactBtn").addEventListener("click", deleteGoalArtifact);
 
     $("closeTaskModal").addEventListener("click", closeTaskModal);
     $("taskModal").addEventListener("click", (event) => {
