@@ -13,3 +13,5 @@ build/
 coverage/
 backups/migration/
 .env.migration*
+data/artifacts/*
+!data/artifacts/README.md
