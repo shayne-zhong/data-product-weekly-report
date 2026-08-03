@@ -162,3 +162,13 @@ test("quadrant view groups only unfinished tasks by normalized priority", () => 
   assert.match(html, /normalizePriority\(task\.priority\) === definition\.priority/);
   assert.match(html, /function renderTaskCard/);
 });
+
+test("quadrant interactions create select and persist priority safely", () => {
+  assert.match(html, /data-add-priority/);
+  assert.match(html, /data-select-priority/);
+  assert.match(html, /data-drop-priority/);
+  assert.match(html, /const previousPriority = normalizePriority\(task\.priority\)/);
+  assert.match(html, /task\.priority = previousPriority/);
+  assert.match(html, /分类更新失败/);
+  assert.match(html, /status: "待开始"/);
+});

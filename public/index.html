@@ -67,6 +67,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .add-quadrant-task{margin-top:12px;border:0;background:transparent;color:var(--primary);cursor:pointer;font-weight:700}
 .quadrant-bulk-bar{margin-bottom:10px}.quadrant-handle{position:absolute;left:var(--split-x);top:var(--split-y);width:26px;height:26px;transform:translate(-50%,-50%);border:3px solid #fff;border-radius:50%;background:var(--primary);box-shadow:0 3px 12px rgba(49,94,251,.35);cursor:move;z-index:3}
 .quadrant-handle:focus-visible{outline:3px solid rgba(49,94,251,.28);outline-offset:3px}
+.column.drag-over,.quadrant.drag-over{outline:3px solid rgba(49,94,251,.28);outline-offset:-3px}
 @media(max-width:760px){.quadrant-board{display:block;min-height:0}.quadrant{min-height:240px}.quadrant-handle{display:none}.quadrant-cards{grid-template-columns:1fr}}
 </style>
 <style>
@@ -2685,7 +2686,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         ${quadrantDefinitions.map((definition) => {
           const rows = visibleTasks.filter((task) => normalizePriority(task.priority) === definition.priority);
           return `<section class="quadrant quadrant-${definition.tone}" data-drop-priority="${definition.priority}">
-            <div class="quadrant-head"><div><strong>${definition.priority}</strong><p>${definition.hint}</p></div><span class="count">${rows.length}</span></div>
+            <div class="quadrant-head"><div><strong>${definition.priority}</strong><p>${definition.hint}</p></div><div class="actions"><span class="count">${rows.length}</span>${batchMode ? `<button class="btn small ghost" data-select-priority="${definition.priority}">全选</button>` : ""}</div></div>
             <div class="quadrant-cards">${rows.map(renderTaskCard).join("") || `<div class="quadrant-empty">暂无任务</div>`}</div>
             <button class="add-quadrant-task" data-add-priority="${definition.priority}">＋ 添加任务</button>
           </section>`;
@@ -2904,17 +2905,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (rerender) renderTaskDetail();
     }
 
+    async function persistTask(task) {
+      await apiJson(`/api/task/${encodeURIComponent(task.id)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task }),
+      });
+    }
+
     function scheduleSaveTask(task) {
       clearTimeout(saveTimer);
       setSyncStatus("待同步", "warn");
       saveTimer = setTimeout(async () => {
         saveTimer = null;
         try {
-          await apiJson(`/api/task/${encodeURIComponent(task.id)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ task }),
-          });
+          await persistTask(task);
           setSyncStatus("已同步", "ok");
         } catch {
           setSyncStatus("同步失败", "warn");
@@ -3813,6 +3818,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       });
     }
 
+    async function createTask({ status = "待开始", priority = "重要不紧急", blocker = "" } = {}) {
+      const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task: { title: "新增任务", module: modules[0], status, blocker, priority, progress: 0, description: "", includeInReport: true, goalId: "", goalContribution: 0, goalLinks: [], goalContributionNote: "" } }),
+      });
+      tasks.unshift(result.task);
+      await openTaskModal(result.task.id);
+    }
+
     document.addEventListener("click", async (event) => {
       const viewBtn = event.target.closest("[data-view]");
       if (viewBtn) setView(viewBtn.dataset.view);
@@ -3898,19 +3913,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         if (initialStatus === "已完成") return setSyncStatus("请先新建任务并关联年度指标后再标记完成", "warn");
         const blocker = initialStatus === "阻塞" ? requestBlockerReason({ blocker: "" }) : "";
         if (initialStatus === "阻塞" && !blocker) return setSyncStatus("已取消新增阻塞任务", "warn");
-        const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/tasks`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ task: { title: "新增任务", module: modules[0], status: initialStatus, blocker, priority: "重要不紧急", progress: initialStatus === "已完成" ? 100 : 0, description: "", includeInReport: true, goalId: "", goalContribution: 0, goalLinks: [], goalContributionNote: "" } }),
-        });
-        tasks.unshift(result.task);
-        await openTaskModal(result.task.id);
+        await createTask({ status: initialStatus, blocker });
+        return;
+      }
+
+      const addPriorityButton = event.target.closest("[data-add-priority]");
+      if (addPriorityButton) {
+        await createTask({ status: "待开始", priority: normalizePriority(addPriorityButton.dataset.addPriority) });
+        return;
       }
 
       const selectStatusBtn = event.target.closest("[data-select-status]");
       if (selectStatusBtn) {
         tasks.filter((task) => task.status === selectStatusBtn.dataset.selectStatus).forEach((task) => selectedTaskIds.add(task.id));
         renderBoard();
+      }
+
+      const selectPriorityButton = event.target.closest("[data-select-priority]");
+      if (selectPriorityButton) {
+        const priority = normalizePriority(selectPriorityButton.dataset.selectPriority);
+        tasks
+          .filter((task) => task.status !== "已完成")
+          .filter(taskMatchesFilters)
+          .filter((task) => normalizePriority(task.priority) === priority)
+          .forEach((task) => selectedTaskIds.add(task.id));
+        renderBoard();
+        return;
       }
 
       if (event.target.id === "cancelBatchBtn") {
@@ -4133,22 +4161,46 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     document.addEventListener("dragend", (event) => {
       event.target.closest("[data-task-id]")?.classList.remove("dragging");
-      document.querySelectorAll(".column.drag-over").forEach((column) => column.classList.remove("drag-over"));
+      document.querySelectorAll(".column.drag-over, .quadrant.drag-over").forEach((target) => target.classList.remove("drag-over"));
     });
 
     document.addEventListener("dragover", (event) => {
-      const column = event.target.closest("[data-drop-status]");
-      if (!column) return;
+      const target = event.target.closest("[data-drop-status], [data-drop-priority]");
+      if (!target) return;
       event.preventDefault();
-      column.classList.add("drag-over");
+      target.classList.add("drag-over");
     });
 
     document.addEventListener("dragleave", (event) => {
-      const column = event.target.closest("[data-drop-status]");
-      if (column && !column.contains(event.relatedTarget)) column.classList.remove("drag-over");
+      const target = event.target.closest("[data-drop-status], [data-drop-priority]");
+      if (target && !target.contains(event.relatedTarget)) target.classList.remove("drag-over");
     });
 
     document.addEventListener("drop", async (event) => {
+      const priorityTarget = event.target.closest("[data-drop-priority]");
+      if (priorityTarget) {
+        event.preventDefault();
+        priorityTarget.classList.remove("drag-over");
+        const taskId = event.dataTransfer.getData("text/plain");
+        const task = tasks.find((item) => item.id === taskId);
+        if (!task) return;
+        const previousPriority = normalizePriority(task.priority);
+        const nextPriority = normalizePriority(priorityTarget.dataset.dropPriority);
+        if (previousPriority === nextPriority) return;
+        task.priority = nextPriority;
+        task.updatedAt = Date.now();
+        selectedTaskId = task.id;
+        renderBoard();
+        try {
+          await persistTask(task);
+          setSyncStatus(`已分类到：${nextPriority}`, "ok");
+        } catch {
+          task.priority = previousPriority;
+          renderBoard();
+          setSyncStatus("分类更新失败，已恢复原分类", "warn");
+        }
+        return;
+      }
       const column = event.target.closest("[data-drop-status]");
       if (!column) return;
       event.preventDefault();
