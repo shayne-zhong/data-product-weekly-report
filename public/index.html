@@ -832,6 +832,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let onlyMyTasks = false;
     let taskViewMode = "quadrant";
     let quadrantLayout = { x: 50, y: 50 };
+    let quadrantResizeState = null;
     let goalSearchQuery = "";
     let goalStatusFilter = "all";
     let quarterGoalEditingIndex = -1;
@@ -2691,7 +2692,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <button class="add-quadrant-task" data-add-priority="${definition.priority}">＋ 添加任务</button>
           </section>`;
         }).join("")}
-        <button class="quadrant-handle" id="quadrantHandle" aria-label="调整四象限布局" aria-valuetext="横向 ${quadrantLayout.x}%，纵向 ${quadrantLayout.y}%"></button>
+        <button type="button" class="quadrant-handle" id="quadrantHandle" aria-label="调整四象限布局" aria-valuetext="横向 ${quadrantLayout.x}%，纵向 ${quadrantLayout.y}%"></button>
       </div>`;
     }
 
@@ -3800,6 +3801,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       showAuthenticatedWorkspace();
       renderProfile();
       await loadSettings();
+      loadTaskViewPreferences();
       await loadWeeks();
       setSyncStatus("已登录", "ok");
       return result;
@@ -3831,6 +3833,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     document.addEventListener("click", async (event) => {
       const viewBtn = event.target.closest("[data-view]");
       if (viewBtn) setView(viewBtn.dataset.view);
+
+      const taskViewButton = event.target.closest("[data-task-view-mode]");
+      if (taskViewButton) {
+        taskViewMode = taskViewButton.dataset.taskViewMode === "list" ? "list" : "quadrant";
+        saveTaskViewPreferences();
+        renderBoard();
+        return;
+      }
+
+      if (event.target.id === "resetQuadrantLayoutBtn") {
+        quadrantLayout = { x: 50, y: 50 };
+        saveTaskViewPreferences();
+        renderBoard();
+        setSyncStatus("已恢复默认布局", "ok");
+        return;
+      }
 
       const inlineDeleteReportBtn = event.target.closest("#reportHistoryInline [data-report-delete]");
       if (inlineDeleteReportBtn) {
@@ -4227,6 +4245,62 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderAll();
       scheduleSaveTask(task);
       setSyncStatus(`已移动到：${nextStatus}`, "ok");
+    });
+
+    function applyQuadrantLayoutToBoard() {
+      const board = document.querySelector(".quadrant-board");
+      const handle = $("quadrantHandle");
+      if (!board || !handle) return;
+      board.style.setProperty("--split-x", `${quadrantLayout.x}%`);
+      board.style.setProperty("--split-y", `${quadrantLayout.y}%`);
+      handle.setAttribute("aria-valuetext", `横向 ${quadrantLayout.x}%，纵向 ${quadrantLayout.y}%`);
+    }
+
+    document.addEventListener("pointerdown", (event) => {
+      const handle = event.target.closest("#quadrantHandle");
+      if (!handle) return;
+      const board = handle.closest(".quadrant-board");
+      quadrantResizeState = { handle, board, rect: board.getBoundingClientRect(), pointerId: event.pointerId };
+      handle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    document.addEventListener("pointermove", (event) => {
+      if (!quadrantResizeState || event.pointerId !== quadrantResizeState.pointerId) return;
+      const { rect } = quadrantResizeState;
+      quadrantLayout = {
+        x: clampQuadrantRatio(((event.clientX - rect.left) / rect.width) * 100),
+        y: clampQuadrantRatio(((event.clientY - rect.top) / rect.height) * 100),
+      };
+      applyQuadrantLayoutToBoard();
+    });
+
+    function finishQuadrantResize(event) {
+      if (!quadrantResizeState || event.pointerId !== quadrantResizeState.pointerId) return;
+      quadrantResizeState.handle.releasePointerCapture?.(event.pointerId);
+      quadrantResizeState = null;
+      saveTaskViewPreferences();
+    }
+
+    document.addEventListener("pointerup", finishQuadrantResize);
+    document.addEventListener("pointercancel", finishQuadrantResize);
+
+    document.addEventListener("keydown", (event) => {
+      if (!event.target.closest("#quadrantHandle")) return;
+      const step = event.shiftKey ? 5 : 1;
+      const changes = {
+        ArrowLeft: { x: -step, y: 0 }, ArrowRight: { x: step, y: 0 },
+        ArrowUp: { x: 0, y: -step }, ArrowDown: { x: 0, y: step },
+      };
+      const change = changes[event.key];
+      if (!change) return;
+      event.preventDefault();
+      quadrantLayout = {
+        x: clampQuadrantRatio(quadrantLayout.x + change.x),
+        y: clampQuadrantRatio(quadrantLayout.y + change.y),
+      };
+      saveTaskViewPreferences();
+      renderBoard();
     });
 
     $("weekSelect").addEventListener("change", (event) => loadWeek(event.target.value).catch(() => setSyncStatus("读取失败", "warn")));

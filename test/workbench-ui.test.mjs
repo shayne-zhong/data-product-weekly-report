@@ -172,3 +172,13 @@ test("quadrant interactions create select and persist priority safely", () => {
   assert.match(html, /分类更新失败/);
   assert.match(html, /status: "待开始"/);
 });
+
+test("quadrant layout is bounded resettable and keyboard accessible", () => {
+  assert.match(html, /function clampQuadrantRatio/);
+  assert.match(html, /Math\.max\(25, Math\.min\(75/);
+  assert.match(html, /id="resetQuadrantLayoutBtn"/);
+  assert.match(html, /id="quadrantHandle"/);
+  assert.match(html, /pointerdown/);
+  assert.match(html, /ArrowLeft|ArrowRight/);
+  assert.match(html, /saveTaskViewPreferences\(\)/);
+});
