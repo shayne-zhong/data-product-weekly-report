@@ -143,3 +143,22 @@ test("a department leader gets a cut-down admin panel scoped to their own depart
   assert.match(html, /data-admin-section="leader-modules"/);
   assert.match(html, /data-leader-account-enabled=/);
 });
+
+test("department tasks default to a remembered quadrant view", () => {
+  assert.match(html, /data-task-view-mode="quadrant"/);
+  assert.match(html, /data-task-view-mode="list"/);
+  assert.match(html, /let taskViewMode = "quadrant"/);
+  assert.match(html, /function taskViewPreferenceKey/);
+  assert.match(html, /currentUser\?\.username/);
+  assert.match(html, /currentDepartment\(\)\?\.id/);
+});
+
+test("quadrant view groups only unfinished tasks by normalized priority", () => {
+  for (const priority of ["重要紧急", "重要不紧急", "不重要紧急", "不重要不紧急"]) {
+    assert.match(html, new RegExp(`data-drop-priority="\\$\\{definition\\.priority\\}"|${priority}`));
+  }
+  assert.match(html, /function renderQuadrantBoard/);
+  assert.match(html, /task\.status !== "已完成"/);
+  assert.match(html, /normalizePriority\(task\.priority\) === definition\.priority/);
+  assert.match(html, /function renderTaskCard/);
+});

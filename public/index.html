@@ -52,6 +52,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .settings-center{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}.settings-nav{position:sticky;top:88px;padding:10px;display:grid;gap:5px}.settings-nav button{border:0;background:transparent;color:#475467;border-radius:10px;padding:11px 12px;text-align:left;cursor:pointer;font-weight:700}.settings-nav button:hover{background:#f5f7fb;color:var(--text)}.settings-nav button.active{background:var(--primary-soft);color:var(--primary)}.settings-editor{min-height:520px}.admin-section{padding:22px}.admin-section[hidden]{display:none!important}.admin-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}.admin-section-head h3{margin:0 0 4px}.admin-section-head p{margin:0;color:var(--muted)}.settings-center+.admin-savebar{margin-left:238px}.admin-savebar[hidden]{display:none!important}
 @media(max-width:900px){.settings-center{grid-template-columns:1fr}.settings-nav{position:static;display:flex;overflow:auto}.settings-nav button{white-space:nowrap}.settings-center+.admin-savebar{margin-left:0}}
 @media(max-width:720px){.login-page{grid-template-columns:1fr}.login-brand-panel{display:none}.login-form-panel{padding:28px 20px}.login-box h2{font-size:26px}}
+.task-view-switch button.active{color:var(--primary)}
+.kanban.quadrant-mode{display:block;overflow:visible}
+.quadrant-board{position:relative;display:grid;grid-template-columns:var(--split-x) minmax(0,1fr);grid-template-rows:var(--split-y) minmax(0,1fr);min-height:620px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff}
+.quadrant{min-width:0;min-height:0;padding:16px;overflow:auto;border:1px solid rgba(49,94,251,.12)}
+.quadrant-critical{background:linear-gradient(135deg,#fff5f5,#fff)}
+.quadrant-important{background:linear-gradient(135deg,#fff9e8,#fff)}
+.quadrant-urgent{background:linear-gradient(135deg,#f3f7ff,#fff)}
+.quadrant-later{background:linear-gradient(135deg,#effbf7,#fff)}
+.quadrant-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.quadrant-head strong{font-size:14px}.quadrant-head p{margin:5px 0 0;color:var(--muted);font-size:12px}
+.quadrant-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;align-items:start}
+.quadrant-cards .task-card{margin:0}.quadrant-empty{grid-column:1/-1;padding:42px 16px;text-align:center;color:var(--muted)}
+.add-quadrant-task{margin-top:12px;border:0;background:transparent;color:var(--primary);cursor:pointer;font-weight:700}
+.quadrant-bulk-bar{margin-bottom:10px}.quadrant-handle{position:absolute;left:var(--split-x);top:var(--split-y);width:26px;height:26px;transform:translate(-50%,-50%);border:3px solid #fff;border-radius:50%;background:var(--primary);box-shadow:0 3px 12px rgba(49,94,251,.35);cursor:move;z-index:3}
+.quadrant-handle:focus-visible{outline:3px solid rgba(49,94,251,.28);outline-offset:3px}
+@media(max-width:760px){.quadrant-board{display:block;min-height:0}.quadrant{min-height:240px}.quadrant-handle{display:none}.quadrant-cards{grid-template-columns:1fr}}
 </style>
 <style>
 /* Focused refinements: historical supplement and quarterly goal breakdown */
@@ -200,6 +216,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <option>财经共享</option>
         </select>
         <button class="ghost-btn" id="myTasksBtn">只看我的</button>
+        <div class="seg task-view-switch" aria-label="任务展示模式">
+          <button class="active" data-task-view-mode="quadrant">四象限模式</button>
+          <button data-task-view-mode="list">列表模式</button>
+        </div>
+        <button class="ghost-btn" id="resetQuadrantLayoutBtn">恢复默认布局</button>
         <div class="spacer"></div>
         <button class="ghost-btn" id="batchModeBtn">批量管理</button>
       </div>
@@ -808,9 +829,36 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let taskSearchQuery = "";
     let taskModuleFilter = "all";
     let onlyMyTasks = false;
+    let taskViewMode = "quadrant";
+    let quadrantLayout = { x: 50, y: 50 };
     let goalSearchQuery = "";
     let goalStatusFilter = "all";
     let quarterGoalEditingIndex = -1;
+
+    function taskViewPreferenceKey() {
+      const username = currentUser?.username || "anonymous";
+      const departmentId = currentDepartment()?.id || currentUser?.department?.id || "default";
+      return `${storageKey}-task-view-${departmentId}-${username}`;
+    }
+
+    function clampQuadrantRatio(value) {
+      return Math.max(25, Math.min(75, Number(value) || 50));
+    }
+
+    function loadTaskViewPreferences() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(taskViewPreferenceKey()) || "null");
+        taskViewMode = saved?.mode === "list" ? "list" : "quadrant";
+        quadrantLayout = { x: clampQuadrantRatio(saved?.x), y: clampQuadrantRatio(saved?.y) };
+      } catch {
+        taskViewMode = "quadrant";
+        quadrantLayout = { x: 50, y: 50 };
+      }
+    }
+
+    function saveTaskViewPreferences() {
+      localStorage.setItem(taskViewPreferenceKey(), JSON.stringify({ mode: taskViewMode, ...quadrantLayout }));
+    }
 
     const goalColumns = [
       ["seq", "序号", 42],
@@ -2561,7 +2609,37 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return logCount ? 20 : 8;
     }
 
-    function renderBoard() {
+    function renderTaskCard(task) {
+      const percent = taskProgressPercent(task);
+      return `
+        <article class="task-card ${task.id === selectedTaskId ? "active" : ""}" data-task-id="${task.id}" draggable="${!batchMode}">
+          ${batchMode ? `<label class="select-box"><input type="checkbox" data-select-task="${task.id}" ${selectedTaskIds.has(task.id) ? "checked" : ""} /> 选择</label>` : ""}
+          <div class="task-top">
+            <div class="task-title">${escapeHtml(task.title || "未命名任务")}</div>
+            <button class="more" type="button">•••</button>
+          </div>
+          <div class="tags">
+            <span class="tag ${moduleChipClass(task.module)}">${escapeHtml(task.module)}</span>
+            <span class="tag ${normalizePriority(task.priority) === "重要紧急" ? "priority-high" : ""}">${escapeHtml(normalizePriority(task.priority))}</span>
+            ${validGoalLinks(task).length ? `<span class="tag module-data">目标贡献 ${validGoalLinks(task).length}项</span>` : ""}
+            ${latestLog(task)?.date === todayIso() ? `<span class="tag module-data">今日已更新</span>` : ""}
+            ${task.completedAt ? `<span class="tag module-data">✓ 已完成</span>` : ""}
+          </div>
+          <div class="task-meta">
+            <span>${task.dueDate ? `${isOverdue(task) ? "已逾期 " : ""}${escapeHtml(displayDate(task.dueDate))}` : "未设截止日"}</span>
+            <span class="mini-avatar">${escapeHtml(ownerInitial(task))}</span>
+          </div>
+          ${task.description ? `<div class="task-desc">${escapeHtml(task.description).slice(0, 120)}</div>` : ""}
+          ${validGoalLinks(task).length ? `<div class="task-desc">关联指标：${escapeHtml(goalLinksSummary(task))}</div>` : ""}
+          ${task.blocker ? `<div class="risk-box">${escapeHtml(task.blocker)}</div>` : ""}
+          <div class="progress-row">
+            <div class="progress-line"><span style="width:${percent}%;${task.status === "已完成" ? "background:var(--green)" : ""}"></span></div>
+            <span class="progress-text">${percent}%</span>
+          </div>
+        </article>`;
+    }
+
+    function renderStatusBoard() {
       const bulkBar = batchMode ? `
         <div class="bulk-bar" style="grid-column:1 / -1;">
           <span>已选择 ${selectedTaskIds.size} 项</span>
@@ -2585,40 +2663,43 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
               ${batchMode ? `<button class="btn small ghost" data-select-status="${status}">全选</button>` : ""}
             </div>
             <div class="cards">
-              ${rows.map((task) => {
-                const percent = taskProgressPercent(task);
-                return `
-                <article class="task-card ${task.id === selectedTaskId ? "active" : ""}" data-task-id="${task.id}" draggable="${!batchMode}">
-                  ${batchMode ? `<label class="select-box"><input type="checkbox" data-select-task="${task.id}" ${selectedTaskIds.has(task.id) ? "checked" : ""} /> 选择</label>` : ""}
-                  <div class="task-top">
-                    <div class="task-title">${escapeHtml(task.title || "未命名任务")}</div>
-                    <button class="more" type="button">•••</button>
-                  </div>
-                  <div class="tags">
-                    <span class="tag ${moduleChipClass(task.module)}">${escapeHtml(task.module)}</span>
-                    <span class="tag ${normalizePriority(task.priority) === "重要紧急" ? "priority-high" : ""}">${escapeHtml(normalizePriority(task.priority))}</span>
-                    ${validGoalLinks(task).length ? `<span class="tag module-data">目标贡献 ${validGoalLinks(task).length}项</span>` : ""}
-                    ${latestLog(task)?.date === todayIso() ? `<span class="tag module-data">今日已更新</span>` : ""}
-                    ${task.completedAt ? `<span class="tag module-data">✓ 已完成</span>` : ""}
-                  </div>
-                  <div class="task-meta">
-                    <span>${task.dueDate ? `${isOverdue(task) ? "已逾期 " : ""}${escapeHtml(displayDate(task.dueDate))}` : "未设截止日"}</span>
-                    <span class="mini-avatar">${escapeHtml(ownerInitial(task))}</span>
-                  </div>
-                  ${task.description ? `<div class="task-desc">${escapeHtml(task.description).slice(0, 120)}</div>` : ""}
-                  ${validGoalLinks(task).length ? `<div class="task-desc">关联指标：${escapeHtml(goalLinksSummary(task))}</div>` : ""}
-                  ${task.blocker ? `<div class="risk-box">${escapeHtml(task.blocker)}</div>` : ""}
-                  <div class="progress-row">
-                    <div class="progress-line"><span style="width:${percent}%;${task.status === "已完成" ? "background:var(--green)" : ""}"></span></div>
-                    <span class="progress-text">${percent}%</span>
-                  </div>
-                </article>
-              `}).join("") || `<span class="subtitle">暂无任务</span>`}
+              ${rows.map(renderTaskCard).join("") || `<span class="subtitle">暂无任务</span>`}
               ${status === "已完成" && allRows.length > 5 ? `<button class="btn small ghost" id="viewHistoryTasksBtn" style="width:100%;">查看全部已完成任务</button>` : ""}
             </div>
           </section>
         `;
       }).join("");
+    }
+
+    const quadrantDefinitions = [
+      { priority: "重要紧急", tone: "critical", hint: "立即处理，优先级最高" },
+      { priority: "重要不紧急", tone: "important", hint: "重要但不紧急，规划时间处理" },
+      { priority: "不重要紧急", tone: "urgent", hint: "紧急但不重要，尽量授权或快速处理" },
+      { priority: "不重要不紧急", tone: "later", hint: "不重要不紧急，有空再做" },
+    ];
+
+    function renderQuadrantBoard() {
+      const visibleTasks = tasks.filter((task) => task.status !== "已完成").filter(taskMatchesFilters);
+      const bulkBar = batchMode ? `<div class="bulk-bar quadrant-bulk-bar"><span>已选择 ${selectedTaskIds.size} 项</span><div class="actions"><button class="btn small secondary" id="cancelBatchBtn">取消</button><button class="btn small danger" id="deleteSelectedBtn">删除所选</button></div></div>` : "";
+      $("board").innerHTML = `${bulkBar}<div class="quadrant-board" style="--split-x:${quadrantLayout.x}%;--split-y:${quadrantLayout.y}%">
+        ${quadrantDefinitions.map((definition) => {
+          const rows = visibleTasks.filter((task) => normalizePriority(task.priority) === definition.priority);
+          return `<section class="quadrant quadrant-${definition.tone}" data-drop-priority="${definition.priority}">
+            <div class="quadrant-head"><div><strong>${definition.priority}</strong><p>${definition.hint}</p></div><span class="count">${rows.length}</span></div>
+            <div class="quadrant-cards">${rows.map(renderTaskCard).join("") || `<div class="quadrant-empty">暂无任务</div>`}</div>
+            <button class="add-quadrant-task" data-add-priority="${definition.priority}">＋ 添加任务</button>
+          </section>`;
+        }).join("")}
+        <button class="quadrant-handle" id="quadrantHandle" aria-label="调整四象限布局" aria-valuetext="横向 ${quadrantLayout.x}%，纵向 ${quadrantLayout.y}%"></button>
+      </div>`;
+    }
+
+    function renderBoard() {
+      $("board").classList.toggle("quadrant-mode", taskViewMode === "quadrant");
+      document.querySelectorAll("[data-task-view-mode]").forEach((button) => button.classList.toggle("active", button.dataset.taskViewMode === taskViewMode));
+      $("resetQuadrantLayoutBtn").hidden = taskViewMode !== "quadrant";
+      if (taskViewMode === "quadrant") renderQuadrantBoard();
+      else renderStatusBoard();
     }
 
     function selectedTask() {
@@ -4802,6 +4883,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         showLoginPage();
         return;
       }
+      loadTaskViewPreferences();
       showAuthenticatedWorkspace();
       await loadWeeks();
       setSyncStatus("已同步", "ok");
