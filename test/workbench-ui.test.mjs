@@ -179,6 +179,8 @@ test("quadrant layout is bounded resettable and keyboard accessible", () => {
   assert.match(html, /id="resetQuadrantLayoutBtn"/);
   assert.match(html, /id="quadrantHandle"/);
   assert.match(html, /pointerdown/);
+  assert.match(html, /handle\.focus\(\{ preventScroll: true \}\)/);
   assert.match(html, /ArrowLeft|ArrowRight/);
   assert.match(html, /saveTaskViewPreferences\(\)/);
+  assert.match(html, /saveTaskViewPreferences\(\);\s+applyQuadrantLayoutToBoard\(\);/);
 });

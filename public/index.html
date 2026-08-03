@@ -4262,6 +4262,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const board = handle.closest(".quadrant-board");
       quadrantResizeState = { handle, board, rect: board.getBoundingClientRect(), pointerId: event.pointerId };
       handle.setPointerCapture(event.pointerId);
+      handle.focus({ preventScroll: true });
       event.preventDefault();
     });
 
@@ -4300,7 +4301,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         y: clampQuadrantRatio(quadrantLayout.y + change.y),
       };
       saveTaskViewPreferences();
-      renderBoard();
+      applyQuadrantLayoutToBoard();
     });
 
     $("weekSelect").addEventListener("change", (event) => loadWeek(event.target.value).catch(() => setSyncStatus("读取失败", "warn")));
