@@ -2953,15 +2953,27 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function flushPendingTaskSave(taskId = "") {
-      const taskIds = taskId ? [taskId] : [...pendingTaskSaves.keys()];
-      for (const id of taskIds) {
-        const state = pendingTaskSaves.get(id);
-        if (!state) continue;
+      if (taskId) {
+        const state = pendingTaskSaves.get(taskId);
+        if (!state) return;
         if (state.timer) {
           clearTimeout(state.timer);
           state.timer = null;
         }
-        await drainPendingTaskSave(id, state);
+        await drainPendingTaskSave(taskId, state);
+        return;
+      }
+      while (true) {
+        const pendingEntries = [...pendingTaskSaves.entries()].filter(([, state]) => state.task || state.drainPromise || state.timer);
+        if (!pendingEntries.length) return;
+        for (const [id, state] of pendingEntries) {
+          if (pendingTaskSaves.get(id) !== state) continue;
+          if (state.timer) {
+            clearTimeout(state.timer);
+            state.timer = null;
+          }
+          await drainPendingTaskSave(id, state);
+        }
       }
     }
 

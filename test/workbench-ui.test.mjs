@@ -22,7 +22,7 @@ function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
   );
 }
 
-function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}) {
+function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}, timers = {}) {
   const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
   const saveFunctions = html.match(/    function drainPendingTaskSave[\s\S]*?(?=\r?\n\r?\n    function decodeReportEscapes)/)?.[0];
   assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
@@ -33,8 +33,8 @@ function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}) {
     persistTask,
     setSyncStatus,
     pendingTaskSaves,
-    () => 1,
-    () => {},
+    timers.setTimeout || (() => 1),
+    timers.clearTimeout || (() => {}),
   );
 }
 
@@ -340,4 +340,61 @@ test("concurrent flushes share one drain through v2 before overdue blocking", as
   assert.equal(serverTask.status, "阻塞");
   assert.equal(serverTask.description, "v2");
   assert.deepEqual(tasks[0], serverTask);
+});
+
+test("flush-all drains a newly pending second task before overdue migration", async () => {
+  const tasks = [
+    { id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "A编辑" },
+    { id: "b", title: "B", status: "进行中", dueDate: "2026-08-02", blocker: "", description: "B编辑" },
+  ];
+  const deferredById = new Map();
+  const timers = new Map();
+  let nextTimerId = 0;
+  const writes = [];
+  const serverTasks = new Map();
+  const runtime = overdueSaveRuntime(tasks, async (task) => {
+    const snapshot = { ...task };
+    writes.push(snapshot);
+    if (snapshot.status !== "阻塞") {
+      let resolve;
+      const promise = new Promise((done) => { resolve = done; });
+      deferredById.set(snapshot.id, { resolve });
+      await promise;
+    }
+    serverTasks.set(snapshot.id, snapshot);
+  }, () => {}, {
+    setTimeout(callback) {
+      nextTimerId += 1;
+      timers.set(nextTimerId, callback);
+      return nextTimerId;
+    },
+    clearTimeout(timerId) {
+      timers.delete(timerId);
+    },
+  });
+
+  runtime.scheduleSaveTask(tasks[0]);
+  const migration = runtime.blockOverdueTasksForListMode();
+  await Promise.resolve();
+  runtime.scheduleSaveTask(tasks[1]);
+  deferredById.get("a").resolve();
+  for (let index = 0; index < 3 && !deferredById.has("b"); index += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(deferredById.has("b"), "newly pending B must join the active flush-all drain");
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(writes.map((task) => [task.id, task.status]), [["a", "进行中"], ["b", "进行中"]]);
+  deferredById.get("b").resolve();
+  await migration;
+
+  assert.deepEqual(writes.map((task) => [task.id, task.status]), [
+    ["a", "进行中"],
+    ["b", "进行中"],
+    ["a", "阻塞"],
+    ["b", "阻塞"],
+  ]);
+  assert.equal(serverTasks.get("b").description, "B编辑");
+  assert.equal(serverTasks.get("b").status, "阻塞");
+  for (const callback of timers.values()) callback();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(writes.length, 4, "no delayed timer save may overwrite B");
 });
