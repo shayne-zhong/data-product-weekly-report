@@ -10,6 +10,58 @@ function buttonMarkup(id) {
   return match[0];
 }
 
+function goalColumnWidthRuntime(storage = new Map()) {
+  const source = html.match(/    const goalTableColumns = \[[\s\S]*?(?=\r?\n\r?\n    const initialGoalsRows)/)?.[0];
+  assert.ok(source, "missing executable goal column width functions");
+  const localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, value),
+  };
+  return new Function("localStorage", "storageKey", "currentUser", "currentDepartment", `${source}\nreturn { goalTableColumns, normalizeGoalColumnWidths, loadGoalColumnWidths, saveGoalColumnWidths, goalColumnWidthStorageKey };`)(
+    localStorage,
+    "dp-workbench",
+    { username: "alice", department: { id: "dept-a" } },
+    () => ({ id: "dept-a" }),
+  );
+}
+
+test("goal column widths recover defaults, clamp bounds, and restore isolated storage", () => {
+  const storage = new Map();
+  const runtime = goalColumnWidthRuntime(storage);
+  assert.deepEqual(runtime.goalTableColumns.map(({ key }) => key), ["seq", "name", "definition", "owner", "lastYearActual", "target", "current", "progress", "status", "artifact", "actions"]);
+  assert.equal(runtime.goalTableColumns.find(({ key }) => key === "artifact").defaultWidth, 150);
+
+  storage.set(runtime.goalColumnWidthStorageKey(), "not-json");
+  assert.equal(runtime.loadGoalColumnWidths().artifact, 150);
+
+  storage.set(runtime.goalColumnWidthStorageKey(), JSON.stringify({ name: -999, artifact: 99999, owner: 88 }));
+  const restored = runtime.loadGoalColumnWidths();
+  const name = runtime.goalTableColumns.find(({ key }) => key === "name");
+  const artifact = runtime.goalTableColumns.find(({ key }) => key === "artifact");
+  assert.equal(restored.name, name.defaultWidth, "out-of-range values fall back to defaults");
+  assert.equal(restored.artifact, artifact.defaultWidth, "oversized values fall back to defaults");
+  assert.equal(restored.owner, 88);
+
+  runtime.saveGoalColumnWidths({ owner: 104, artifact: 160 });
+  assert.deepEqual(runtime.loadGoalColumnWidths(), { ...Object.fromEntries(runtime.goalTableColumns.map((column) => [column.key, column.defaultWidth])), owner: 104, artifact: 160 });
+  assert.match(runtime.goalColumnWidthStorageKey(), /dept-a-alice$/);
+});
+
+test("goal table renders eleven stable columns with accessible pointer resize handles", () => {
+  assert.match(html, /<colgroup>\$\{goalTableColumns\.map/);
+  assert.match(html, /data-goal-column="\$\{column\.key\}"/);
+  assert.match(html, /class="goal-column-resize"/);
+  assert.match(html, /role="separator"/);
+  assert.match(html, /aria-orientation="vertical"/);
+  assert.match(html, /data-goal-column-resize=/);
+  assert.match(html, /goalColumnResizeState/);
+  assert.match(html, /setPointerCapture/);
+  assert.match(html, /document\.addEventListener\("pointermove"[\s\S]*applyGoalColumnWidth/);
+  assert.match(html, /document\.addEventListener\("pointerup", finishGoalColumnResize\)/);
+  assert.match(html, /goalColumnWidthsKey !== goalColumnWidthStorageKey\(\)/);
+  assert.match(html, /\.goal-artifact-cell\{min-width:0\}/);
+});
+
 function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
   const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
   const migrationFunction = html.match(/    async function blockOverdueTasksForListMode\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function scheduleSaveTask)/)?.[0];

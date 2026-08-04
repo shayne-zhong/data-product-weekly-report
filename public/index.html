@@ -75,7 +75,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 </style>
 <style>
 /* Focused refinements: historical supplement and quarterly goal breakdown */
-.goals-table{min-width:1500px}
+.goals-table-wrap{overflow:auto;-webkit-overflow-scrolling:touch}.goals-table{width:max-content;min-width:100%;table-layout:fixed}.goals-table th{position:sticky}.goal-column-resize{position:absolute;top:0;right:-6px;width:12px;height:100%;border:0;padding:0;background:transparent;cursor:col-resize;touch-action:none;z-index:2}.goal-column-resize:after{content:"";position:absolute;top:20%;bottom:20%;left:5px;width:2px;border-radius:2px;background:#d0d5dd}.goal-column-resize:hover:after,.goal-column-resize:focus-visible:after{background:var(--primary)}.goal-column-resize:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 .goal-name-wrap{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
 .goal-name-wrap .goal-name-text{flex:0 1 auto;min-width:0}
 .quarter-icon{border:0;background:var(--primary-soft);color:var(--primary);width:24px;height:24px;border-radius:8px;display:inline-grid;place-items:center;cursor:pointer;font-weight:800;line-height:1;flex:0 0 24px;padding:3px}
@@ -130,6 +130,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}.admin-savebar{align-items:flex-start;flex-direction:column}}
 .auth-page{min-height:100vh;position:relative;overflow:hidden;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 12% 14%,rgba(49,94,251,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(22,163,106,.1),transparent 24%),#edf2f9}.auth-page:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(49,94,251,.14);border-radius:50%;top:-220px;right:-100px}.auth-page:after{content:"";position:absolute;width:220px;height:220px;border-radius:54px;background:rgba(49,94,251,.08);left:-70px;bottom:-100px;transform:rotate(24deg)}.auth-focus-card{position:relative;z-index:1;width:min(430px,100%);padding:34px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 70px rgba(23,50,111,.16);backdrop-filter:blur(12px);animation:auth-card-in .36s ease-out}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;font-weight:850;color:#17326f}.auth-brand .logo{width:40px;height:40px}.auth-focus-card h2{font-size:28px;line-height:1.2;margin:8px 0;text-wrap:balance}.auth-focus-card>p{color:var(--muted);margin:0 0 25px;text-wrap:pretty}.auth-focus-card .login-kicker{color:var(--primary)}.auth-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}.auth-text-btn,.auth-back{border:0;background:transparent;color:var(--primary);padding:0;cursor:pointer;font-weight:750}.auth-text-btn:hover,.auth-back:hover{text-decoration:underline}.auth-text-btn:focus-visible,.auth-back:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:4px;border-radius:4px}.auth-back{display:inline-flex;margin-bottom:22px;color:#475467}.auth-help-card{text-align:center}.auth-help-icon{width:62px;height:62px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:28px;font-weight:850}.login-message.success{color:var(--green)}.auth-duration{color:#475467;font-size:12px;font-weight:700}.auth-register-row{text-align:center;margin-top:18px;color:var(--muted)}.import-state{min-height:150px;padding:28px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#fff;color:var(--muted);text-align:center}.import-state.error{color:var(--red);background:var(--red-soft)}@keyframes auth-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.auth-focus-card{animation:none}}@media(max-width:560px){.auth-page{padding:18px}.auth-focus-card{padding:26px 22px;border-radius:18px}.auth-focus-card h2{font-size:25px}}
+.goal-artifact-cell{min-width:0}
 </style>
 </head>
 <body>
@@ -865,22 +866,59 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       localStorage.setItem(taskViewPreferenceKey(), JSON.stringify({ mode: taskViewMode, ...quadrantLayout }));
     }
 
-    const goalColumns = [
-      ["seq", "序号", 42],
-      ["name", "指标名称", 220],
-      ["definition", "指标定义", 230],
-      ["dimension", "统计维度", 180],
-      ["formula", "计算公式", 210],
-      ["logic", "统计口径和过程值说明", 300],
-      ["scope", "适用范围", 90],
-      ["productGroup", "数赋产品组", 76],
-      ["owner", "指标owner", 70],
-      ["systemCount", "是否支持系统取数", 120],
-      ["lastYearActual", "上年实际", 150],
-      ["current", "已达成", 210],
-      ["target", "目标", 190],
-      ["remark", "备注", 150],
+    const goalTableColumns = [
+      { key: "seq", label: "序号", defaultWidth: 64, minWidth: 52, maxWidth: 110 },
+      { key: "name", label: "指标名称", defaultWidth: 220, minWidth: 140, maxWidth: 480 },
+      { key: "definition", label: "指标定义", defaultWidth: 240, minWidth: 140, maxWidth: 520 },
+      { key: "owner", label: "Owner", defaultWidth: 100, minWidth: 76, maxWidth: 220 },
+      { key: "lastYearActual", label: "上年实际", defaultWidth: 120, minWidth: 90, maxWidth: 260 },
+      { key: "target", label: "目标", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
+      { key: "current", label: "已达成", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
+      { key: "progress", label: "完成度", defaultWidth: 190, minWidth: 150, maxWidth: 320 },
+      { key: "status", label: "状态", defaultWidth: 110, minWidth: 88, maxWidth: 180 },
+      { key: "artifact", label: "产物", defaultWidth: 150, minWidth: 120, maxWidth: 320 },
+      { key: "actions", label: "操作", defaultWidth: 220, minWidth: 170, maxWidth: 360 },
     ];
+    let goalColumnWidths = {};
+    let goalColumnWidthsKey = "";
+    let goalColumnResizeState = null;
+
+    function goalColumnWidthStorageKey() {
+      const username = currentUser?.username || "anonymous";
+      const departmentId = currentDepartment()?.id || currentUser?.department?.id || "default";
+      return `${storageKey}-goal-column-widths-${departmentId}-${username}`;
+    }
+
+    function normalizeGoalColumnWidths(value) {
+      const source = value && typeof value === "object" ? value : {};
+      return Object.fromEntries(goalTableColumns.map((column) => {
+        const width = Number(source[column.key]);
+        const valid = Number.isFinite(width) && width >= column.minWidth && width <= column.maxWidth;
+        return [column.key, valid ? Math.round(width) : column.defaultWidth];
+      }));
+    }
+
+    function loadGoalColumnWidths() {
+      try {
+        return normalizeGoalColumnWidths(JSON.parse(localStorage.getItem(goalColumnWidthStorageKey()) || "null"));
+      } catch {
+        return normalizeGoalColumnWidths(null);
+      }
+    }
+
+    function saveGoalColumnWidths(widths) {
+      goalColumnWidths = normalizeGoalColumnWidths(widths);
+      goalColumnWidthsKey = goalColumnWidthStorageKey();
+      localStorage.setItem(goalColumnWidthsKey, JSON.stringify(goalColumnWidths));
+    }
+
+    function applyGoalColumnWidth(key, width) {
+      const column = goalTableColumns.find((item) => item.key === key);
+      if (!column) return;
+      goalColumnWidths[key] = Math.max(column.minWidth, Math.min(column.maxWidth, Math.round(width)));
+      const col = document.querySelector(`#goalsTable col[data-goal-column="${key}"]`);
+      if (col) col.style.width = `${goalColumnWidths[key]}px`;
+    }
 
     const initialGoalsRows = [
       { seq: "1", name: "集团核心指标线上化80个", definition: "集团及各事业部核心指标线上化", dimension: "领域、组织", formula: "", logic: "数据中心已线上化的指标数量", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "0", current: "32", target: "80", remark: "" },
@@ -1698,13 +1736,19 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     function renderGoals() {
       renderGoalsStats();
+      if (goalColumnWidthsKey !== goalColumnWidthStorageKey()) {
+        goalColumnWidthsKey = goalColumnWidthStorageKey();
+        goalColumnWidths = loadGoalColumnWidths();
+      } else {
+        goalColumnWidths = normalizeGoalColumnWidths(goalColumnWidths);
+      }
       const rows = goalsRows
         .map((row, rowIndex) => ({ row, rowIndex }))
         .filter(({ row }) => goalMatchesFilters(row));
       $("goalsTable").innerHTML = `
+        <colgroup>${goalTableColumns.map((column) => `<col data-goal-column="${column.key}" style="width:${goalColumnWidths[column.key]}px" />`).join("")}</colgroup>
         <thead><tr>
-          <th>序号</th><th>指标名称</th><th>指标定义</th><th>Owner</th>
-          <th class="goal-nowrap">上年实际</th><th>目标</th><th>已达成</th><th>完成度</th><th>状态</th><th>产物</th><th>操作</th>
+          ${goalTableColumns.map((column) => `<th data-goal-column="${column.key}" class="${column.key === "lastYearActual" ? "goal-nowrap" : ""}">${column.label}<button type="button" class="goal-column-resize" data-goal-column-resize="${column.key}" role="separator" aria-orientation="vertical" aria-label="调整${column.label}列宽"></button></th>`).join("")}
         </tr></thead>
         <tbody>
           ${rows.map(({ row, rowIndex }) => {
@@ -4350,6 +4394,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       board.style.setProperty("--split-y", `${quadrantLayout.y}%`);
       handle.setAttribute("aria-valuetext", `横向 ${quadrantLayout.x}%，纵向 ${quadrantLayout.y}%`);
     }
+
+    document.addEventListener("pointerdown", (event) => {
+      const handle = event.target.closest("[data-goal-column-resize]");
+      if (!handle) return;
+      const key = handle.dataset.goalColumnResize;
+      goalColumnResizeState = { key, startX: event.clientX, startWidth: goalColumnWidths[key], pointerId: event.pointerId, handle };
+      handle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    document.addEventListener("pointermove", (event) => {
+      if (!goalColumnResizeState || event.pointerId !== goalColumnResizeState.pointerId) return;
+      applyGoalColumnWidth(goalColumnResizeState.key, goalColumnResizeState.startWidth + event.clientX - goalColumnResizeState.startX);
+      event.preventDefault();
+    });
+
+    function finishGoalColumnResize(event) {
+      if (!goalColumnResizeState || event.pointerId !== goalColumnResizeState.pointerId) return;
+      goalColumnResizeState.handle.releasePointerCapture?.(event.pointerId);
+      goalColumnResizeState = null;
+      saveGoalColumnWidths(goalColumnWidths);
+    }
+
+    document.addEventListener("pointerup", finishGoalColumnResize);
+    document.addEventListener("pointercancel", finishGoalColumnResize);
 
     document.addEventListener("pointerdown", (event) => {
       const handle = event.target.closest("#quadrantHandle");
