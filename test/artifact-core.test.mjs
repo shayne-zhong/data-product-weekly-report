@@ -2,12 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  canManageGoalArtifact,
   ensureGoalIds,
   mergeGoalRows,
-  publicGoalRows,
+  publicArtifact,
   validateArtifactFile,
-} from "../lib/goal-artifact-core.mjs";
+} from "../lib/artifact-core.mjs";
 
 test("adds stable goal ids and reports whether migration changed rows", () => {
   const first = ensureGoalIds([{ name: "收入" }], () => "goal-1");
@@ -19,26 +18,23 @@ test("adds stable goal ids and reports whether migration changed rows", () => {
   assert.equal(second.rows[0].id, "goal-1");
 });
 
-test("goal edits preserve server-owned artifact metadata and strip client permissions", () => {
+test("goal edits discard obsolete artifact metadata and client permissions", () => {
   const artifact = { storageKey: "private.pdf", previewStorageKey: "preview.pdf", originalName: "结果.pdf" };
   const incoming = [{ id: "goal-1", name: "年度收入", artifact: null, canManageArtifact: true }, { name: "客户数" }];
   const merged = mergeGoalRows([{ id: "goal-1", name: "收入", artifact }], incoming, () => "goal-2");
-  assert.equal(merged[0].artifact, artifact);
+  assert.equal(merged[0].artifact, undefined);
   assert.equal(merged[0].canManageArtifact, undefined);
   assert.equal(merged[1].id, "goal-2");
 });
 
-test("public goal rows hide storage keys", () => {
-  const [row] = publicGoalRows([{
-    id: "goal-1",
-    artifact: {
+test("public artifact metadata hides storage keys", () => {
+  const artifact = publicArtifact({
       storageKey: "private.pdf",
       previewStorageKey: "preview.pdf",
       originalName: "结果.pdf",
       size: 8,
-    },
-  }]);
-  assert.deepEqual(row.artifact, {
+  });
+  assert.deepEqual(artifact, {
     originalName: "结果.pdf",
     mimeType: "",
     size: 8,
@@ -46,15 +42,6 @@ test("public goal rows hide storage keys", () => {
     updatedAt: 0,
     updatedBy: null,
   });
-});
-
-test("the goal Owner and current department leader can manage artifacts", () => {
-  const settings = { departments: [{ id: "data", leaderUsername: "leader" }] };
-  const goal = { owner: "张三" };
-  assert.equal(canManageGoalArtifact({ actor: { username: "alice", displayName: "张三", departmentId: "data" }, departmentId: "data", goal, settings }), true);
-  assert.equal(canManageGoalArtifact({ actor: { username: "leader", displayName: "负责人", departmentId: "data" }, departmentId: "data", goal, settings }), true);
-  assert.equal(canManageGoalArtifact({ actor: { username: "bob", displayName: "李四", departmentId: "data" }, departmentId: "data", goal, settings }), false);
-  assert.equal(canManageGoalArtifact({ actor: { username: "alice", displayName: "张三", departmentId: "other" }, departmentId: "data", goal, settings }), false);
 });
 
 test("validates file extension MIME signature and size", () => {

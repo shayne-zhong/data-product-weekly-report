@@ -6,10 +6,10 @@ import { createStateStore } from "../lib/state-store.mjs";
 import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
 import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
 import { createMutationLock } from "../lib/mutation-lock.mjs";
-import { canManageGoalArtifact, ensureGoalIds, mergeGoalRows, publicGoalRows } from "../lib/goal-artifact-core.mjs";
+import { ensureGoalIds, mergeGoalRows, publicArtifact, publicGoalRows } from "../lib/artifact-core.mjs";
 import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
-import { createGoalArtifactService } from "../lib/goal-artifact-service.mjs";
+import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
 
 const jsonHeaders = {
@@ -44,7 +44,7 @@ let memoryState = null;
 const stateStore = createStateStore();
 const mutationLock = createMutationLock();
 const artifactStore = createArtifactStore();
-const goalArtifactService = createGoalArtifactService({ store: artifactStore, convertOffice: convertOfficeToPdf });
+const taskArtifactService = createTaskArtifactService({ store: artifactStore, convertOffice: convertOfficeToPdf });
 
 function json(res, body, status = 200) {
   Object.entries(jsonHeaders).forEach(([key, value]) => res.setHeader(key, value));
@@ -573,18 +573,22 @@ function listTasksForDepartment(state, departmentId) {
     .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
 }
 
+function publicTask(task) {
+  return { ...task, artifact: publicArtifact(task?.artifact) };
+}
+
 function handleTasksByPeriod(req, res, state, actor) {
   if (req.method !== "GET") return methodNotAllowed(res);
   const startDate = String(req.query.startDate || "");
   const endDate = String(req.query.endDate || "");
   if (!startDate && !endDate) {
-    return json(res, { tasks: listTasksForDepartment(state, actor.departmentId) });
+    return json(res, { tasks: listTasksForDepartment(state, actor.departmentId).map(publicTask) });
   }
   if (!validIsoDate(startDate) || !validIsoDate(endDate) || endDate < startDate) {
     return json(res, { error: "请输入有效的开始日期和结束日期" }, 400);
   }
   return json(res, {
-    tasks: listTasksForPeriod(state, actor.departmentId, startDate, endDate),
+    tasks: listTasksForPeriod(state, actor.departmentId, startDate, endDate).map(publicTask),
   });
 }
 
@@ -594,7 +598,7 @@ async function handleWeek(req, res, state, parts, now, actor) {
   const action = parts[2];
   const week = state.weeks[departmentRecordKey(departmentId, weekId)];
   if (!week) return json(res, { error: "Week not found" }, 404);
-  if (req.method === "GET" && action === "tasks") return json(res, { week: summarizeWeek(week), tasks: listTasksForWeek(state, weekId, departmentId) });
+  if (req.method === "GET" && action === "tasks") return json(res, { week: summarizeWeek(week), tasks: listTasksForWeek(state, weekId, departmentId).map(publicTask) });
   if (req.method === "POST" && action === "tasks") {
     const body = await readBody(req);
     const draft = buildEmptyTask({ ...body.task, weekId, now });
@@ -605,7 +609,7 @@ async function handleWeek(req, res, state, parts, now, actor) {
     state.tasks[task.id] = task;
     week.updatedAt = now;
     await saveState(state);
-    return json(res, { task }, 201);
+    return json(res, { task: publicTask(task) }, 201);
   }
   if (req.method === "POST" && action === "rollover") {
     const body = await readBody(req);
@@ -613,7 +617,7 @@ async function handleWeek(req, res, state, parts, now, actor) {
     const rolled = rolloverTasks(sourceTasks, { targetWeekId: weekId, sourceWeekId: body.sourceWeekId, existingTargetTasks: listTasksForWeek(state, weekId, departmentId), now });
     rolled.forEach((task) => { task.departmentId = departmentId; task.createdBy = actor; task.updatedBy = actor; state.tasks[task.id] = task; });
     await saveState(state);
-    return json(res, { tasks: rolled }, 201);
+    return json(res, { tasks: rolled.map(publicTask) }, 201);
   }
   if (req.method === "POST" && action === "generate-report") {
     const settings = settingsForDepartment(state, departmentId);
@@ -627,21 +631,43 @@ async function handleTask(req, res, state, parts, now, actor) {
   const taskId = decodeURIComponent(parts[1] || "");
   const existing = state.tasks[taskId];
   if (!existing || existing.departmentId !== actor.departmentId) return json(res, { error: "Task not found" }, 404);
+  const resource = parts[2] || "";
+  const action = parts[3] || "";
+  if (resource === "artifact") {
+    const context = { state, departmentId: actor.departmentId, taskId, actor };
+    if (req.method === "POST" && !action) {
+      const artifact = await taskArtifactService.upload({
+        ...context,
+        file: await parseSingleFile(req),
+        save: () => saveState(state),
+      });
+      return json(res, { artifact }, 201);
+    }
+    if (req.method === "GET" && action === "download") return sendArtifact(res, await taskArtifactService.readOriginal(context));
+    if (req.method === "GET" && action === "preview") return sendArtifact(res, await taskArtifactService.readPreview(context), { inline: true });
+    if (req.method === "DELETE" && !action) {
+      await taskArtifactService.remove({ ...context, save: () => saveState(state) });
+      return json(res, { ok: true });
+    }
+    return methodNotAllowed(res);
+  }
   if (req.method === "DELETE") {
+    const artifact = existing.artifact || null;
     delete state.tasks[taskId];
     await saveState(state);
+    if (artifact) await taskArtifactService.cleanup(artifact);
     return json(res, { ok: true });
   }
   if (req.method === "POST") {
     const body = await readBody(req);
-    const merged = { ...existing, ...body.task, id: existing.id, weekId: existing.weekId, departmentId: existing.departmentId, updatedAt: now, updatedBy: actor };
+    const merged = { ...existing, ...body.task, artifact: existing.artifact || null, id: existing.id, weekId: existing.weekId, departmentId: existing.departmentId, updatedAt: now, updatedBy: actor };
     const task = body.task?.status && body.task.status !== existing.status
       ? applyTaskStatus(merged, body.task.status, { blocker: body.task.blocker, now })
       : merged;
     task.updatedBy = actor;
     state.tasks[task.id] = task;
     await saveState(state);
-    return json(res, { task });
+    return json(res, { task: publicTask(task) });
   }
   return methodNotAllowed(res);
 }
@@ -725,33 +751,6 @@ function sendArtifact(res, artifact, { inline = false } = {}) {
 async function handleGoals(req, res, state, parts, now, actor) {
   const departmentId = actor.departmentId;
   const current = state.goalsByDepartment[departmentId] || { departmentId, year: "2026", rows: [], updatedAt: 0, updatedBy: null };
-  const goalId = decodeURIComponent(parts[1] || "");
-  const resource = parts[2] || "";
-  const action = parts[3] || "";
-  if (goalId && resource === "artifact") {
-    const context = { state, departmentId, goalId, actor };
-    if (req.method === "POST" && !action) {
-      const file = await parseSingleFile(req);
-      const artifact = await goalArtifactService.upload({
-        ...context,
-        settings: getSettings(state),
-        file,
-        save: () => saveState(state),
-      });
-      return json(res, { artifact }, 201);
-    }
-    if (req.method === "GET" && action === "download") {
-      return sendArtifact(res, await goalArtifactService.readOriginal(context));
-    }
-    if (req.method === "GET" && action === "preview") {
-      return sendArtifact(res, await goalArtifactService.readPreview(context), { inline: true });
-    }
-    if (req.method === "DELETE" && !action) {
-      await goalArtifactService.remove({ ...context, settings: getSettings(state), save: () => saveState(state) });
-      return json(res, { ok: true });
-    }
-    return methodNotAllowed(res);
-  }
   if (parts.length !== 1) return json(res, { error: "Not found" }, 404);
   if (req.method === "GET") {
     const normalized = ensureGoalIds(current.rows, () => randomId("goal"));
@@ -760,32 +759,17 @@ async function handleGoals(req, res, state, parts, now, actor) {
       state.goalsByDepartment[departmentId] = current;
       await saveState(state);
     }
-    const settings = getSettings(state);
-    const rows = publicGoalRows(current.rows).map((row, index) => ({
-      ...row,
-      canManageArtifact: canManageGoalArtifact({ actor, departmentId, goal: current.rows[index], settings }),
-    }));
-    return json(res, { ...current, rows });
+    return json(res, { ...current, rows: publicGoalRows(current.rows) });
   }
   if (req.method === "POST") {
     const body = await readBody(req);
     if (!Array.isArray(body.rows)) return json(res, { error: "Invalid goals rows" }, 400);
-    const incomingIds = new Set(body.rows.map((row) => row?.id).filter(Boolean));
-    const removedArtifactGoals = current.rows.filter((row) => row.id && row.artifact && !incomingIds.has(row.id));
-    const settings = getSettings(state);
-    if (removedArtifactGoals.some((goal) => !canManageGoalArtifact({ actor, departmentId, goal, settings }))) {
-      return json(res, { error: "无权删除带有产物的目标" }, 403);
-    }
     const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"));
     state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows, updatedAt: now, updatedBy: actor };
     await saveState(state);
-    await Promise.all(removedArtifactGoals.map((goal) => goalArtifactService.cleanup(goal.artifact)));
     return json(res, {
       ...state.goalsByDepartment[departmentId],
-      rows: publicGoalRows(rows).map((row, index) => ({
-        ...row,
-        canManageArtifact: canManageGoalArtifact({ actor, departmentId, goal: rows[index], settings }),
-      })),
+      rows: publicGoalRows(rows),
     });
   }
   return methodNotAllowed(res);

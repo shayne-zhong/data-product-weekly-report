@@ -82,14 +82,18 @@ test.after(async () => {
   await rm(artifactRoot, { recursive: true, force: true });
 });
 
-test("uploads previews downloads and deletes one goal artifact", async () => {
-  const savedGoals = await jsonApi("/goals", {
+test("uploads previews downloads and deletes one task artifact", async () => {
+  const week = await jsonApi("/weeks", {
     method: "POST",
-    body: { year: "2026", rows: [{ name: "收入", owner: "张三", status: "正常" }] },
+    body: { startDate: "2094-01-01", endDate: "2094-01-07" },
   });
-  const goalId = savedGoals.body.rows[0].id;
+  const created = await jsonApi(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
+    method: "POST",
+    body: { task: { title: "产物待办", owner: "张三", status: "进行中" } },
+  });
+  const taskId = created.body.task.id;
 
-  const uploaded = await multipartApi(`/goals/${goalId}/artifact`, {
+  const uploaded = await multipartApi(`/task/${taskId}/artifact`, {
     filename: "结果.pdf",
     mimeType: "application/pdf",
     content: Buffer.from("%PDF-api-result"),
@@ -98,34 +102,35 @@ test("uploads previews downloads and deletes one goal artifact", async () => {
   assert.equal(uploaded.body.artifact.originalName, "结果.pdf");
   assert.equal(uploaded.body.artifact.storageKey, undefined);
 
-  const goals = await jsonApi("/goals");
-  assert.equal(goals.body.rows[0].artifact.originalName, "结果.pdf");
-  assert.equal(goals.body.rows[0].canManageArtifact, true);
+  const tasks = await jsonApi("/tasks");
+  const task = tasks.body.tasks.find((item) => item.id === taskId);
+  assert.equal(task.artifact.originalName, "结果.pdf");
+  assert.equal(task.artifact.storageKey, undefined);
 
-  const preview = await jsonApi(`/goals/${goalId}/artifact/preview`);
+  const preview = await jsonApi(`/task/${taskId}/artifact/preview`);
   assert.equal(preview.statusCode, 200);
   assert.equal(preview.headers["Content-Type"], "application/pdf");
   assert.equal(preview.body.toString(), "%PDF-api-result");
 
-  const download = await jsonApi(`/goals/${goalId}/artifact/download`);
+  const download = await jsonApi(`/task/${taskId}/artifact/download`);
   assert.match(download.headers["Content-Disposition"], /^attachment/);
   assert.equal(download.body.toString(), "%PDF-api-result");
 
-  const clientEdit = await jsonApi("/goals", {
+  const clientEdit = await jsonApi(`/task/${taskId}`, {
     method: "POST",
-    body: { year: "2026", rows: [{ ...goals.body.rows[0], name: "年度收入", artifact: null }] },
+    body: { task: { title: "更新标题", artifact: null } },
   });
-  assert.equal(clientEdit.body.rows[0].artifact.originalName, "结果.pdf");
+  assert.equal(clientEdit.body.task.artifact.originalName, "结果.pdf");
 
-  const removed = await jsonApi(`/goals/${goalId}/artifact`, { method: "DELETE" });
+  const removed = await jsonApi(`/task/${taskId}/artifact`, { method: "DELETE" });
   assert.equal(removed.statusCode, 200);
-  assert.equal((await jsonApi("/goals")).body.rows[0].artifact, null);
+  const reloaded = (await jsonApi("/tasks")).body.tasks.find((item) => item.id === taskId);
+  assert.equal(reloaded.artifact, null);
 });
 
 test("artifact endpoints reject anonymous and invalid uploads", async () => {
-  const goals = await jsonApi("/goals");
-  const goalId = goals.body.rows[0].id;
-  const anonymous = await multipartApi(`/goals/${goalId}/artifact`, {
+  const taskId = (await jsonApi("/tasks")).body.tasks[0].id;
+  const anonymous = await multipartApi(`/task/${taskId}/artifact`, {
     authToken: "",
     filename: "结果.pdf",
     mimeType: "application/pdf",
@@ -133,7 +138,7 @@ test("artifact endpoints reject anonymous and invalid uploads", async () => {
   });
   assert.equal(anonymous.statusCode, 401);
 
-  const invalid = await multipartApi(`/goals/${goalId}/artifact`, {
+  const invalid = await multipartApi(`/task/${taskId}/artifact`, {
     filename: "脚本.exe",
     mimeType: "application/octet-stream",
     content: Buffer.from("MZ"),
