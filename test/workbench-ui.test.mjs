@@ -273,22 +273,18 @@ function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => s
 test("goal column widths recover defaults, clamp bounds, and restore isolated storage", () => {
   const storage = new Map();
   const runtime = goalColumnWidthRuntime(storage);
-  assert.deepEqual(runtime.goalTableColumns.map(({ key }) => key), ["seq", "name", "definition", "owner", "lastYearActual", "target", "current", "progress", "status", "artifact", "actions"]);
-  assert.equal(runtime.goalTableColumns.find(({ key }) => key === "artifact").defaultWidth, 150);
+  assert.deepEqual(runtime.goalTableColumns.map(({ key }) => key), ["seq", "name", "definition", "owner", "lastYearActual", "target", "current", "progress", "status", "actions"]);
 
   storage.set(runtime.goalColumnWidthStorageKey(), "not-json");
-  assert.equal(runtime.loadGoalColumnWidths().artifact, 150);
 
-  storage.set(runtime.goalColumnWidthStorageKey(), JSON.stringify({ name: -999, artifact: 99999, owner: 88 }));
+  storage.set(runtime.goalColumnWidthStorageKey(), JSON.stringify({ name: -999, owner: 88 }));
   const restored = runtime.loadGoalColumnWidths();
   const name = runtime.goalTableColumns.find(({ key }) => key === "name");
-  const artifact = runtime.goalTableColumns.find(({ key }) => key === "artifact");
   assert.equal(restored.name, name.defaultWidth, "out-of-range values fall back to defaults");
-  assert.equal(restored.artifact, artifact.defaultWidth, "oversized values fall back to defaults");
   assert.equal(restored.owner, 88);
 
-  runtime.saveGoalColumnWidths({ owner: 104, artifact: 160 });
-  assert.deepEqual(runtime.loadGoalColumnWidths(), { ...Object.fromEntries(runtime.goalTableColumns.map((column) => [column.key, column.defaultWidth])), owner: 104, artifact: 160 });
+  runtime.saveGoalColumnWidths({ owner: 104 });
+  assert.deepEqual(runtime.loadGoalColumnWidths(), { ...Object.fromEntries(runtime.goalTableColumns.map((column) => [column.key, column.defaultWidth])), owner: 104 });
   assert.match(runtime.goalColumnWidthStorageKey(), /dept-a-alice$/);
 });
 
@@ -306,15 +302,15 @@ test("goal resize handle aria follows clamped width", () => {
   const runtime = goalColumnWidthRuntime();
   const attributes = new Map();
   const handle = { setAttribute: (key, value) => attributes.set(key, String(value)) };
-  const width = runtime.updateGoalColumnResizeHandle(handle, "artifact", 999);
-  assert.equal(width, 320);
-  assert.equal(attributes.get("aria-valuemin"), "120");
-  assert.equal(attributes.get("aria-valuemax"), "320");
-  assert.equal(attributes.get("aria-valuenow"), "320");
+  const width = runtime.updateGoalColumnResizeHandle(handle, "actions", 999);
+  assert.equal(width, 260);
+  assert.equal(attributes.get("aria-valuemin"), "130");
+  assert.equal(attributes.get("aria-valuemax"), "260");
+  assert.equal(attributes.get("aria-valuenow"), "260");
 });
 
-test("goal table renders eleven stable columns with accessible pointer resize handles", () => {
-  assert.match(html, /<colgroup>\$\{goalTableColumns\.map/);
+test("goal table renders ten stable columns with accessible pointer resize handles", () => {
+  assert.match(html, /<colgroup>\$\{goalDeleteMode/);
   assert.match(html, /data-goal-column="\$\{column\.key\}"/);
   assert.match(html, /class="goal-column-resize"/);
   assert.match(html, /role="separator"/);
@@ -330,7 +326,8 @@ test("goal table renders eleven stable columns with accessible pointer resize ha
   assert.match(html, /ArrowLeft|ArrowRight/);
   assert.match(html, /cancelGoalColumnResize/);
   assert.match(html, /goalColumnWidthsKey !== goalColumnWidthStorageKey\(\)/);
-  assert.match(html, /\.goal-artifact-cell\{min-width:0\}/);
+  assert.doesNotMatch(html, /id="resetGoalsBtn"/);
+  assert.match(html, /id="deleteGoalsBtn"/);
 });
 
 function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {

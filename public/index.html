@@ -255,8 +255,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <p id="goalsMeta">2026年年度目标，单元格可直接编辑，修改后自动保存。</p>
         </div>
         <div class="head-actions">
-          <button class="ghost-btn" id="resetGoalsBtn">恢复初始目标</button>
           <button class="primary-btn" id="addGoalRowBtn">+ 新增目标</button>
+          <button class="danger-btn" id="deleteGoalsBtn">删除目标</button>
+          <button class="danger-btn" id="confirmDeleteGoalsBtn" hidden disabled>确认删除</button>
+          <button class="ghost-btn" id="cancelDeleteGoalsBtn" hidden>取消</button>
         </div>
       </div>
       <div class="summary-grid" style="grid-template-columns:repeat(4,1fr)" id="goalsStats"></div>
@@ -616,7 +618,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
   <div class="modal-mask" id="goalTaskModal" hidden>
     <section class="modal copy-modal">
       <div class="modal-head">
-        <strong id="goalTaskModalTitle">关联任务项</strong>
+        <strong id="goalTaskModalTitle">关联待办事项详情</strong>
         <button class="btn small ghost" id="closeGoalTaskModal">×</button>
       </div>
       <div class="modal-body">
@@ -650,32 +652,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </section>
   </div>
 
-  <div class="modal-mask" id="goalArtifactModal" hidden>
-    <section class="modal artifact-modal" aria-label="目标产物">
+  <div class="modal-mask" id="taskArtifactModal" hidden>
+    <section class="modal artifact-modal" aria-label="待办产物">
       <div class="modal-head">
         <div>
-          <strong id="goalArtifactTitle">目标产物</strong>
-          <div class="subtitle" id="goalArtifactSubtitle"></div>
+          <strong id="taskArtifactTitle">待办产物</strong>
+          <div class="subtitle" id="taskArtifactSubtitle"></div>
         </div>
-        <button class="btn small ghost" id="closeGoalArtifactModal" aria-label="关闭目标产物">×</button>
+        <button class="btn small ghost" id="closeTaskArtifactModal" aria-label="关闭待办产物">×</button>
       </div>
       <div class="modal-body">
         <div class="artifact-info">
           <div class="artifact-info-main">
-            <div class="artifact-info-name" id="goalArtifactName">尚未上传产物</div>
-            <div class="subtitle" id="goalArtifactMeta">支持 Word、Excel、PPT、PDF、图片和 HTML，最大 20 MB。</div>
+            <div class="artifact-info-name" id="taskArtifactName">尚未上传产物</div>
+            <div class="subtitle" id="taskArtifactMeta">支持 Word、Excel、PPT、PDF、图片和 HTML，最大 20 MB。</div>
           </div>
-          <span class="status-pill status-normal" id="goalArtifactType">未上传</span>
+          <span class="status-pill status-normal" id="taskArtifactType">未上传</span>
         </div>
-        <div class="artifact-preview" id="goalArtifactPreview"><div class="artifact-preview-state">上传产物后可在此预览</div></div>
+        <div class="artifact-preview" id="taskArtifactPreview"><div class="artifact-preview-state">上传产物后可在此预览</div></div>
       </div>
       <div class="modal-foot">
-        <div class="subtitle" id="goalArtifactMessage"></div>
+        <div class="subtitle" id="taskArtifactMessage"></div>
         <div class="artifact-actions">
-          <input id="goalArtifactFile" type="file" hidden accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,.png,.jpg,.jpeg,.webp,.gif,.html,.htm" />
-          <button class="ghost-btn" id="downloadGoalArtifactBtn" hidden>下载原文件</button>
-          <button class="ghost-btn" id="chooseGoalArtifactBtn" hidden>上传产物</button>
-          <button class="danger-btn" id="deleteGoalArtifactBtn" hidden>删除产物</button>
+          <input id="taskArtifactFile" type="file" hidden accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.pdf,.png,.jpg,.jpeg,.webp,.gif,.html,.htm" />
+          <button class="ghost-btn" id="downloadTaskArtifactBtn" hidden>下载原文件</button>
+          <button class="ghost-btn" id="chooseTaskArtifactBtn">上传产物</button>
+          <button class="danger-btn" id="deleteTaskArtifactBtn" hidden>删除产物</button>
         </div>
       </div>
     </section>
@@ -815,8 +817,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let goalsRows = [];
     let goalLinkedTasks = [];
     let goalsYear = "2026";
-    let goalArtifactGoalId = "";
-    let goalArtifactObjectUrl = "";
+    let taskArtifactTaskId = "";
+    let taskArtifactObjectUrl = "";
+    let taskArtifactReadOnly = false;
+    let goalDeleteMode = false;
+    const selectedGoalIds = new Set();
     let accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
     let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
     let aiGenerating = false;
@@ -880,8 +885,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       { key: "current", label: "已达成", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
       { key: "progress", label: "完成度", defaultWidth: 190, minWidth: 150, maxWidth: 320 },
       { key: "status", label: "状态", defaultWidth: 110, minWidth: 88, maxWidth: 180 },
-      { key: "artifact", label: "产物", defaultWidth: 150, minWidth: 120, maxWidth: 320 },
-      { key: "actions", label: "操作", defaultWidth: 220, minWidth: 170, maxWidth: 360 },
+      { key: "actions", label: "关联待办", defaultWidth: 160, minWidth: 130, maxWidth: 260 },
     ];
     let goalColumnWidths = {};
     let goalColumnWidthsKey = "";
@@ -1735,8 +1739,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const time = result.updatedAt ? new Date(result.updatedAt).toLocaleString() : "";
       const year = result.year || goalsYear || "2026";
       $("goalsMeta").textContent = time
-        ? `${year}年年度目标，单元格可直接编辑，已保存于 ${time}${updater ? `，更新人：${updater}` : ""}`
-        : `${year}年年度目标，单元格可直接编辑，修改后自动保存。`;
+        ? `${year}年年度目标，指标完成值由已完成待办汇总，已保存于 ${time}${updater ? `，更新人：${updater}` : ""}`
+        : `${year}年年度目标，指标完成值由已完成待办自动汇总。`;
     }
 
     function artifactTypeLabel(artifact = {}) {
@@ -1751,20 +1755,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
     }
 
-    function renderGoalArtifactCell(row) {
-      const goalId = escapeHtml(row.id || "");
-      if (!row.artifact) {
-        return row.canManageArtifact
-          ? `<button class="btn small ghost goal-artifact-button" data-goal-artifact="${goalId}">＋ 上传产物</button>`
-          : `<span class="subtitle">暂无产物</span>`;
-      }
-      const updated = row.artifact.updatedAt ? new Date(row.artifact.updatedAt).toLocaleString() : "";
-      return `<button class="btn small ghost goal-artifact-button" data-goal-artifact="${goalId}">
-        <span class="goal-artifact-name">📎 ${escapeHtml(row.artifact.originalName || "未命名产物")}</span>
-        <span class="goal-artifact-time">${escapeHtml(artifactTypeLabel(row.artifact))}${updated ? ` · ${escapeHtml(updated)}` : ""}</span>
-      </button>`;
-    }
-
     function renderGoals() {
       renderGoalsStats();
       if (goalColumnWidthsKey !== goalColumnWidthStorageKey()) {
@@ -1777,35 +1767,37 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         .map((row, rowIndex) => ({ row, rowIndex }))
         .filter(({ row }) => goalMatchesFilters(row));
       $("goalsTable").innerHTML = `
-        <colgroup>${goalTableColumns.map((column) => `<col data-goal-column="${column.key}" style="width:${goalColumnWidths[column.key]}px" />`).join("")}</colgroup>
+        <colgroup>${goalDeleteMode ? `<col style="width:48px" />` : ""}${goalTableColumns.map((column) => `<col data-goal-column="${column.key}" style="width:${goalColumnWidths[column.key]}px" />`).join("")}</colgroup>
         <thead><tr>
+          ${goalDeleteMode ? `<th>选择</th>` : ""}
           ${goalTableColumns.map((column) => `<th data-goal-column="${column.key}" class="${column.key === "lastYearActual" ? "goal-nowrap" : ""}">${column.label}<button type="button" class="goal-column-resize" data-goal-column-resize="${column.key}" role="separator" aria-orientation="vertical" aria-valuemin="${column.minWidth}" aria-valuemax="${column.maxWidth}" aria-valuenow="${goalColumnWidths[column.key]}" aria-label="调整${column.label}列宽"></button></th>`).join("")}
         </tr></thead>
         <tbody>
           ${rows.map(({ row, rowIndex }) => {
-            const status = goalStatus(row);
-            const percent = goalCompletion(row);
             const goalId = goalRowId(row, rowIndex);
             const linkedTasks = tasksForGoal(goalId);
             const contribution = completedContributionForGoal(goalId);
+            row.current = contribution;
+            const status = goalStatus(row);
+            const percent = goalCompletion(row);
             return `
               <tr>
+                ${goalDeleteMode ? `<td><input type="checkbox" data-select-goal="${escapeHtml(goalId)}" ${selectedGoalIds.has(goalId) ? "checked" : ""} aria-label="选择${escapeHtml(goalTitle(row, rowIndex))}" /></td>` : ""}
                 <td><input class="seq-input" type="number" min="1" max="${goalsRows.length}" data-goal-row="${rowIndex}" data-goal-key="seq" value="${escapeHtml(String(row.seq || rowIndex + 1))}" aria-label="目标序号" /></td>
                 <td>
                   <div class="goal-name-wrap">
                     <span class="goal-name-text" contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="name">${escapeHtml(row.name || "")}</span>
-                    <button class="quarter-icon ${hasQuarterGoals(row) ? "" : "empty"}" data-quarter-preview="${rowIndex}" data-quarter-edit="${rowIndex}" title="季度目标"><img src="assets/quarter-breakdown-icon.png" alt="" /></button>
                   </div>
                 </td>
                 <td><div class="editable" contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="definition">${escapeHtml(row.definition || "")}</div></td>
                 <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="owner">${escapeHtml(row.owner || "")}</td>
                 <td class="goal-nowrap" contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="lastYearActual">${escapeHtml(row.lastYearActual || "")}</td>
                 <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="target">${escapeHtml(row.target || "")}</td>
-                <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="current">${escapeHtml(row.current || "")}</td>
+                <td>${escapeHtml(String(row.current || 0))}</td>
                 <td>
                   <div class="goal-progress editable-progress">
                     <div class="bar"><span style="width:${percent}%;${status === "已完成" ? "background:var(--green)" : ""}"></span></div>
-                    <input data-goal-row="${rowIndex}" data-goal-key="progress" value="${percent}" inputmode="numeric" aria-label="完成度" />%
+                    <strong>${percent}%</strong>
                   </div>
                   <div class="subtitle">任务贡献：${contribution}</div>
                 </td>
@@ -1814,17 +1806,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                     ${["正常", "风险", "滞后", "已完成"].map((item) => `<option ${item === status ? "selected" : ""}>${item}</option>`).join("")}
                   </select>
                 </td>
-                <td class="goal-artifact-cell">${renderGoalArtifactCell(row)}</td>
                 <td>
                   <div class="row-actions">
-                    <button class="btn small ghost" data-quarter-edit="${rowIndex}">${hasQuarterGoals(row) ? "季度目标" : "拆解"}</button>
-                    <button class="btn small ghost" data-view-goal-tasks="${goalId}">关联(${linkedTasks.length})</button>
-                    <button class="btn small danger" data-delete-goal="${rowIndex}">删除</button>
+                    <button class="btn small ghost" data-view-goal-tasks="${goalId}">关联待办(${linkedTasks.length})</button>
                   </div>
                 </td>
               </tr>
             `;
-          }).join("") || `<tr><td colspan="11"><div class="empty">暂无符合条件的目标</div></td></tr>`}
+          }).join("") || `<tr><td colspan="${goalTableColumns.length + (goalDeleteMode ? 1 : 0)}"><div class="empty">暂无符合条件的目标</div></td></tr>`}
         </tbody>
       `;
     }
@@ -1847,21 +1836,26 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const goalIndex = goalsRows.findIndex((goal, index) => goalRowId(goal, index) === goalId);
       const goal = goalsRows[goalIndex] || {};
       const rows = tasksForGoal(goalId).sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0));
-      const contributionForTask = (task) => normalizeGoalLinks(task).filter((link) => link.goalId === goalId).reduce((sum, link) => sum + link.contribution, 0);
+      const goalLinkForTask = (task) => normalizeGoalLinks(task).find((link) => link.goalId === goalId) || { contribution: 0, note: "" };
+      const contributionForTask = (task) => goalLinkForTask(task).contribution;
       const total = rows.filter((task) => task.status === "已完成").reduce((sum, task) => sum + contributionForTask(task), 0);
-      $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} · 关联任务`;
-      $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联任务，已完成贡献数 ${total}${goalUnitById(goalId) || ""}`;
+      $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} · 关联待办事项详情`;
+      $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联待办，已完成贡献数 ${total}${goalUnitById(goalId) || ""}；本页仅供查看。`;
       $("goalTaskList").innerHTML = rows.map((task) => `
-        <div class="history-row" style="grid-template-columns:1fr 90px 90px 120px;">
+        <div class="history-row" style="grid-template-columns:minmax(220px,1fr) 90px 110px minmax(180px,auto);">
           <div>
             <strong>${escapeHtml(task.title || "未命名任务")}</strong>
-            <div class="subtitle">${escapeHtml(task.module || "")} · ${escapeHtml(task.owner || "未指定")} · ${escapeHtml(goalLinksSummary(task))}</div>
+            <div class="subtitle">${escapeHtml(task.module || "")} · ${escapeHtml(task.owner || "未指定")}</div>
+            <div class="subtitle">贡献说明：${escapeHtml(goalLinkForTask(task).note || "无")}</div>
           </div>
           <span class="status-pill ${task.status === "已完成" ? "status-done" : task.status === "阻塞" ? "status-late" : "status-normal"}">${escapeHtml(task.status || "")}</span>
-          <strong>${contributionForTask(task)}${escapeHtml(goalUnitById(goalId))}</strong>
-          <span class="subtitle">${task.completedAt ? new Date(task.completedAt).toLocaleDateString() : "未完成"}</span>
+          <div><strong>${contributionForTask(task)}${escapeHtml(goalUnitById(goalId))}</strong><div class="subtitle">${task.status === "已完成" ? "已计入" : "暂不计入"}</div></div>
+          <div class="row-actions">
+            ${task.artifact ? `<button class="btn small ghost" data-view-task-artifact="${escapeHtml(task.id)}">📎 ${escapeHtml(task.artifact.originalName || "查看产物")}</button>` : `<span class="subtitle">暂无产物</span>`}
+            <button class="btn small ghost" data-open-linked-task="${escapeHtml(task.id)}">打开待办详情</button>
+          </div>
         </div>
-      `).join("") || `<div class="history-row" style="grid-template-columns:1fr;"><span>暂无关联任务</span></div>`;
+      `).join("") || `<div class="history-row" style="grid-template-columns:1fr;"><span>暂无关联待办</span></div>`;
       $("goalTaskModal").hidden = false;
     }
 
@@ -1898,44 +1892,25 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setSyncStatus("季度目标拆解已保存", "ok");
     }
 
-    async function deleteGoal(rowIndex) {
-      const goal = goalsRows[rowIndex];
-      if (!goal) return;
-      if (goal.artifact && !goal.canManageArtifact) return setSyncStatus("仅目标 Owner 或部门负责人可删除带有产物的目标", "warn");
-      const goalId = goalRowId(goal, rowIndex);
-      const linkedTasks = tasksForGoal(goalId);
-      const linkedCount = linkedTasks.length;
-      const message = linkedCount
-        ? `该指标已有 ${linkedCount} 个关联任务。删除后这些任务会取消年度指标关联，确认删除？`
-        : goal.artifact ? "该目标的产物也会一并删除，确认删除该年度指标？" : "确认删除该年度指标？";
-      if (!confirm(message)) return;
-      goalsRows.splice(rowIndex, 1);
-      const changedTasks = [];
-      linkedTasks.forEach((task) => {
-        task.goalLinks = normalizeGoalLinks(task).filter((link) => link.goalId !== goalId);
-        task.goalId = "";
-        task.goalContribution = 0;
-        task.goalContributionNote = "";
-        if (task.goalLinks.length) {
-          task.goalId = task.goalLinks[0].goalId;
-          task.goalContribution = task.goalLinks[0].contribution;
-          task.goalContributionNote = task.goalLinks[0].note;
-        }
-        task.updatedAt = Date.now();
-        changedTasks.push(task);
-      });
-      tasks = tasks.map((task) => changedTasks.find((item) => item.id === task.id) || task);
-      goalLinkedTasks = goalLinkedTasks.map((task) => changedTasks.find((item) => item.id === task.id) || task);
-      await Promise.all(changedTasks.map((task) => {
-        return apiJson(`/api/task/${encodeURIComponent(task.id)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ task }),
-        });
-      }));
+    function setGoalDeleteMode(enabled) {
+      goalDeleteMode = enabled;
+      selectedGoalIds.clear();
+      $("deleteGoalsBtn").hidden = enabled;
+      $("confirmDeleteGoalsBtn").hidden = !enabled;
+      $("confirmDeleteGoalsBtn").disabled = true;
+      $("cancelDeleteGoalsBtn").hidden = !enabled;
       renderGoals();
-      scheduleGoalsSave();
-      setSyncStatus("年度指标已删除", "ok");
+    }
+
+    async function deleteSelectedGoals() {
+      if (!selectedGoalIds.size) return;
+      const linkCount = goalLinkedTasks.filter((task) => normalizeGoalLinks(task).some((link) => selectedGoalIds.has(link.goalId))).length;
+      if (!confirm(`确认删除 ${selectedGoalIds.size} 个目标？将解除 ${linkCount} 个待办中的相关指标关联，但不会删除待办。`)) return;
+      goalsRows = goalsRows.filter((row, index) => !selectedGoalIds.has(goalRowId(row, index)));
+      await saveGoalsNow();
+      await loadGoalLinkedTasks();
+      setGoalDeleteMode(false);
+      setSyncStatus("目标已删除，关联待办已保留", "ok");
     }
 
     function goalMatchesFilters(row) {
@@ -1958,8 +1933,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function goalCompletion(row) {
-      const manual = clampPercent(row.progress ?? row.completion ?? row.completionRate);
-      if (manual !== null) return manual;
       const currentText = normalizeText(row.current);
       const targetText = normalizeText(row.target);
       if (!currentText) return 0;
@@ -2029,63 +2002,68 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function replaceArtifactObjectUrl(nextUrl = "") {
-      if (goalArtifactObjectUrl) URL.revokeObjectURL(goalArtifactObjectUrl);
-      goalArtifactObjectUrl = nextUrl;
+      if (taskArtifactObjectUrl) URL.revokeObjectURL(taskArtifactObjectUrl);
+      taskArtifactObjectUrl = nextUrl;
     }
 
-    async function loadGoalArtifactBlob(goalId, action) {
-      const response = await authedFetch(`/api/goals/${encodeURIComponent(goalId)}/artifact/${action}`);
+    async function loadTaskArtifactBlob(taskId, action) {
+      const response = await authedFetch(`/api/task/${encodeURIComponent(taskId)}/artifact/${action}`);
       if (!response.ok) throw new Error(await responseErrorMessage(response));
       return response.blob();
     }
 
-    function setGoalArtifactBusy(busy) {
-      ["chooseGoalArtifactBtn", "deleteGoalArtifactBtn", "downloadGoalArtifactBtn"].forEach((id) => {
+    function setTaskArtifactBusy(busy) {
+      ["chooseTaskArtifactBtn", "deleteTaskArtifactBtn", "downloadTaskArtifactBtn"].forEach((id) => {
         $(id).disabled = busy;
       });
     }
 
-    async function openGoalArtifactModal(goalId) {
-      const row = goalsRows.find((item) => item.id === goalId);
-      if (!row) return;
-      goalArtifactGoalId = goalId;
+    function taskRecordById(taskId) {
+      return tasks.find((item) => item.id === taskId) || goalLinkedTasks.find((item) => item.id === taskId);
+    }
+
+    async function openTaskArtifactModal(taskId, { readOnly = false } = {}) {
+      const task = taskRecordById(taskId);
+      if (!task) return;
+      taskArtifactTaskId = taskId;
+      taskArtifactReadOnly = readOnly;
       replaceArtifactObjectUrl();
-      $("goalArtifactModal").hidden = false;
-      $("goalArtifactTitle").textContent = "目标产物";
-      $("goalArtifactSubtitle").textContent = row.name || "未命名目标";
-      $("goalArtifactMessage").textContent = "";
-      $("goalArtifactFile").value = "";
-      $("chooseGoalArtifactBtn").hidden = !row.canManageArtifact;
-      $("chooseGoalArtifactBtn").textContent = row.artifact ? "替换产物" : "上传产物";
-      $("deleteGoalArtifactBtn").hidden = !row.canManageArtifact || !row.artifact;
-      $("downloadGoalArtifactBtn").hidden = !row.artifact;
-      $("goalArtifactName").textContent = row.artifact?.originalName || "尚未上传产物";
-      $("goalArtifactType").textContent = row.artifact ? artifactTypeLabel(row.artifact) : "未上传";
-      const updater = row.artifact?.updatedBy?.displayName || row.artifact?.updatedBy?.username || "";
-      const updated = row.artifact?.updatedAt ? new Date(row.artifact.updatedAt).toLocaleString() : "";
-      $("goalArtifactMeta").textContent = row.artifact
-        ? `${formatArtifactSize(row.artifact.size)}${updated ? ` · ${updated}` : ""}${updater ? ` · ${updater}` : ""}`
+      $("taskArtifactModal").hidden = false;
+      $("taskArtifactTitle").textContent = readOnly ? "待办产物（只读）" : "待办产物";
+      $("taskArtifactSubtitle").textContent = task.title || "未命名待办";
+      $("taskArtifactMessage").textContent = "";
+      $("taskArtifactFile").value = "";
+      $("chooseTaskArtifactBtn").hidden = readOnly;
+      $("chooseTaskArtifactBtn").textContent = task.artifact ? "替换产物" : "上传产物";
+      $("deleteTaskArtifactBtn").hidden = readOnly || !task.artifact;
+      $("downloadTaskArtifactBtn").hidden = !task.artifact;
+      $("taskArtifactName").textContent = task.artifact?.originalName || "尚未上传产物";
+      $("taskArtifactType").textContent = task.artifact ? artifactTypeLabel(task.artifact) : "未上传";
+      const updater = task.artifact?.updatedBy?.displayName || task.artifact?.updatedBy?.username || "";
+      const updated = task.artifact?.updatedAt ? new Date(task.artifact.updatedAt).toLocaleString() : "";
+      $("taskArtifactMeta").textContent = task.artifact
+        ? `${formatArtifactSize(task.artifact.size)}${updated ? ` · ${updated}` : ""}${updater ? ` · ${updater}` : ""}`
         : "支持 Word、Excel、PPT、PDF、图片和 HTML，最大 20 MB。";
-      const preview = $("goalArtifactPreview");
-      preview.innerHTML = `<div class="artifact-preview-state">${row.artifact ? "正在加载预览..." : "上传产物后可在此预览"}</div>`;
-      if (!row.artifact) return;
+      const preview = $("taskArtifactPreview");
+      preview.innerHTML = `<div class="artifact-preview-state">${task.artifact ? "正在加载预览..." : "上传产物后可在此预览"}</div>`;
+      if (!task.artifact) return;
 
       try {
-        const blob = await loadGoalArtifactBlob(goalId, "preview");
-        if (goalArtifactGoalId !== goalId) return;
+        const blob = await loadTaskArtifactBlob(taskId, "preview");
+        if (taskArtifactTaskId !== taskId) return;
         const objectUrl = URL.createObjectURL(blob);
         replaceArtifactObjectUrl(objectUrl);
         preview.innerHTML = "";
-        if (String(row.artifact.previewMimeType || "").startsWith("image/")) {
+        if (String(task.artifact.previewMimeType || "").startsWith("image/")) {
           const image = document.createElement("img");
           image.src = objectUrl;
-          image.alt = row.artifact.originalName || "目标产物图片";
+          image.alt = task.artifact.originalName || "待办产物图片";
           preview.appendChild(image);
         } else {
           const frame = document.createElement("iframe");
           frame.src = objectUrl;
-          frame.title = `${row.artifact.originalName || "目标产物"}预览`;
-          if (row.artifact.previewMimeType === "text/html") frame.setAttribute("sandbox", "allow-scripts");
+          frame.title = `${task.artifact.originalName || "待办产物"}预览`;
+          if (task.artifact.previewMimeType === "text/html") frame.setAttribute("sandbox", "allow-scripts");
           preview.appendChild(frame);
         }
       } catch (error) {
@@ -2093,73 +2071,74 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
     }
 
-    function closeGoalArtifactModal() {
-      goalArtifactGoalId = "";
+    function closeTaskArtifactModal() {
+      taskArtifactTaskId = "";
+      taskArtifactReadOnly = false;
       replaceArtifactObjectUrl();
-      $("goalArtifactModal").hidden = true;
+      $("taskArtifactModal").hidden = true;
     }
 
-    async function uploadGoalArtifact(file) {
-      const row = goalsRows.find((item) => item.id === goalArtifactGoalId);
-      if (!row?.canManageArtifact || !file) return;
+    async function uploadTaskArtifact(file) {
+      const task = taskRecordById(taskArtifactTaskId);
+      if (!task || taskArtifactReadOnly || !file) return;
       const allowed = new Set(["doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf", "png", "jpg", "jpeg", "webp", "gif", "html", "htm"]);
       const extension = String(file.name || "").split(".").pop()?.toLowerCase() || "";
       if (!allowed.has(extension)) return setSyncStatus("不支持该产物格式", "warn");
       if (file.size > 20 * 1024 * 1024) return setSyncStatus("产物不能超过 20 MB", "warn");
       const form = new FormData();
       form.append("file", file);
-      setGoalArtifactBusy(true);
-      $("goalArtifactMessage").textContent = row.artifact ? "正在替换产物..." : "正在上传产物...";
+      setTaskArtifactBusy(true);
+      $("taskArtifactMessage").textContent = task.artifact ? "正在替换产物..." : "正在上传产物...";
       try {
-        const response = await authedFetch(`/api/goals/${encodeURIComponent(row.id)}/artifact`, { method: "POST", body: form });
+        const response = await authedFetch(`/api/task/${encodeURIComponent(task.id)}/artifact`, { method: "POST", body: form });
         if (!response.ok) throw new Error(await responseErrorMessage(response));
         const result = await response.json();
-        row.artifact = result.artifact;
-        renderGoals();
-        await openGoalArtifactModal(row.id);
-        setSyncStatus("目标产物已更新", "ok");
+        task.artifact = result.artifact;
+        renderTaskDetail();
+        await openTaskArtifactModal(task.id);
+        setSyncStatus("待办产物已更新", "ok");
       } catch (error) {
-        $("goalArtifactMessage").textContent = error.message || "产物上传失败";
+        $("taskArtifactMessage").textContent = error.message || "产物上传失败";
         setSyncStatus(error.message || "产物上传失败", "warn");
       } finally {
-        setGoalArtifactBusy(false);
+        setTaskArtifactBusy(false);
       }
     }
 
-    async function downloadGoalArtifact() {
-      const row = goalsRows.find((item) => item.id === goalArtifactGoalId);
-      if (!row?.artifact) return;
-      setGoalArtifactBusy(true);
+    async function downloadTaskArtifact() {
+      const task = taskRecordById(taskArtifactTaskId);
+      if (!task?.artifact) return;
+      setTaskArtifactBusy(true);
       try {
-        const blob = await loadGoalArtifactBlob(row.id, "download");
+        const blob = await loadTaskArtifactBlob(task.id, "download");
         const objectUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = objectUrl;
-        link.download = row.artifact.originalName || "artifact";
+        link.download = task.artifact.originalName || "artifact";
         link.click();
         setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
       } catch (error) {
         setSyncStatus(error.message || "产物下载失败", "warn");
       } finally {
-        setGoalArtifactBusy(false);
+        setTaskArtifactBusy(false);
       }
     }
 
-    async function deleteGoalArtifact() {
-      const row = goalsRows.find((item) => item.id === goalArtifactGoalId);
-      if (!row?.artifact || !row.canManageArtifact || !confirm("确认删除该目标产物？删除后不可恢复。")) return;
-      setGoalArtifactBusy(true);
+    async function deleteTaskArtifact() {
+      const task = taskRecordById(taskArtifactTaskId);
+      if (!task?.artifact || taskArtifactReadOnly || !confirm("确认删除该待办产物？删除后不可恢复。")) return;
+      setTaskArtifactBusy(true);
       try {
-        await apiJson(`/api/goals/${encodeURIComponent(row.id)}/artifact`, { method: "DELETE" });
-        row.artifact = null;
-        renderGoals();
-        await openGoalArtifactModal(row.id);
-        setSyncStatus("目标产物已删除", "ok");
+        await apiJson(`/api/task/${encodeURIComponent(task.id)}/artifact`, { method: "DELETE" });
+        task.artifact = null;
+        renderTaskDetail();
+        await openTaskArtifactModal(task.id);
+        setSyncStatus("待办产物已删除", "ok");
       } catch (error) {
-        $("goalArtifactMessage").textContent = error.message || "产物删除失败";
+        $("taskArtifactMessage").textContent = error.message || "产物删除失败";
         setSyncStatus(error.message || "产物删除失败", "warn");
       } finally {
-        setGoalArtifactBusy(false);
+        setTaskArtifactBusy(false);
       }
     }
 
@@ -2789,7 +2768,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function selectedTask() {
-      return tasks.find((task) => task.id === selectedTaskId);
+      return tasks.find((task) => task.id === selectedTaskId) || goalLinkedTasks.find((task) => task.id === selectedTaskId);
     }
 
     function renderTaskGoalLinksEditor(task) {
@@ -2852,6 +2831,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <div><label>带入下周</label><select data-task-field="carryToNextWeek">${[[false,"否"],[true,"是"]].map(([value,label]) => `<option value="${value}" ${task.carryToNextWeek === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
           <div class="field-full"><label>任务进度</label><div class="progress-input"><input type="range" min="0" max="100" step="1" data-task-field="progress" value="${percent}" /><input type="number" min="0" max="100" step="1" data-task-field="progress" value="${percent}" /><span>%</span></div></div>
           ${renderTaskGoalLinksEditor(task)}
+          <div class="field-full">
+            <label>待办产物</label>
+            <div class="artifact-info">
+              <div class="artifact-info-main">
+                <div class="artifact-info-name">${task.artifact ? `📎 ${escapeHtml(task.artifact.originalName || "未命名产物")}` : "尚未上传产物"}</div>
+                <div class="subtitle">${task.artifact ? `${escapeHtml(artifactTypeLabel(task.artifact))} · ${formatArtifactSize(task.artifact.size)}` : "支持 Word、Excel、PPT、PDF、图片和 HTML，最大 20 MB。"}</div>
+              </div>
+              <button class="btn small ghost" id="manageTaskArtifactBtn">${task.artifact ? "查看 / 管理产物" : "上传产物"}</button>
+            </div>
+          </div>
           <div class="field-full"><label>任务描述</label><textarea data-task-field="description" placeholder="补充任务背景、范围、交付物或验收标准">${escapeHtml(task.description || "")}</textarea></div>
           <div class="field-full"><label>当前风险 / 阻塞</label><textarea data-task-field="blocker">${escapeHtml(task.blocker)}</textarea></div>
           <div class="field-full">
@@ -4095,16 +4084,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         toggleReportSectionHidden(moduleIndex, sectionIndex);
       }
 
-      const goalArtifactBtn = event.target.closest("[data-goal-artifact]");
-      if (goalArtifactBtn) {
-        await openGoalArtifactModal(goalArtifactBtn.dataset.goalArtifact);
+      const viewTaskArtifactBtn = event.target.closest("[data-view-task-artifact]");
+      if (viewTaskArtifactBtn) {
+        await openTaskArtifactModal(viewTaskArtifactBtn.dataset.viewTaskArtifact, { readOnly: true });
         return;
       }
 
-      const quarterEditBtn = event.target.closest("[data-quarter-edit]");
-      if (quarterEditBtn) {
-        hideQuarterGoalPopover();
-        openQuarterGoalModal(Number(quarterEditBtn.dataset.quarterEdit));
+      const openLinkedTaskBtn = event.target.closest("[data-open-linked-task]");
+      if (openLinkedTaskBtn) {
+        closeGoalTaskModal();
+        await openTaskModal(openLinkedTaskBtn.dataset.openLinkedTask);
         return;
       }
 
@@ -4113,9 +4102,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         openGoalTaskModal(viewGoalTasksBtn.dataset.viewGoalTasks);
       }
 
-      const deleteGoalBtn = event.target.closest("[data-delete-goal]");
-      if (deleteGoalBtn) {
-        await deleteGoal(Number(deleteGoalBtn.dataset.deleteGoal));
+      const selectGoal = event.target.closest("[data-select-goal]");
+      if (selectGoal) {
+        if (selectGoal.checked) selectedGoalIds.add(selectGoal.dataset.selectGoal);
+        else selectedGoalIds.delete(selectGoal.dataset.selectGoal);
+        $("confirmDeleteGoalsBtn").disabled = !selectedGoalIds.size;
       }
 
       if (event.target.id === "viewHistoryTasksBtn") {
@@ -4185,6 +4176,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         task.dailyLogs = [...(task.dailyLogs || []), { date: todayIso(), progress: "" }];
         renderTaskDetail();
         scheduleSaveTask(task);
+      }
+
+      if (event.target.id === "manageTaskArtifactBtn") {
+        const task = selectedTask();
+        if (task) await openTaskArtifactModal(task.id);
       }
 
       if (event.target.id === "addGoalLinkBtn") {
@@ -4669,17 +4665,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("quarterGoalModal").addEventListener("click", (event) => {
       if (event.target.id === "quarterGoalModal") closeQuarterGoalModal();
     });
-    $("closeGoalArtifactModal").addEventListener("click", closeGoalArtifactModal);
-    $("goalArtifactModal").addEventListener("click", (event) => {
-      if (event.target.id === "goalArtifactModal") closeGoalArtifactModal();
+    $("closeTaskArtifactModal").addEventListener("click", closeTaskArtifactModal);
+    $("taskArtifactModal").addEventListener("click", (event) => {
+      if (event.target.id === "taskArtifactModal") closeTaskArtifactModal();
     });
-    $("chooseGoalArtifactBtn").addEventListener("click", () => $("goalArtifactFile").click());
-    $("goalArtifactFile").addEventListener("change", (event) => {
+    $("chooseTaskArtifactBtn").addEventListener("click", () => $("taskArtifactFile").click());
+    $("taskArtifactFile").addEventListener("change", (event) => {
       const file = event.target.files?.[0];
-      if (file) uploadGoalArtifact(file);
+      if (file) uploadTaskArtifact(file);
     });
-    $("downloadGoalArtifactBtn").addEventListener("click", downloadGoalArtifact);
-    $("deleteGoalArtifactBtn").addEventListener("click", deleteGoalArtifact);
+    $("downloadTaskArtifactBtn").addEventListener("click", downloadTaskArtifact);
+    $("deleteTaskArtifactBtn").addEventListener("click", deleteTaskArtifact);
 
     $("closeTaskModal").addEventListener("click", closeTaskModal);
     $("taskModal").addEventListener("click", (event) => {
@@ -5352,15 +5348,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       scheduleGoalsSave();
     });
 
-    $("resetGoalsBtn").addEventListener("click", () => {
-      if (!confirm("确认恢复为初始目标？当前目标表会被覆盖。")) return;
-      goalsRows = defaultGoalsForCurrentDepartment();
-      goalsRows.forEach((row, index) => {
-        row.id = goalRowId(row, index);
-      });
-      renderGoals();
-      saveGoalsNow().catch(() => setSyncStatus("目标保存失败", "warn"));
-    });
+    $("deleteGoalsBtn").addEventListener("click", () => setGoalDeleteMode(true));
+    $("cancelDeleteGoalsBtn").addEventListener("click", () => setGoalDeleteMode(false));
+    $("confirmDeleteGoalsBtn").addEventListener("click", () => deleteSelectedGoals().catch(() => setSyncStatus("目标删除失败", "warn")));
 
     $("goalSearch").addEventListener("input", (event) => {
       goalSearchQuery = event.target.value;
