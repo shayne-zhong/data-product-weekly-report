@@ -802,7 +802,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let reportQuarterFilter = "all";
     let reportMonthFilter = "all";
     let reportTypeFilter = "weekly";
-    let saveTimer = null;
+    const pendingTaskSaves = new Map();
     let batchMode = false;
     let selectedTaskIds = new Set();
     let importCandidates = [];
@@ -2926,7 +2926,41 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return `任务已逾期（原计划完成日期：${task.dueDate}）`;
     }
 
+    async function flushPendingTaskSave(taskId = "") {
+      const taskIds = taskId ? [taskId] : [...pendingTaskSaves.keys()];
+      for (const id of taskIds) {
+        const state = pendingTaskSaves.get(id);
+        if (!state) continue;
+        if (state.timer) {
+          clearTimeout(state.timer);
+          state.timer = null;
+        }
+        if (state.inFlight) await state.inFlight;
+        while (state.task) {
+          const pendingTask = state.task;
+          state.task = null;
+          state.inFlight = persistTask(pendingTask);
+          try {
+            await state.inFlight;
+            setSyncStatus("已同步", "ok");
+          } catch (error) {
+            if (!state.task) state.task = pendingTask;
+            setSyncStatus("同步失败", "warn");
+            throw error;
+          } finally {
+            state.inFlight = null;
+          }
+        }
+        if (!state.task && !state.inFlight && pendingTaskSaves.get(id) === state) pendingTaskSaves.delete(id);
+      }
+    }
+
     async function blockOverdueTasksForListMode() {
+      try {
+        await flushPendingTaskSave();
+      } catch {
+        return;
+      }
       const overdueTasks = tasks.filter((task) => task.status !== "已完成" && task.status !== "阻塞" && task.dueDate && task.dueDate < todayIso());
       let failedCount = 0;
       for (const task of overdueTasks) {
@@ -2953,17 +2987,15 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function scheduleSaveTask(task) {
-      clearTimeout(saveTimer);
+      const state = pendingTaskSaves.get(task.id) || { task: null, timer: null, inFlight: null };
+      if (state.timer) clearTimeout(state.timer);
+      state.task = { ...task };
       setSyncStatus("待同步", "warn");
-      saveTimer = setTimeout(async () => {
-        saveTimer = null;
-        try {
-          await persistTask(task);
-          setSyncStatus("已同步", "ok");
-        } catch {
-          setSyncStatus("同步失败", "warn");
-        }
+      state.timer = setTimeout(() => {
+        state.timer = null;
+        flushPendingTaskSave(task.id).catch(() => {});
       }, 650);
+      pendingTaskSaves.set(task.id, state);
     }
 
     function decodeReportEscapes(value) {

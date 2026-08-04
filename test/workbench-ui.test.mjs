@@ -14,11 +14,27 @@ function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
   const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
   const migrationFunction = html.match(/    async function blockOverdueTasksForListMode\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function scheduleSaveTask)/)?.[0];
   assert.ok(blockerFunction && migrationFunction, "missing executable overdue migration functions");
-  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", `${blockerFunction}\n${migrationFunction}\nreturn blockOverdueTasksForListMode;`)(
+  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", `async function flushPendingTaskSave() {}\n${blockerFunction}\n${migrationFunction}\nreturn blockOverdueTasksForListMode;`)(
     tasks,
     () => "2026-08-04",
     persistTask,
     setSyncStatus,
+  );
+}
+
+function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}) {
+  const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
+  const saveFunctions = html.match(/    async function flushPendingTaskSave[\s\S]*?(?=\r?\n\r?\n    function decodeReportEscapes)/)?.[0];
+  assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
+  const pendingTaskSaves = new Map();
+  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, blockOverdueTasksForListMode };`)(
+    tasks,
+    () => "2026-08-04",
+    persistTask,
+    setSyncStatus,
+    pendingTaskSaves,
+    () => 1,
+    () => {},
   );
 }
 
@@ -250,4 +266,37 @@ test("overdue migration continues after failure and updates only successful loca
   assert.equal(tasks[1].status, "阻塞");
   assert.equal(tasks[1].blocker, "已有\n任务已逾期（原计划完成日期：2026-08-02）");
   assert.ok(messages.some((message) => message.includes("1 项逾期任务自动阻塞失败")));
+});
+
+test("pending user edits persist before the final overdue block save", async () => {
+  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "最新编辑" }];
+  const persisted = [];
+  const runtime = overdueSaveRuntime(tasks, async (task) => persisted.push({ ...task }));
+
+  runtime.scheduleSaveTask(tasks[0]);
+  await runtime.blockOverdueTasksForListMode();
+
+  assert.deepEqual(persisted.map((task) => task.status), ["进行中", "阻塞"]);
+  assert.deepEqual(persisted.map((task) => task.description), ["最新编辑", "最新编辑"]);
+  assert.equal(tasks[0].status, "阻塞");
+  assert.deepEqual(tasks[0], persisted.at(-1));
+});
+
+test("a failed pending edit remains pending and prevents an overdue overwrite", async () => {
+  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "不能丢失" }];
+  const attempts = [];
+  const messages = [];
+  const runtime = overdueSaveRuntime(tasks, async (task) => {
+    attempts.push({ ...task });
+    throw new Error("offline");
+  }, (message) => messages.push(message));
+
+  runtime.scheduleSaveTask(tasks[0]);
+  await runtime.blockOverdueTasksForListMode();
+
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0].description, "不能丢失");
+  assert.equal(tasks[0].status, "进行中");
+  assert.ok(messages.includes("同步失败"));
+  assert.match(html, /pendingTaskSaves\.set\(task\.id/);
 });
