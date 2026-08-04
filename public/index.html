@@ -3992,6 +3992,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       await openTaskModal(result.task.id);
     }
 
+    function inlineReportClickAction(event) {
+      const deleteButton = event.target.closest("#reportHistoryInline [data-report-delete]");
+      if (deleteButton) {
+        event.stopPropagation();
+        return { type: "delete", id: deleteButton.dataset.reportDelete };
+      }
+      const openRow = event.target.closest("#reportHistoryInline [data-report-open]");
+      return openRow ? { type: "open", id: openRow.dataset.reportOpen } : null;
+    }
+
     document.addEventListener("click", async (event) => {
       const viewBtn = event.target.closest("[data-view]");
       if (viewBtn) setView(viewBtn.dataset.view);
@@ -4015,10 +4025,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         return;
       }
 
-      const inlineDeleteReportBtn = event.target.closest("#reportHistoryInline [data-report-delete]");
-      if (inlineDeleteReportBtn) {
-        event.stopPropagation();
-        const id = inlineDeleteReportBtn.dataset.reportDelete;
+      const inlineReportAction = inlineReportClickAction(event);
+      if (inlineReportAction?.type === "delete") {
+        const id = inlineReportAction.id;
         if (!isCurrentUserReportManager()) return setSyncStatus("仅钟南海可删除总结", "warn");
         if (!confirm("确认删除这份总结记录？删除后不可恢复。")) return;
         await apiJson(`/api/report/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -4029,9 +4038,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         return;
       }
 
-      const inlineReportBtn = event.target.closest("#reportHistoryInline [data-report-open]");
-      if (inlineReportBtn) {
-        await openReport(inlineReportBtn.dataset.reportOpen);
+      if (inlineReportAction?.type === "open") {
+        await openReport(inlineReportAction.id);
       }
 
       const reportTypeBtn = event.target.closest("[data-report-type]");
@@ -4990,21 +4998,43 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           return;
         } catch {}
       }
-      const textarea = document.createElement("textarea");
-      textarea.value = value;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
+      let activeElement = null;
+      let selection = null;
+      let ranges = [];
       try {
+        activeElement = document.activeElement;
+        selection = window.getSelection?.();
+        if (selection?.rangeCount) ranges = Array.from({ length: selection.rangeCount }, (_, index) => selection.getRangeAt(index));
+      } catch {}
+      let textarea = null;
+      let failed = false;
+      try {
+        textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();
         textarea.setSelectionRange(0, value.length);
-        if (!document.execCommand("copy")) throw new Error("复制失败，请手动复制");
-      } catch (error) {
-        throw new Error(error?.message || "复制失败，请手动复制");
+        failed = typeof document.execCommand !== "function" || !document.execCommand("copy");
+      } catch {
+        failed = true;
       } finally {
-        if (textarea.parentNode) textarea.parentNode.removeChild(textarea);
+        try {
+          if (textarea?.parentNode) textarea.parentNode.removeChild(textarea);
+        } catch {}
+        try {
+          if (selection) {
+            selection.removeAllRanges();
+            ranges.forEach((range) => selection.addRange(range));
+          }
+        } catch {}
+        try {
+          if (typeof activeElement?.focus === "function" && activeElement.isConnected !== false) activeElement.focus();
+        } catch {}
       }
+      if (failed) throw new Error("复制失败，请手动复制");
     }
 
     function setAiReportStatus(message, tone = "") {

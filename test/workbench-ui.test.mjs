@@ -10,11 +10,12 @@ function buttonMarkup(id) {
   return match[0];
 }
 
-function clipboardRuntime({ clipboard, execCommand = () => true } = {}) {
+function clipboardRuntime({ clipboard, execCommand = () => true, activeElement = null, selection = null } = {}) {
   const source = html.match(/    async function copyTextToClipboard\(text\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n)/)?.[0];
   assert.ok(source, "missing executable clipboard helper");
   const children = [];
   const document = {
+    activeElement,
     body: {
       appendChild(node) { children.push(node); node.parentNode = this; },
       removeChild(node) { children.splice(children.indexOf(node), 1); node.parentNode = null; },
@@ -25,8 +26,9 @@ function clipboardRuntime({ clipboard, execCommand = () => true } = {}) {
     },
     execCommand,
   };
+  const window = { getSelection: () => selection };
   const navigator = clipboard === undefined ? {} : { clipboard };
-  const copyTextToClipboard = new Function("navigator", "document", `${source}\nreturn copyTextToClipboard;`)(navigator, document);
+  const copyTextToClipboard = new Function("navigator", "document", "window", `${source}\nreturn copyTextToClipboard;`)(navigator, document, window);
   return { copyTextToClipboard, children };
 }
 
@@ -39,20 +41,52 @@ test("clipboard helper uses the async Clipboard API when available", async () =>
 });
 
 test("clipboard helper falls back after Clipboard API rejection and always cleans up", async () => {
-  const runtime = clipboardRuntime({ clipboard: { writeText: async () => { throw new Error("denied"); } }, execCommand: (command) => command === "copy" });
+  const restored = [];
+  const originalRange = { id: "original" };
+  const selection = {
+    rangeCount: 1,
+    getRangeAt: () => originalRange,
+    removeAllRanges: () => restored.push("cleared"),
+    addRange: (range) => restored.push(range),
+  };
+  const activeElement = { isConnected: true, focus: () => restored.push("focused") };
+  const runtime = clipboardRuntime({ clipboard: { writeText: async () => { throw new Error("denied"); } }, execCommand: (command) => command === "copy", activeElement, selection });
   await runtime.copyTextToClipboard("report");
   assert.equal(runtime.children.length, 0);
+  assert.deepEqual(restored, ["cleared", originalRange, "focused"]);
 });
 
-test("clipboard helper rejects empty text and failed fallback without leaking textarea", async () => {
+test("clipboard helper rejects empty text without creating a textarea", async () => {
   const emptyRuntime = clipboardRuntime();
   await assert.rejects(emptyRuntime.copyTextToClipboard("   "), /没有可复制的内容/);
   assert.equal(emptyRuntime.children.length, 0);
-
-  const failedRuntime = clipboardRuntime({ execCommand: () => false });
-  await assert.rejects(failedRuntime.copyTextToClipboard("report"), /复制失败/);
-  assert.equal(failedRuntime.children.length, 0);
 });
+
+test("clipboard fallback throw reports a stable error and restores DOM state", async () => {
+  const restored = [];
+  const selection = { rangeCount: 0, removeAllRanges: () => restored.push("cleared"), addRange: () => {} };
+  const activeElement = { isConnected: true, focus: () => restored.push("focused") };
+  const failedRuntime = clipboardRuntime({ execCommand: () => { throw new Error("sensitive DOM failure"); }, activeElement, selection });
+  await assert.rejects(failedRuntime.copyTextToClipboard("report"), (error) => error.message === "复制失败，请手动复制");
+  assert.equal(failedRuntime.children.length, 0);
+  assert.deepEqual(restored, ["cleared", "focused"]);
+});
+
+test("clipboard fallback false and missing APIs report the same stable error", async () => {
+  const falseRuntime = clipboardRuntime({ execCommand: () => false });
+  await assert.rejects(falseRuntime.copyTextToClipboard("report"), (error) => error.message === "复制失败，请手动复制");
+  assert.equal(falseRuntime.children.length, 0);
+
+  const missingRuntime = clipboardRuntime({ execCommand: null });
+  await assert.rejects(missingRuntime.copyTextToClipboard("report"), (error) => error.message === "复制失败，请手动复制");
+  assert.equal(missingRuntime.children.length, 0);
+});
+
+function inlineReportActionRuntime() {
+  const source = html.match(/    function inlineReportClickAction\(event\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n)/)?.[0];
+  assert.ok(source, "missing executable inline report action helper");
+  return new Function(`${source}\nreturn inlineReportClickAction;`)();
+}
 
 test("inline report list opens by row and only renders delete for the active saved report", () => {
   const source = html.match(/    function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function reportHistoryLabel)/)?.[0];
@@ -60,7 +94,23 @@ test("inline report list opens by row and only renders delete for the active sav
   assert.doesNotMatch(source, />打开<\/button>/);
   assert.match(source, /isActive && report\.id[\s\S]*data-report-delete/);
   assert.match(source, /data-report-open="\$\{report\.id\}"/);
-  assert.match(html, /inlineDeleteReportBtn[\s\S]*?event\.stopPropagation\(\)[\s\S]*?return;[\s\S]*?inlineReportBtn/);
+  assert.match(html, /function inlineReportClickAction[\s\S]*?event\.stopPropagation\(\)[\s\S]*?type: "delete"[\s\S]*?type: "open"/);
+});
+
+test("inline report item and click decisions keep delete exclusive to the active row", () => {
+  const renderer = html.match(/    function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function reportHistoryLabel)/)?.[0];
+  assert.match(renderer, /isActive && report\.id/);
+  const decide = inlineReportActionRuntime();
+  let stopped = false;
+  const deleteButton = { dataset: { reportDelete: "active" } };
+  const row = { dataset: { reportOpen: "active" } };
+  const action = decide({
+    stopPropagation: () => { stopped = true; },
+    target: { closest: (selector) => selector.includes("report-delete") ? deleteButton : row },
+  });
+  assert.deepEqual(action, { type: "delete", id: "active" });
+  assert.equal(stopped, true);
+  assert.notEqual(action.type, "open");
 });
 
 function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => storage.set(key, value)) {
