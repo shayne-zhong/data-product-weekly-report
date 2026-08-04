@@ -5,9 +5,13 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
 function aiReportHelpersRuntime() {
-  const source = html.match(/    function reportPeriodsOverlap[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
+  const source = html.match(/    function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
   assert.ok(source, "missing executable AI report source/apply helpers");
-  return new Function(`${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)();
+  const normalizeSource = html.match(/    function normalizeDate\(value\) \{[\s\S]*?\r?\n    \}/)?.[0];
+  const typeSource = html.match(/    function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n    function completedContributionForGoal)/)?.[0];
+  const reportTypes = { weekly: {}, monthly: {}, quarterly: {} };
+  const { normalizeDate, reportSummaryType } = new Function("reportTypes", `${normalizeSource}\n${typeSource}\nreturn { normalizeDate, reportSummaryType };`)(reportTypes);
+  return new Function("reportSummaryType", "normalizeDate", `${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
 }
 
 test("monthly and quarterly AI source selection filters overlap and type with stable ordering", () => {
@@ -23,6 +27,33 @@ test("monthly and quarterly AI source selection filters overlap and type with st
   assert.deepEqual(selectAiReportSources(reports, { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" }).map(({ id }) => id), ["w1a", "w1b", "w2"]);
   assert.deepEqual(selectAiReportSources(reports, { id: "q", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" }).map(({ id }) => id), ["m1", "self"]);
   assert.deepEqual(selectAiReportSources(reports, { id: "w", summaryType: "weekly", startDate: "2026/08/01", endDate: "2026/08/07" }), []);
+});
+
+test("quarterly AI sources honor legacy report type inference", () => {
+  const { selectAiReportSources } = aiReportHelpersRuntime();
+  const reports = [
+    { id: "missing-type", title: "7月月度总结", startDate: "2026/7/1", endDate: "2026/7/31" },
+    { id: "wrong-weekly", summaryType: "weekly", title: "8月月度总结", startDate: "2026/8/1", endDate: "2026/8/31" },
+    { id: "actual-weekly", summaryType: "weekly", title: "普通周报", startDate: "2026/8/1", endDate: "2026/8/7" },
+  ];
+  assert.deepEqual(selectAiReportSources(reports, { id: "q3", summaryType: "quarterly", startDate: "2026/7/1", endDate: "2026/9/30" }).map(({ id }) => id), ["missing-type", "wrong-weekly"]);
+});
+
+test("AI source overlap accepts non-padded boundary dates and rejects invalid ranges", () => {
+  const { reportPeriodsOverlap, selectAiReportSources } = aiReportHelpersRuntime();
+  const target = { id: "month", summaryType: "monthly", startDate: "2026-08-01", endDate: "2026-08-31" };
+  assert.equal(reportPeriodsOverlap({ startDate: "2026/7/27", endDate: "2026/8/1" }, target), true);
+  assert.equal(reportPeriodsOverlap({ startDate: "2026/8/31", endDate: "2026/9/6" }, target), true);
+  assert.equal(reportPeriodsOverlap({ startDate: "2026/8/2", endDate: "2026/8/8" }, target), true);
+  assert.equal(reportPeriodsOverlap({ startDate: "2026/2/30", endDate: "2026/3/2" }, target), false);
+  assert.equal(reportPeriodsOverlap({ startDate: "invalid", endDate: "2026/8/2" }, target), false);
+  assert.equal(reportPeriodsOverlap({ startDate: "2026/8/8", endDate: "2026/8/2" }, target), false);
+  const selected = selectAiReportSources([
+    { id: "late", summaryType: "weekly", startDate: "2026/8/10", endDate: "2026/8/16" },
+    { id: "early", summaryType: "weekly", startDate: "2026/8/2", endDate: "2026/8/8" },
+    { id: "invalid", summaryType: "weekly", startDate: "2026/8/40", endDate: "2026/8/41" },
+  ], target);
+  assert.deepEqual(selected.map(({ id }) => id), ["early", "late"]);
 });
 
 test("AI source text is structured and includes each source period and title", () => {
@@ -59,6 +90,38 @@ test("AI apply falls back to first visible section and rejects stale or readonly
   assert.equal(aiReportContextMatches(context, "r2", data, true), false);
   assert.equal(aiReportContextMatches(context, "r1", { ...data, endDate: "2026/12/31" }, true), false);
   assert.equal(aiReportContextMatches(context, "r1", data, false), false);
+});
+
+test("AI result arriving after a report switch cannot enable apply or set pending context", async () => {
+  const helperSource = html.match(/    function aiReportContextMatches[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
+  assert.ok(helperSource, "missing executable AI result lifecycle helper");
+  const elements = {
+    aiReportText: { value: "" },
+    copyAiReportBtn: { disabled: true },
+    applyAiReportBtn: { disabled: true },
+  };
+  const runtime = new Function("$", `${helperSource}
+    let pendingAiReportContext = null;
+    let currentReportId = "r1";
+    let reportData = { summaryType: "monthly", startDate: "2026/8/1", endDate: "2026/8/31", modules: [{ sections: [{ items: ["原草稿"] }] }] };
+    let reportCanEdit = true;
+    return {
+      settle: async (waiting, context, result) => { await waiting; return acceptAiReportResult(context, result); },
+      switchReport: () => { currentReportId = "r2"; reportData = { summaryType: "monthly", startDate: "2026/9/1", endDate: "2026/9/30", modules: [{ sections: [{ items: ["新草稿"] }] }] }; pendingAiReportContext = null; },
+      pending: () => pendingAiReportContext,
+      draft: () => reportData.modules[0].sections[0].items,
+    };`) ((id) => elements[id]);
+  let release;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const context = { reportId: "r1", summaryType: "monthly", startDate: "2026/8/1", endDate: "2026/8/31" };
+  const settling = runtime.settle(waiting, context, { result: { text: "旧报告AI结果" } });
+  runtime.switchReport();
+  release();
+  await assert.rejects(settling, /当前总结已切换/);
+  assert.equal(runtime.pending(), null);
+  assert.equal(elements.applyAiReportBtn.disabled, true);
+  assert.equal(elements.aiReportText.value, "");
+  assert.deepEqual(runtime.draft(), ["新草稿"]);
 });
 
 test("AI summary UI exposes conditional apply and guards empty sources and stale results", () => {

@@ -5043,17 +5043,33 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (failed) throw new Error("复制失败，请手动复制");
     }
 
+    function reportDateTimestamp(value) {
+      const match = normalizeDate(value).match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (!match) return null;
+      const [, yearText, monthText, dayText] = match;
+      const year = Number(yearText);
+      const month = Number(monthText);
+      const day = Number(dayText);
+      const timestamp = Date.UTC(year, month - 1, day);
+      const parsed = new Date(timestamp);
+      if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null;
+      return timestamp;
+    }
+
     function reportPeriodsOverlap(left = {}, right = {}) {
-      const date = (value) => String(value || "").replaceAll("/", "-");
-      return Boolean(date(left.startDate) && date(left.endDate) && date(right.startDate) && date(right.endDate)
-        && date(left.startDate) <= date(right.endDate) && date(left.endDate) >= date(right.startDate));
+      const leftStart = reportDateTimestamp(left.startDate);
+      const leftEnd = reportDateTimestamp(left.endDate);
+      const rightStart = reportDateTimestamp(right.startDate);
+      const rightEnd = reportDateTimestamp(right.endDate);
+      return [leftStart, leftEnd, rightStart, rightEnd].every(Number.isFinite)
+        && leftStart <= leftEnd && rightStart <= rightEnd && leftStart <= rightEnd && leftEnd >= rightStart;
     }
 
     function selectAiReportSources(rows = [], target = {}) {
       const sourceType = target.summaryType === "monthly" ? "weekly" : target.summaryType === "quarterly" ? "monthly" : "";
       if (!sourceType) return [];
-      return rows.filter((row) => row.id !== target.id && (row.summaryType || row.data?.summaryType) === sourceType && reportPeriodsOverlap(row, target))
-        .sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || "")) || String(left.id || "").localeCompare(String(right.id || "")));
+      return rows.filter((row) => row.id !== target.id && reportSummaryType(row) === sourceType && reportPeriodsOverlap(row, target))
+        .sort((left, right) => reportDateTimestamp(left.startDate) - reportDateTimestamp(right.startDate) || String(left.id || "").localeCompare(String(right.id || "")));
     }
 
     function aiReportSourceText(rows = []) {
@@ -5095,6 +5111,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function aiReportContextMatches(context, reportId, data, canEdit) {
       return Boolean(canEdit && context && context.reportId === reportId && context.summaryType === data?.summaryType
         && context.startDate === data?.startDate && context.endDate === data?.endDate);
+    }
+
+    function acceptAiReportResult(context, result) {
+      if (!aiReportContextMatches(context, currentReportId, reportData, reportCanEdit)) throw new Error("当前总结已切换，AI结果已丢弃");
+      const text = result.result.text || "";
+      $("aiReportText").value = text;
+      $("copyAiReportBtn").disabled = !text.trim();
+      pendingAiReportContext = text.trim() ? context : null;
+      $("applyAiReportBtn").disabled = !pendingAiReportContext;
+      return text;
     }
 
     function setAiReportStatus(message, tone = "") {
@@ -5149,11 +5175,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             style: $("aiSummaryStyle").value || "executive",
           }),
         });
-        if (!aiReportContextMatches(context, currentReportId, reportData, reportCanEdit)) throw new Error("当前总结已切换，AI结果已丢弃");
-        $("aiReportText").value = result.result.text || "";
-        $("copyAiReportBtn").disabled = !$("aiReportText").value.trim();
-        pendingAiReportContext = $("aiReportText").value.trim() ? context : null;
-        $("applyAiReportBtn").disabled = !pendingAiReportContext;
+        acceptAiReportResult(context, result);
         const usage = result.result.usage;
         const usageText = usage?.total_tokens ? ` · ${usage.total_tokens} tokens` : "";
         const quotaText = Number.isFinite(result.quota?.remaining) ? ` · 今日剩余${result.quota.remaining}次` : "";
