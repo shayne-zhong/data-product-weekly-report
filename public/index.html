@@ -3098,6 +3098,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           if (taskIndex >= 0) tasks[taskIndex] = taskWithOverdueSaveBarrier(tasks[taskIndex]);
           overdueTaskSaveBarriers.delete(task.id);
         } catch (error) {
+          overdueTaskSaveBarriers.delete(task.id);
           failedCount += 1;
           setSyncStatus(`逾期任务自动阻塞失败：${task.title || "未命名任务"}`, "warn");
         }

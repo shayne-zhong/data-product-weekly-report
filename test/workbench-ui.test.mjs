@@ -775,3 +775,29 @@ test("edits during overdue migration remain blocked and preserve latest fields",
     assert.deepEqual(tasks.find((task) => task.id === id), serverTasks.get(id));
   }
 });
+
+test("failed overdue migration releases its barrier for a later explicit completion", async () => {
+  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "失败前编辑" }];
+  const writes = [];
+  let shouldFail = true;
+  const runtime = overdueSaveRuntime(tasks, async (task) => {
+    writes.push({ ...task });
+    if (shouldFail) {
+      shouldFail = false;
+      throw new Error("offline");
+    }
+  });
+
+  await runtime.blockOverdueTasksForListMode();
+  assert.equal(tasks[0].status, "进行中");
+  tasks[0].status = "已完成";
+  tasks[0].description = "失败后完成并补充说明";
+  runtime.scheduleSaveTask(tasks[0]);
+  await runtime.flushPendingTaskSave("a");
+
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].status, "已完成");
+  assert.equal(writes[1].description, "失败后完成并补充说明");
+  assert.equal(writes[1].blocker, "");
+  assert.deepEqual(tasks[0], writes[1]);
+});
