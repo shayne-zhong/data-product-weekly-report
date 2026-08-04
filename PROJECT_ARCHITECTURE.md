@@ -30,11 +30,11 @@
 
 ## 主要模块映射
 
-- 任务：`lib/task-core.mjs`、`lib/workbench-utils.mjs` 及对应任务测试。
+- 任务与指标贡献：`lib/task-core.mjs`、`lib/workbench-utils.mjs` 及对应任务测试；指标当前值由已完成待办的 `goalLinks` 贡献数汇总。
 - 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
-- 目标附件：`lib/goal-artifact-core.mjs`、`lib/goal-artifact-service.mjs`、`lib/artifact-store.mjs`、`lib/artifact-preview.mjs`、`lib/multipart-file.mjs`。
+- 待办产物：`lib/task-artifact-service.mjs`、`lib/artifact-core.mjs`、`lib/artifact-store.mjs`、`lib/artifact-preview.mjs`、`lib/multipart-file.mjs`。
 - 迁移校验：`lib/legacy-netlify-state.mjs`、`lib/vercel-state-source.mjs`、`lib/state-fingerprint.mjs` 及相关脚本。
 
 ## 请求与数据流
@@ -49,8 +49,8 @@
 
 ## 定向读取指南
 
-- 待办任务：任务 UI → `lib/task-core.mjs`、`lib/workbench-utils.mjs` → 任务测试；涉及保存时补读任务 API。
-- 部门目标：目标 UI → `lib/goal-artifact-*` 和附件模块 → 对应测试。
+- 待办任务：任务 UI → `lib/task-core.mjs`、`lib/workbench-utils.mjs` → 任务测试；涉及保存或产物时补读任务 API 与 `lib/task-artifact-service.mjs`。
+- 部门目标：目标 UI → `lib/task-core.mjs` 的贡献汇总 → 目标与任务 API 测试。
 - 周报：周报 UI → 报告 API → `test/report-api.test.mjs`。
 - 登录管理：鉴权 UI → 鉴权 API → 管理员和安全模块。
 - 部署持久化：运行入口和平台适配 → `lib/state-store.mjs` → 生产测试。
