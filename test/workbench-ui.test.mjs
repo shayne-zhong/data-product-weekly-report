@@ -11,7 +11,7 @@ function aiReportHelpersRuntime() {
   const typeSource = html.match(/    function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n    function completedContributionForGoal)/)?.[0];
   const reportTypes = { weekly: {}, monthly: {}, quarterly: {} };
   const { normalizeDate, reportSummaryType } = new Function("reportTypes", `${normalizeSource}\n${typeSource}\nreturn { normalizeDate, reportSummaryType };`)(reportTypes);
-  return new Function("reportSummaryType", "normalizeDate", `${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
+  return new Function("reportSummaryType", "normalizeDate", `let aiReportGeneration = 3;\n${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
 }
 
 test("monthly and quarterly AI source selection filters overlap and type with stable ordering", () => {
@@ -85,15 +85,15 @@ test("AI apply falls back to first visible section and rejects stale or readonly
   assert.deepEqual(findAiReportApplyTarget(data), { moduleIndex: 0, sectionIndex: 1 });
   assert.equal(applyAiReportText(data, "新内容", { canEdit: false }), false);
   assert.deepEqual(data.modules[0].sections[1].items, ["旧"]);
-  const context = { reportId: "r1", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" };
+  const context = { reportId: "r1", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", generation: 3 };
   assert.equal(aiReportContextMatches(context, "r1", data, true), true);
   assert.equal(aiReportContextMatches(context, "r2", data, true), false);
   assert.equal(aiReportContextMatches(context, "r1", { ...data, endDate: "2026/12/31" }, true), false);
   assert.equal(aiReportContextMatches(context, "r1", data, false), false);
 });
 
-test("AI result arriving after a report switch cannot enable apply or set pending context", async () => {
-  const helperSource = html.match(/    function aiReportContextMatches[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
+test("AI report generation token rejects a deferred result from the moment switching starts", async () => {
+  const helperSource = html.match(/    function invalidateAiReportContext[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
   assert.ok(helperSource, "missing executable AI result lifecycle helper");
   const elements = {
     aiReportText: { value: "" },
@@ -102,22 +102,32 @@ test("AI result arriving after a report switch cannot enable apply or set pendin
   };
   const runtime = new Function("$", `${helperSource}
     let pendingAiReportContext = null;
+    let aiReportGeneration = 0;
     let currentReportId = "r1";
     let reportData = { summaryType: "monthly", startDate: "2026/8/1", endDate: "2026/8/31", modules: [{ sections: [{ items: ["原草稿"] }] }] };
     let reportCanEdit = true;
     return {
+      context: () => ({ reportId: currentReportId, summaryType: reportData.summaryType, startDate: reportData.startDate, endDate: reportData.endDate, generation: aiReportGeneration }),
       settle: async (waiting, context, result) => { await waiting; return acceptAiReportResult(context, result); },
-      switchReport: () => { currentReportId = "r2"; reportData = { summaryType: "monthly", startDate: "2026/9/1", endDate: "2026/9/30", modules: [{ sections: [{ items: ["新草稿"] }] }] }; pendingAiReportContext = null; },
+      beginSwitch: () => invalidateAiReportContext(),
+      finishSwitch: () => { currentReportId = "r2"; reportData = { summaryType: "monthly", startDate: "2026/9/1", endDate: "2026/9/30", modules: [{ sections: [{ items: ["新草稿"] }] }] }; invalidateAiReportContext(); },
       pending: () => pendingAiReportContext,
       draft: () => reportData.modules[0].sections[0].items,
     };`) ((id) => elements[id]);
+  const acceptedContext = runtime.context();
+  await runtime.settle(Promise.resolve(), acceptedContext, { result: { text: "当前报告AI结果" } });
+  assert.equal(runtime.pending(), acceptedContext);
+  assert.equal(elements.applyAiReportBtn.disabled, false);
+
   let release;
   const waiting = new Promise((resolve) => { release = resolve; });
-  const context = { reportId: "r1", summaryType: "monthly", startDate: "2026/8/1", endDate: "2026/8/31" };
+  const context = runtime.context();
   const settling = runtime.settle(waiting, context, { result: { text: "旧报告AI结果" } });
-  runtime.switchReport();
+  runtime.beginSwitch();
+  assert.deepEqual(runtime.draft(), ["原草稿"], "globals remain old while report loading is deferred");
   release();
   await assert.rejects(settling, /当前总结已切换/);
+  runtime.finishSwitch();
   assert.equal(runtime.pending(), null);
   assert.equal(elements.applyAiReportBtn.disabled, true);
   assert.equal(elements.aiReportText.value, "");
@@ -131,6 +141,9 @@ test("AI summary UI exposes conditional apply and guards empty sources and stale
   assert.match(html, /await apiJson\(`\/api\/report\/\$\{encodeURIComponent\(source\.id\)\}`\)/);
   assert.match(html, /pendingAiReportContext = null/);
   assert.match(html, /window\.confirm/);
+  assert.match(html, /async function openReport\(reportId\) \{\s*invalidateAiReportContext\(\)[\s\S]*?currentReportId = result\.report\.id;[\s\S]*?invalidateAiReportContext\(\)/);
+  assert.match(html, /async function loadCurrentReportForType\(\) \{\s*invalidateAiReportContext\(\)/);
+  assert.match(html, /async function createReportFromModal\(\) \{\s*invalidateAiReportContext\(\)/);
 });
 
 function buttonMarkup(id) {

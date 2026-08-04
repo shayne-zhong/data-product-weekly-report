@@ -820,6 +820,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
     let aiGenerating = false;
     let pendingAiReportContext = null;
+    let aiReportGeneration = 0;
     let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
     let adminModulesDepartmentId = defaultDepartment.id;
     const adminSessionStorageKey = `${storageKey}-admin-session`;
@@ -2162,6 +2163,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function loadWeek(weekId) {
+      invalidateAiReportContext();
       const result = await apiJson(`/api/week/${encodeURIComponent(weekId)}/tasks`);
       currentWeek = result.week;
       tasks = result.tasks || [];
@@ -3430,6 +3432,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function createReportFromModal() {
+      invalidateAiReportContext();
       const summaryType = $("newReportType").value || "weekly";
       const startDate = normalizeDate($("newReportStart").value);
       const endDate = normalizeDate($("newReportEnd").value);
@@ -3491,7 +3494,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function openReport(reportId) {
-      pendingAiReportContext = null;
+      invalidateAiReportContext();
       const result = await apiJson(`/api/report/${encodeURIComponent(reportId)}`);
       reportData = result.report.data;
       reportData.summaryType = reportSummaryType(result.report);
@@ -3507,6 +3510,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       reportLock = result.lock || null;
       reportLastSyncedAt = result.report.updatedAt || Date.now();
       reportCanEdit = reportStatus !== "final";
+      invalidateAiReportContext();
       renderReportEditor();
       renderReportPreview();
       renderInlineReportHistory();
@@ -3514,6 +3518,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function loadCurrentReportForType() {
+      invalidateAiReportContext();
       const range = reportRange(reportTypeFilter);
       const draft = emptyReportData(range.startDate, range.endDate, reportTypeFilter);
       if (reportTypeFilter === "quarterly") {
@@ -4972,6 +4977,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
 
     async function generateCurrentWeekReport() {
+      invalidateAiReportContext();
       const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/generate-report`, { method: "POST" });
       reportData = result.data;
       reportStatus = "draft";
@@ -5108,9 +5114,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return true;
     }
 
+    function invalidateAiReportContext() {
+      aiReportGeneration += 1;
+      pendingAiReportContext = null;
+      $("aiReportText").value = "";
+      $("copyAiReportBtn").disabled = true;
+      $("applyAiReportBtn").disabled = true;
+      return aiReportGeneration;
+    }
+
     function aiReportContextMatches(context, reportId, data, canEdit) {
       return Boolean(canEdit && context && context.reportId === reportId && context.summaryType === data?.summaryType
-        && context.startDate === data?.startDate && context.endDate === data?.endDate);
+        && context.startDate === data?.startDate && context.endDate === data?.endDate && context.generation === aiReportGeneration);
     }
 
     function acceptAiReportResult(context, result) {
@@ -5131,8 +5146,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function closeAiReportModal() {
       if (aiGenerating) return;
       $("aiReportModal").hidden = true;
-      pendingAiReportContext = null;
-      $("applyAiReportBtn").disabled = true;
+      invalidateAiReportContext();
     }
 
     async function monthlyOrQuarterlyAiSourceText(context) {
@@ -5164,7 +5178,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("aiReportText").value = "";
       setAiReportStatus(`${aiSettings.providerLabel} 正在提炼，请稍候...`, "loading");
       try {
-        const context = { reportId: currentReportId, summaryType: reportData.summaryType || "weekly", startDate: reportData.startDate, endDate: reportData.endDate };
+        const context = { reportId: currentReportId, summaryType: reportData.summaryType || "weekly", startDate: reportData.startDate, endDate: reportData.endDate, generation: aiReportGeneration };
         const sourceText = context.summaryType === "weekly" ? renderReportText() : await monthlyOrQuarterlyAiSourceText(context);
         const result = await apiJson("/api/ai/report-summary", {
           method: "POST",
