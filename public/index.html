@@ -2931,11 +2931,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       let failedCount = 0;
       for (const task of overdueTasks) {
         const overdueText = overdueBlockerText(task);
-        const existingBlocker = String(task.blocker || "").trim();
+        const originalBlocker = String(task.blocker || "");
+        const hasExistingBlocker = originalBlocker.trim().length > 0;
+        const alreadyHasOverdueText = originalBlocker.includes(overdueText);
         const updatedTask = {
           ...task,
           status: "阻塞",
-          blocker: existingBlocker && !task.blocker.includes(overdueText) ? `${existingBlocker}\n${overdueText}` : (existingBlocker || overdueText),
+          blocker: alreadyHasOverdueText ? originalBlocker : (hasExistingBlocker ? `${originalBlocker}\n${overdueText}` : overdueText),
         };
         try {
           await persistTask(updatedTask);
@@ -3872,9 +3874,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
       const taskViewButton = event.target.closest("[data-task-view-mode]");
       if (taskViewButton) {
-        taskViewMode = taskViewButton.dataset.taskViewMode === "list" ? "list" : "quadrant";
+        const previousMode = taskViewMode;
+        const nextMode = taskViewButton.dataset.taskViewMode === "list" ? "list" : "quadrant";
+        taskViewMode = nextMode;
         saveTaskViewPreferences();
-        if (taskViewMode === "list") await blockOverdueTasksForListMode();
+        if (previousMode !== "list" && nextMode === "list") await blockOverdueTasksForListMode();
         renderBoard();
         return;
       }

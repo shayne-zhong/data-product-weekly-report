@@ -10,6 +10,18 @@ function buttonMarkup(id) {
   return match[0];
 }
 
+function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
+  const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
+  const migrationFunction = html.match(/    async function blockOverdueTasksForListMode\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function scheduleSaveTask)/)?.[0];
+  assert.ok(blockerFunction && migrationFunction, "missing executable overdue migration functions");
+  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", `${blockerFunction}\n${migrationFunction}\nreturn blockOverdueTasksForListMode;`)(
+    tasks,
+    () => "2026-08-04",
+    persistTask,
+    setSyncStatus,
+  );
+}
+
 test("workbench uses the generic page title and custom favicon", () => {
   assert.match(html, /<title>部门工作台<\/title>/);
   assert.match(html, /<link rel="icon"[^>]+href="favicon\.svg"/);
@@ -198,9 +210,44 @@ test("entering list mode blocks overdue tasks independently and idempotently", (
   assert.match(html, /function overdueBlockerText\(task\)/);
   assert.match(html, /任务已逾期（原计划完成日期：\$\{task\.dueDate\}）/);
   assert.match(html, /task\.status !== "已完成" && task\.status !== "阻塞" && task\.dueDate && task\.dueDate < todayIso\(\)/);
-  assert.match(html, /task\.blocker\.includes\(overdueText\)/);
+  assert.match(html, /includes\(overdueText\)/);
   assert.match(html, /await persistTask\(updatedTask\)/);
   assert.match(html, /tasks\[taskIndex\] = updatedTask/);
   assert.match(html, /catch \(error\)[\s\S]{0,300}逾期任务自动阻塞失败/);
   assert.match(html, /await blockOverdueTasksForListMode\(\);\s*renderBoard\(\)/);
+  assert.match(html, /previousMode !== "list" && nextMode === "list"/);
+});
+
+test("overdue migration preserves blocker characters and appends its message once", async () => {
+  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "  原风险  " }];
+  const saved = [];
+  const migrate = overdueMigrationRuntime(tasks, async (task) => saved.push({ ...task }));
+
+  await migrate();
+  await migrate();
+
+  assert.equal(tasks[0].blocker, "  原风险  \n任务已逾期（原计划完成日期：2026-08-01）");
+  assert.equal(tasks[0].blocker.match(/任务已逾期/g)?.length, 1);
+  assert.equal(saved.length, 1);
+});
+
+test("overdue migration continues after failure and updates only successful local tasks", async () => {
+  const tasks = [
+    { id: "fail", title: "失败项", status: "进行中", dueDate: "2026-08-01", blocker: "" },
+    { id: "ok", title: "成功项", status: "待开始", dueDate: "2026-08-02", blocker: "已有" },
+  ];
+  const attempts = [];
+  const messages = [];
+  const migrate = overdueMigrationRuntime(tasks, async (task) => {
+    attempts.push(task.id);
+    if (task.id === "fail") throw new Error("save failed");
+  }, (message) => messages.push(message));
+
+  await migrate();
+
+  assert.deepEqual(attempts, ["fail", "ok"]);
+  assert.equal(tasks[0].status, "进行中");
+  assert.equal(tasks[1].status, "阻塞");
+  assert.equal(tasks[1].blocker, "已有\n任务已逾期（原计划完成日期：2026-08-02）");
+  assert.ok(messages.some((message) => message.includes("1 项逾期任务自动阻塞失败")));
 });
