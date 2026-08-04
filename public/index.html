@@ -3547,8 +3547,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 <br><small>${reportStatusLabel(report.status)} · ${escapeHtml(displayDate(report.startDate || ""))} — ${escapeHtml(displayDate(report.endDate || ""))}</small>
               </div>
             </div>
-            ${report.id ? `<div class="report-item-actions">
-              <button class="btn small ghost" data-report-open="${report.id}">打开</button>
+            ${isActive && report.id ? `<div class="report-item-actions">
               <button class="btn small danger" data-report-delete="${report.id}">删除</button>
             </div>` : ""}
           </div>
@@ -4018,6 +4017,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
       const inlineDeleteReportBtn = event.target.closest("#reportHistoryInline [data-report-delete]");
       if (inlineDeleteReportBtn) {
+        event.stopPropagation();
         const id = inlineDeleteReportBtn.dataset.reportDelete;
         if (!isCurrentUserReportManager()) return setSyncStatus("仅钟南海可删除总结", "warn");
         if (!confirm("确认删除这份总结记录？删除后不可恢复。")) return;
@@ -4981,6 +4981,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setSyncStatus("已生成复制文本", "ok");
     }
 
+    async function copyTextToClipboard(text) {
+      const value = String(text || "");
+      if (!value.trim()) throw new Error("没有可复制的内容");
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(value);
+          return;
+        } catch {}
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      try {
+        textarea.focus();
+        textarea.select();
+        textarea.setSelectionRange(0, value.length);
+        if (!document.execCommand("copy")) throw new Error("复制失败，请手动复制");
+      } catch (error) {
+        throw new Error(error?.message || "复制失败，请手动复制");
+      } finally {
+        if (textarea.parentNode) textarea.parentNode.removeChild(textarea);
+      }
+    }
+
     function setAiReportStatus(message, tone = "") {
       $("aiReportStatus").textContent = message;
       $("aiReportStatus").className = `ai-status ${tone}`.trim();
@@ -5098,14 +5124,20 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("generateAiReportBtn").addEventListener("click", generateAiReport);
     $("copyOriginalFromAiBtn").addEventListener("click", async () => {
-      await navigator.clipboard.writeText(renderReportText());
-      setSyncStatus("已复制原始文本", "ok");
+      try {
+        await copyTextToClipboard(renderReportText());
+        setSyncStatus("已复制原始文本", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "复制原始文本失败", "warn");
+      }
     });
     $("copyAiReportBtn").addEventListener("click", async () => {
-      const text = $("aiReportText").value.trim();
-      if (!text) return;
-      await navigator.clipboard.writeText(text);
-      setSyncStatus("已复制AI提炼结果", "ok");
+      try {
+        await copyTextToClipboard($("aiReportText").value);
+        setSyncStatus("已复制AI提炼结果", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "复制AI提炼结果失败", "warn");
+      }
     });
     $("previewDiffBtn").addEventListener("click", () => {
       const changedModules = reportData.modules.filter((mod) => mod.sections.some((section) => (section.items || []).length)).length;

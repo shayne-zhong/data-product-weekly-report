@@ -10,6 +10,59 @@ function buttonMarkup(id) {
   return match[0];
 }
 
+function clipboardRuntime({ clipboard, execCommand = () => true } = {}) {
+  const source = html.match(/    async function copyTextToClipboard\(text\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n)/)?.[0];
+  assert.ok(source, "missing executable clipboard helper");
+  const children = [];
+  const document = {
+    body: {
+      appendChild(node) { children.push(node); node.parentNode = this; },
+      removeChild(node) { children.splice(children.indexOf(node), 1); node.parentNode = null; },
+    },
+    createElement(tag) {
+      assert.equal(tag, "textarea");
+      return { style: {}, focus() {}, select() {}, setSelectionRange() {} };
+    },
+    execCommand,
+  };
+  const navigator = clipboard === undefined ? {} : { clipboard };
+  const copyTextToClipboard = new Function("navigator", "document", `${source}\nreturn copyTextToClipboard;`)(navigator, document);
+  return { copyTextToClipboard, children };
+}
+
+test("clipboard helper uses the async Clipboard API when available", async () => {
+  const writes = [];
+  const runtime = clipboardRuntime({ clipboard: { writeText: async (text) => writes.push(text) } });
+  await runtime.copyTextToClipboard("report");
+  assert.deepEqual(writes, ["report"]);
+  assert.equal(runtime.children.length, 0);
+});
+
+test("clipboard helper falls back after Clipboard API rejection and always cleans up", async () => {
+  const runtime = clipboardRuntime({ clipboard: { writeText: async () => { throw new Error("denied"); } }, execCommand: (command) => command === "copy" });
+  await runtime.copyTextToClipboard("report");
+  assert.equal(runtime.children.length, 0);
+});
+
+test("clipboard helper rejects empty text and failed fallback without leaking textarea", async () => {
+  const emptyRuntime = clipboardRuntime();
+  await assert.rejects(emptyRuntime.copyTextToClipboard("   "), /没有可复制的内容/);
+  assert.equal(emptyRuntime.children.length, 0);
+
+  const failedRuntime = clipboardRuntime({ execCommand: () => false });
+  await assert.rejects(failedRuntime.copyTextToClipboard("report"), /复制失败/);
+  assert.equal(failedRuntime.children.length, 0);
+});
+
+test("inline report list opens by row and only renders delete for the active saved report", () => {
+  const source = html.match(/    function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function reportHistoryLabel)/)?.[0];
+  assert.ok(source, "missing inline report renderer");
+  assert.doesNotMatch(source, />打开<\/button>/);
+  assert.match(source, /isActive && report\.id[\s\S]*data-report-delete/);
+  assert.match(source, /data-report-open="\$\{report\.id\}"/);
+  assert.match(html, /inlineDeleteReportBtn[\s\S]*?event\.stopPropagation\(\)[\s\S]*?return;[\s\S]*?inlineReportBtn/);
+});
+
 function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => storage.set(key, value)) {
   const source = html.match(/    const goalTableColumns = \[[\s\S]*?(?=\r?\n\r?\n    const initialGoalsRows)/)?.[0];
   assert.ok(source, "missing executable goal column width functions");
