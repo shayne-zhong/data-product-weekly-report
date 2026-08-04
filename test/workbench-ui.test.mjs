@@ -10,14 +10,14 @@ function buttonMarkup(id) {
   return match[0];
 }
 
-function goalColumnWidthRuntime(storage = new Map()) {
+function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => storage.set(key, value)) {
   const source = html.match(/    const goalTableColumns = \[[\s\S]*?(?=\r?\n\r?\n    const initialGoalsRows)/)?.[0];
   assert.ok(source, "missing executable goal column width functions");
   const localStorage = {
     getItem: (key) => storage.get(key) ?? null,
-    setItem: (key, value) => storage.set(key, value),
+    setItem,
   };
-  return new Function("localStorage", "storageKey", "currentUser", "currentDepartment", `${source}\nreturn { goalTableColumns, normalizeGoalColumnWidths, loadGoalColumnWidths, saveGoalColumnWidths, goalColumnWidthStorageKey };`)(
+  return new Function("localStorage", "storageKey", "currentUser", "currentDepartment", `${source}\nreturn { goalTableColumns, normalizeGoalColumnWidths, loadGoalColumnWidths, saveGoalColumnWidths, goalColumnWidthStorageKey, clampGoalColumnWidth, keyboardGoalColumnWidth, updateGoalColumnResizeHandle };`)(
     localStorage,
     "dp-workbench",
     { username: "alice", department: { id: "dept-a" } },
@@ -47,17 +47,43 @@ test("goal column widths recover defaults, clamp bounds, and restore isolated st
   assert.match(runtime.goalColumnWidthStorageKey(), /dept-a-alice$/);
 });
 
+test("goal column keyboard math clamps and storage failures remain non-throwing", () => {
+  const runtime = goalColumnWidthRuntime(new Map(), () => { throw new Error("quota"); });
+  assert.equal(runtime.clampGoalColumnWidth("owner", -100), 76);
+  assert.equal(runtime.clampGoalColumnWidth("owner", 999), 220);
+  assert.equal(runtime.keyboardGoalColumnWidth("owner", 100, "ArrowLeft", false), 92);
+  assert.equal(runtime.keyboardGoalColumnWidth("owner", 100, "ArrowRight", true), 132);
+  assert.equal(runtime.keyboardGoalColumnWidth("owner", 219, "ArrowRight", false), 220);
+  assert.equal(runtime.saveGoalColumnWidths({ owner: 104 }), false);
+});
+
+test("goal resize handle aria follows clamped width", () => {
+  const runtime = goalColumnWidthRuntime();
+  const attributes = new Map();
+  const handle = { setAttribute: (key, value) => attributes.set(key, String(value)) };
+  const width = runtime.updateGoalColumnResizeHandle(handle, "artifact", 999);
+  assert.equal(width, 320);
+  assert.equal(attributes.get("aria-valuemin"), "120");
+  assert.equal(attributes.get("aria-valuemax"), "320");
+  assert.equal(attributes.get("aria-valuenow"), "320");
+});
+
 test("goal table renders eleven stable columns with accessible pointer resize handles", () => {
   assert.match(html, /<colgroup>\$\{goalTableColumns\.map/);
   assert.match(html, /data-goal-column="\$\{column\.key\}"/);
   assert.match(html, /class="goal-column-resize"/);
   assert.match(html, /role="separator"/);
   assert.match(html, /aria-orientation="vertical"/);
+  assert.match(html, /aria-valuemin=/);
+  assert.match(html, /aria-valuemax=/);
+  assert.match(html, /aria-valuenow=/);
   assert.match(html, /data-goal-column-resize=/);
   assert.match(html, /goalColumnResizeState/);
   assert.match(html, /setPointerCapture/);
   assert.match(html, /document\.addEventListener\("pointermove"[\s\S]*applyGoalColumnWidth/);
   assert.match(html, /document\.addEventListener\("pointerup", finishGoalColumnResize\)/);
+  assert.match(html, /ArrowLeft|ArrowRight/);
+  assert.match(html, /cancelGoalColumnResize/);
   assert.match(html, /goalColumnWidthsKey !== goalColumnWidthStorageKey\(\)/);
   assert.match(html, /\.goal-artifact-cell\{min-width:0\}/);
 });

@@ -898,6 +898,27 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }));
     }
 
+    function clampGoalColumnWidth(key, width) {
+      const column = goalTableColumns.find((item) => item.key === key);
+      if (!column) return Number(width) || 0;
+      return Math.max(column.minWidth, Math.min(column.maxWidth, Math.round(Number(width) || column.defaultWidth)));
+    }
+
+    function keyboardGoalColumnWidth(key, width, direction, largeStep = false) {
+      const delta = (largeStep ? 32 : 8) * (direction === "ArrowLeft" ? -1 : 1);
+      return clampGoalColumnWidth(key, Number(width) + delta);
+    }
+
+    function updateGoalColumnResizeHandle(handle, key, width) {
+      const column = goalTableColumns.find((item) => item.key === key);
+      if (!column || !handle) return width;
+      const nextWidth = clampGoalColumnWidth(key, width);
+      handle.setAttribute("aria-valuemin", column.minWidth);
+      handle.setAttribute("aria-valuemax", column.maxWidth);
+      handle.setAttribute("aria-valuenow", nextWidth);
+      return nextWidth;
+    }
+
     function loadGoalColumnWidths() {
       try {
         return normalizeGoalColumnWidths(JSON.parse(localStorage.getItem(goalColumnWidthStorageKey()) || "null"));
@@ -909,15 +930,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function saveGoalColumnWidths(widths) {
       goalColumnWidths = normalizeGoalColumnWidths(widths);
       goalColumnWidthsKey = goalColumnWidthStorageKey();
-      localStorage.setItem(goalColumnWidthsKey, JSON.stringify(goalColumnWidths));
+      try {
+        localStorage.setItem(goalColumnWidthsKey, JSON.stringify(goalColumnWidths));
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function applyGoalColumnWidth(key, width) {
       const column = goalTableColumns.find((item) => item.key === key);
       if (!column) return;
-      goalColumnWidths[key] = Math.max(column.minWidth, Math.min(column.maxWidth, Math.round(width)));
+      goalColumnWidths[key] = clampGoalColumnWidth(key, width);
       const col = document.querySelector(`#goalsTable col[data-goal-column="${key}"]`);
       if (col) col.style.width = `${goalColumnWidths[key]}px`;
+      updateGoalColumnResizeHandle(document.querySelector(`[data-goal-column-resize="${key}"]`), key, goalColumnWidths[key]);
     }
 
     const initialGoalsRows = [
@@ -1748,7 +1775,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("goalsTable").innerHTML = `
         <colgroup>${goalTableColumns.map((column) => `<col data-goal-column="${column.key}" style="width:${goalColumnWidths[column.key]}px" />`).join("")}</colgroup>
         <thead><tr>
-          ${goalTableColumns.map((column) => `<th data-goal-column="${column.key}" class="${column.key === "lastYearActual" ? "goal-nowrap" : ""}">${column.label}<button type="button" class="goal-column-resize" data-goal-column-resize="${column.key}" role="separator" aria-orientation="vertical" aria-label="调整${column.label}列宽"></button></th>`).join("")}
+          ${goalTableColumns.map((column) => `<th data-goal-column="${column.key}" class="${column.key === "lastYearActual" ? "goal-nowrap" : ""}">${column.label}<button type="button" class="goal-column-resize" data-goal-column-resize="${column.key}" role="separator" aria-orientation="vertical" aria-valuemin="${column.minWidth}" aria-valuemax="${column.maxWidth}" aria-valuenow="${goalColumnWidths[column.key]}" aria-label="调整${column.label}列宽"></button></th>`).join("")}
         </tr></thead>
         <tbody>
           ${rows.map(({ row, rowIndex }) => {
@@ -4418,8 +4445,26 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       saveGoalColumnWidths(goalColumnWidths);
     }
 
+    function cancelGoalColumnResize(event) {
+      if (!goalColumnResizeState || event.pointerId !== goalColumnResizeState.pointerId) return;
+      const { key, startWidth, handle } = goalColumnResizeState;
+      handle.releasePointerCapture?.(event.pointerId);
+      goalColumnResizeState = null;
+      applyGoalColumnWidth(key, startWidth);
+    }
+
     document.addEventListener("pointerup", finishGoalColumnResize);
-    document.addEventListener("pointercancel", finishGoalColumnResize);
+    document.addEventListener("pointercancel", cancelGoalColumnResize);
+
+    document.addEventListener("keydown", (event) => {
+      const handle = event.target.closest("[data-goal-column-resize]");
+      if (!handle || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      const key = handle.dataset.goalColumnResize;
+      applyGoalColumnWidth(key, keyboardGoalColumnWidth(key, goalColumnWidths[key], event.key, event.shiftKey));
+      saveGoalColumnWidths(goalColumnWidths);
+      event.preventDefault();
+      event.stopPropagation();
+    });
 
     document.addEventListener("pointerdown", (event) => {
       const handle = event.target.closest("#quadrantHandle");
