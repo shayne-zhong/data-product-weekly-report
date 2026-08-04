@@ -5,10 +5,10 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
 function aiReportHelpersRuntime() {
-  const source = html.match(/    function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
+  const source = html.match(/ {4}function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/)?.[0];
   assert.ok(source, "missing executable AI report source/apply helpers");
-  const normalizeSource = html.match(/    function normalizeDate\(value\) \{[\s\S]*?\r?\n    \}/)?.[0];
-  const typeSource = html.match(/    function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n    function completedContributionForGoal)/)?.[0];
+  const normalizeSource = html.match(/ {4}function normalizeDate\(value\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  const typeSource = html.match(/ {4}function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n {4}function completedContributionForGoal)/)?.[0];
   const reportTypes = { weekly: {}, monthly: {}, quarterly: {} };
   const { normalizeDate, reportSummaryType } = new Function("reportTypes", `${normalizeSource}\n${typeSource}\nreturn { normalizeDate, reportSummaryType };`)(reportTypes);
   return new Function("reportSummaryType", "normalizeDate", `let aiReportGeneration = 3;\n${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
@@ -93,7 +93,7 @@ test("AI apply falls back to first visible section and rejects stale or readonly
 });
 
 test("AI report generation token rejects a deferred result from the moment switching starts", async () => {
-  const helperSource = html.match(/    function invalidateAiReportContext[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
+  const helperSource = html.match(/ {4}function invalidateAiReportContext[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/)?.[0];
   assert.ok(helperSource, "missing executable AI result lifecycle helper");
   const elements = {
     aiReportText: { value: "" },
@@ -153,7 +153,7 @@ function buttonMarkup(id) {
 }
 
 function clipboardRuntime({ clipboard, execCommand = () => true, activeElement = null, selection = null } = {}) {
-  const source = html.match(/    async function copyTextToClipboard\(text\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n)/)?.[0];
+  const source = html.match(/ {4}async function copyTextToClipboard\(text\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n)/)?.[0];
   assert.ok(source, "missing executable clipboard helper");
   const children = [];
   const document = {
@@ -225,13 +225,13 @@ test("clipboard fallback false and missing APIs report the same stable error", a
 });
 
 function inlineReportActionRuntime() {
-  const source = html.match(/    function inlineReportClickAction\(event\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n)/)?.[0];
+  const source = html.match(/ {4}function inlineReportClickAction\(event\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n)/)?.[0];
   assert.ok(source, "missing executable inline report action helper");
   return new Function(`${source}\nreturn inlineReportClickAction;`)();
 }
 
 test("inline report list opens by row and only renders delete for the active saved report", () => {
-  const source = html.match(/    function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function reportHistoryLabel)/)?.[0];
+  const source = html.match(/ {4}function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function reportHistoryLabel)/)?.[0];
   assert.ok(source, "missing inline report renderer");
   assert.doesNotMatch(source, />打开<\/button>/);
   assert.match(source, /isActive && report\.id[\s\S]*data-report-delete/);
@@ -240,7 +240,7 @@ test("inline report list opens by row and only renders delete for the active sav
 });
 
 test("inline report item and click decisions keep delete exclusive to the active row", () => {
-  const renderer = html.match(/    function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function reportHistoryLabel)/)?.[0];
+  const renderer = html.match(/ {4}function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function reportHistoryLabel)/)?.[0];
   assert.match(renderer, /isActive && report\.id/);
   const decide = inlineReportActionRuntime();
   let stopped = false;
@@ -256,7 +256,7 @@ test("inline report item and click decisions keep delete exclusive to the active
 });
 
 function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => storage.set(key, value)) {
-  const source = html.match(/    const goalTableColumns = \[[\s\S]*?(?=\r?\n\r?\n    const initialGoalsRows)/)?.[0];
+  const source = html.match(/ {4}const goalTableColumns = \[[\s\S]*?(?=\r?\n\r?\n {4}const initialGoalsRows)/)?.[0];
   assert.ok(source, "missing executable goal column width functions");
   const localStorage = {
     getItem: (key) => storage.get(key) ?? null,
@@ -334,8 +334,8 @@ test("goal table renders eleven stable columns with accessible pointer resize ha
 });
 
 function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
-  const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
-  const migrationFunction = html.match(/    async function blockOverdueTasksForListMode\(\) \{[\s\S]*?\r?\n    \}(?=\r?\n\r?\n    function scheduleSaveTask)/)?.[0];
+  const blockerFunction = html.match(/ {4}function overdueBlockerText\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  const migrationFunction = html.match(/ {4}async function blockOverdueTasksForListMode\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function scheduleSaveTask)/)?.[0];
   assert.ok(blockerFunction && migrationFunction, "missing executable overdue migration functions");
   return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", `async function flushPendingTaskSave() {}\n${blockerFunction}\n${migrationFunction}\nreturn blockOverdueTasksForListMode;`)(
     tasks,
@@ -346,8 +346,8 @@ function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
 }
 
 function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}, timers = {}) {
-  const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
-  const saveFunctions = html.match(/    function drainPendingTaskSave[\s\S]*?(?=\r?\n\r?\n    function decodeReportEscapes)/)?.[0];
+  const blockerFunction = html.match(/ {4}function overdueBlockerText\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  const saveFunctions = html.match(/ {4}function drainPendingTaskSave[\s\S]*?(?=\r?\n\r?\n {4}function decodeReportEscapes)/)?.[0];
   assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
   const pendingTaskSaves = new Map();
   return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, blockOverdueTasksForListMode };`)(

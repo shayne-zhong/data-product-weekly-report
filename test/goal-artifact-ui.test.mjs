@@ -5,7 +5,11 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
 test("goal table exposes the artifact column and accessible panel", () => {
-  assert.match(html, /<th>产物<\/th>/);
+  assert.match(
+    html,
+    /<th data-goal-column="\$\{column\.key\}"[^>]*>\$\{column\.label\}<button[^>]*class="goal-column-resize"[^>]*data-goal-column-resize="\$\{column\.key\}"[^>]*aria-label="调整\$\{column\.label\}列宽"/,
+  );
+  assert.match(html, /\{ key: "artifact", label: "产物"/);
   assert.match(html, /id="goalArtifactModal"/);
   assert.match(html, /aria-label="目标产物"/);
   assert.match(html, /data-goal-artifact=/);
