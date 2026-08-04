@@ -4,6 +4,72 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
+function aiReportHelpersRuntime() {
+  const source = html.match(/    function reportPeriodsOverlap[\s\S]*?(?=\r?\n\r?\n    function setAiReportStatus)/)?.[0];
+  assert.ok(source, "missing executable AI report source/apply helpers");
+  return new Function(`${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)();
+}
+
+test("monthly and quarterly AI source selection filters overlap and type with stable ordering", () => {
+  const { selectAiReportSources } = aiReportHelpersRuntime();
+  const reports = [
+    { id: "w2", summaryType: "weekly", startDate: "2026/08/03", endDate: "2026/08/09" },
+    { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" },
+    { id: "w1b", summaryType: "weekly", startDate: "2026/07/27", endDate: "2026/08/02" },
+    { id: "w1a", summaryType: "weekly", startDate: "2026/07/27", endDate: "2026/08/02" },
+    { id: "old", summaryType: "weekly", startDate: "2026/07/01", endDate: "2026/07/07" },
+    { id: "m1", summaryType: "monthly", startDate: "2026/07/01", endDate: "2026/07/31" },
+  ];
+  assert.deepEqual(selectAiReportSources(reports, { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" }).map(({ id }) => id), ["w1a", "w1b", "w2"]);
+  assert.deepEqual(selectAiReportSources(reports, { id: "q", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" }).map(({ id }) => id), ["m1", "self"]);
+  assert.deepEqual(selectAiReportSources(reports, { id: "w", summaryType: "weekly", startDate: "2026/08/01", endDate: "2026/08/07" }), []);
+});
+
+test("AI source text is structured and includes each source period and title", () => {
+  const { aiReportSourceText } = aiReportHelpersRuntime();
+  const text = aiReportSourceText([
+    { id: "w1", title: "第31周", startDate: "2026/07/27", endDate: "2026/08/02", data: { modules: [{ title: "经营", sections: [{ title: "本周进展", items: ["完成A", "完成B"] }] }] } },
+  ]);
+  assert.match(text, /来源 1：第31周/);
+  assert.match(text, /周期：2026\/07\/27—2026\/08\/02/);
+  assert.match(text, /经营/);
+  assert.match(text, /本周进展：完成A；完成B/);
+});
+
+test("AI apply mapping prefers the first progress module and preserves structure", () => {
+  const { findAiReportApplyTarget, applyAiReportText } = aiReportHelpersRuntime();
+  const data = { summaryType: "monthly", modules: [
+    { title: "汇总", sections: [{ title: "目标", items: ["目标"] }, { title: "本月进展", items: ["旧内容"] }] },
+    { title: "本月进展", sections: [{ title: "内容", items: ["旧内容"] }] },
+  ] };
+  assert.deepEqual(findAiReportApplyTarget(data), { moduleIndex: 0, sectionIndex: 1 });
+  assert.equal(applyAiReportText(data, "第一行\n\n 第二行 "), true);
+  assert.deepEqual(data.modules[0].sections[1].items, ["第一行", "第二行"]);
+  assert.deepEqual(data.modules[0].sections[0].items, ["目标"]);
+});
+
+test("AI apply falls back to first visible section and rejects stale or readonly context", () => {
+  const { findAiReportApplyTarget, applyAiReportText, aiReportContextMatches } = aiReportHelpersRuntime();
+  const data = { summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", modules: [{ title: "其他", sections: [{ title: "隐藏", hidden: true, items: [] }, { title: "可见", items: ["旧"] }] }] };
+  assert.deepEqual(findAiReportApplyTarget(data), { moduleIndex: 0, sectionIndex: 1 });
+  assert.equal(applyAiReportText(data, "新内容", { canEdit: false }), false);
+  assert.deepEqual(data.modules[0].sections[1].items, ["旧"]);
+  const context = { reportId: "r1", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" };
+  assert.equal(aiReportContextMatches(context, "r1", data, true), true);
+  assert.equal(aiReportContextMatches(context, "r2", data, true), false);
+  assert.equal(aiReportContextMatches(context, "r1", { ...data, endDate: "2026/12/31" }, true), false);
+  assert.equal(aiReportContextMatches(context, "r1", data, false), false);
+});
+
+test("AI summary UI exposes conditional apply and guards empty sources and stale results", () => {
+  assert.match(buttonMarkup("applyAiReportBtn"), /写入当前总结/);
+  assert.match(html, /applyAiReportBtn[\s\S]*summaryType === "weekly"/);
+  assert.match(html, /未找到当前周期内可用于汇总的已保存/);
+  assert.match(html, /await apiJson\(`\/api\/report\/\$\{encodeURIComponent\(source\.id\)\}`\)/);
+  assert.match(html, /pendingAiReportContext = null/);
+  assert.match(html, /window\.confirm/);
+});
+
 function buttonMarkup(id) {
   const match = html.match(new RegExp(`<button[^>]*id="${id}"[^>]*>[\\s\\S]*?<\\/button>`));
   assert.ok(match, `missing ${id}`);

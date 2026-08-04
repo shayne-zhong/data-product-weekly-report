@@ -501,7 +501,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
   <div class="modal-mask" id="aiReportModal" hidden>
     <section class="modal ai-modal">
       <div class="modal-head">
-        <strong>AI提炼周报</strong>
+        <strong id="aiReportModalTitle">AI提炼周报</strong>
         <button class="btn small ghost" id="closeAiReportModal">×</button>
       </div>
       <div class="modal-body">
@@ -515,6 +515,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       <div class="modal-foot">
         <button class="ghost-btn" id="copyOriginalFromAiBtn">复制原始文本</button>
         <button class="soft-btn" id="generateAiReportBtn">重新生成</button>
+        <button class="primary-btn" id="applyAiReportBtn" hidden disabled>写入当前总结</button>
         <button class="primary-btn" id="copyAiReportBtn" disabled>复制AI结果</button>
       </div>
     </section>
@@ -818,6 +819,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let accountRows = defaultDepartmentAccounts.map((account) => ({ ...account }));
     let aiSettings = { enabled: false, provider: "deepseek", providerLabel: "DeepSeek", model: "deepseek-v4-flash", configured: false };
     let aiGenerating = false;
+    let pendingAiReportContext = null;
     let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
     let adminModulesDepartmentId = defaultDepartment.id;
     const adminSessionStorageKey = `${storageKey}-admin-session`;
@@ -3207,6 +3209,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
       const message = reportLockMessage();
       if (message) setSyncStatus(message, "warn");
+      const summaryType = reportData.summaryType || "weekly";
+      const aiLabel = summaryType === "monthly" ? "月报" : summaryType === "quarterly" ? "季报" : "周报";
+      $("aiPolishReportBtn").textContent = summaryType === "weekly" ? "✨ AI提炼周报" : `✨ AI总结${aiLabel}`;
     }
 
     function renderReportEditor() {
@@ -3486,6 +3491,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function openReport(reportId) {
+      pendingAiReportContext = null;
       const result = await apiJson(`/api/report/${encodeURIComponent(reportId)}`);
       reportData = result.report.data;
       reportData.summaryType = reportSummaryType(result.report);
@@ -5037,6 +5043,60 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (failed) throw new Error("复制失败，请手动复制");
     }
 
+    function reportPeriodsOverlap(left = {}, right = {}) {
+      const date = (value) => String(value || "").replaceAll("/", "-");
+      return Boolean(date(left.startDate) && date(left.endDate) && date(right.startDate) && date(right.endDate)
+        && date(left.startDate) <= date(right.endDate) && date(left.endDate) >= date(right.startDate));
+    }
+
+    function selectAiReportSources(rows = [], target = {}) {
+      const sourceType = target.summaryType === "monthly" ? "weekly" : target.summaryType === "quarterly" ? "monthly" : "";
+      if (!sourceType) return [];
+      return rows.filter((row) => row.id !== target.id && (row.summaryType || row.data?.summaryType) === sourceType && reportPeriodsOverlap(row, target))
+        .sort((left, right) => String(left.startDate || "").localeCompare(String(right.startDate || "")) || String(left.id || "").localeCompare(String(right.id || "")));
+    }
+
+    function aiReportSourceText(rows = []) {
+      return rows.map((row, index) => {
+        const data = row.data || row;
+        const body = (data.modules || []).map((module) => {
+          const sections = (module.sections || []).filter((section) => !section.hidden).map((section) => `${section.title || "内容"}：${(section.items || []).map((item) => String(item || "").trim()).filter(Boolean).join("；")}`).filter((line) => !line.endsWith("："));
+          return [module.title || "未命名模块", ...sections].join("\n");
+        }).filter(Boolean).join("\n");
+        return `来源 ${index + 1}：${data.title || row.title || row.id || "未命名总结"}\n周期：${data.startDate || row.startDate || "-"}—${data.endDate || row.endDate || "-"}\n${body}`.trim();
+      }).join("\n\n---\n\n");
+    }
+
+    function findAiReportApplyTarget(data = {}) {
+      const progressTitle = data.summaryType === "monthly" ? "本月进展" : data.summaryType === "quarterly" ? "本季进展" : "";
+      const firstModuleProgress = (data.modules?.[0]?.sections || []).findIndex((section) => !section.hidden && String(section.title || "").trim() === progressTitle);
+      if (firstModuleProgress >= 0) return { moduleIndex: 0, sectionIndex: firstModuleProgress };
+      let moduleIndex = (data.modules || []).findIndex((module) => String(module.title || "").trim() === progressTitle);
+      if (moduleIndex >= 0) {
+        const sectionIndex = (data.modules[moduleIndex].sections || []).findIndex((section) => !section.hidden);
+        if (sectionIndex >= 0) return { moduleIndex, sectionIndex };
+      }
+      for (moduleIndex = 0; moduleIndex < (data.modules || []).length; moduleIndex += 1) {
+        const sectionIndex = (data.modules[moduleIndex].sections || []).findIndex((section) => !section.hidden);
+        if (sectionIndex >= 0) return { moduleIndex, sectionIndex };
+      }
+      return null;
+    }
+
+    function applyAiReportText(data, text, { canEdit = true } = {}) {
+      if (!canEdit) return false;
+      const target = findAiReportApplyTarget(data);
+      const items = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      if (!target || !items.length) return false;
+      data.modules[target.moduleIndex].sections[target.sectionIndex].items = items;
+      return true;
+    }
+
+    function aiReportContextMatches(context, reportId, data, canEdit) {
+      return Boolean(canEdit && context && context.reportId === reportId && context.summaryType === data?.summaryType
+        && context.startDate === data?.startDate && context.endDate === data?.endDate);
+    }
+
     function setAiReportStatus(message, tone = "") {
       $("aiReportStatus").textContent = message;
       $("aiReportStatus").className = `ai-status ${tone}`.trim();
@@ -5045,6 +5105,19 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function closeAiReportModal() {
       if (aiGenerating) return;
       $("aiReportModal").hidden = true;
+      pendingAiReportContext = null;
+      $("applyAiReportBtn").disabled = true;
+    }
+
+    async function monthlyOrQuarterlyAiSourceText(context) {
+      const sources = selectAiReportSources(reports, { id: context.reportId, ...context });
+      if (!sources.length) throw new Error(`未找到当前周期内可用于汇总的已保存${context.summaryType === "monthly" ? "周报" : "月报"}`);
+      const fullSources = await Promise.all(sources.map(async (source) => {
+        if (source.data?.modules) return source;
+        const result = await apiJson(`/api/report/${encodeURIComponent(source.id)}`);
+        return { ...source, ...result.report, data: result.report.data };
+      }));
+      return aiReportSourceText(fullSources);
     }
 
     async function generateAiReport() {
@@ -5058,22 +5131,29 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!aiSettings.enabled) return setAiReportStatus("后台尚未启用AI提炼", "error");
       if (!aiSettings.configured) return setAiReportStatus(`${aiSettings.providerLabel} API Key 未配置`, "error");
       aiGenerating = true;
+      pendingAiReportContext = null;
       $("generateAiReportBtn").disabled = true;
       $("copyAiReportBtn").disabled = true;
+      $("applyAiReportBtn").disabled = true;
       $("aiReportText").value = "";
       setAiReportStatus(`${aiSettings.providerLabel} 正在提炼，请稍候...`, "loading");
       try {
+        const context = { reportId: currentReportId, summaryType: reportData.summaryType || "weekly", startDate: reportData.startDate, endDate: reportData.endDate };
+        const sourceText = context.summaryType === "weekly" ? renderReportText() : await monthlyOrQuarterlyAiSourceText(context);
         const result = await apiJson("/api/ai/report-summary", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            sourceText: renderReportText(),
-            summaryType: reportData.summaryType || "weekly",
+            sourceText,
+            summaryType: context.summaryType,
             style: $("aiSummaryStyle").value || "executive",
           }),
         });
+        if (!aiReportContextMatches(context, currentReportId, reportData, reportCanEdit)) throw new Error("当前总结已切换，AI结果已丢弃");
         $("aiReportText").value = result.result.text || "";
         $("copyAiReportBtn").disabled = !$("aiReportText").value.trim();
+        pendingAiReportContext = $("aiReportText").value.trim() ? context : null;
+        $("applyAiReportBtn").disabled = !pendingAiReportContext;
         const usage = result.result.usage;
         const usageText = usage?.total_tokens ? ` · ${usage.total_tokens} tokens` : "";
         const quotaText = Number.isFinite(result.quota?.remaining) ? ` · 今日剩余${result.quota.remaining}次` : "";
@@ -5089,11 +5169,34 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function openAiReportModal() {
+      const summaryType = reportData.summaryType || "weekly";
+      const typeLabel = summaryType === "monthly" ? "月报" : summaryType === "quarterly" ? "季报" : "周报";
       $("aiReportModal").hidden = false;
+      $("aiReportModalTitle").textContent = `AI总结${typeLabel}`;
+      $("aiPolishReportBtn").textContent = summaryType === "weekly" ? "✨ AI提炼周报" : `✨ AI总结${typeLabel}`;
+      $("applyAiReportBtn").hidden = summaryType === "weekly";
       $("aiReportText").value = "";
       $("copyAiReportBtn").disabled = true;
       setAiReportStatus("准备生成管理层重点版");
       generateAiReport();
+    }
+
+    function applyPendingAiReport() {
+      if (!aiReportContextMatches(pendingAiReportContext, currentReportId, reportData, reportCanEdit)) {
+        pendingAiReportContext = null;
+        $("applyAiReportBtn").disabled = true;
+        return setSyncStatus(reportCanEdit ? "AI结果已失效，请重新生成" : reportLockMessage(), "warn");
+      }
+      const target = findAiReportApplyTarget(reportData);
+      if (!target) return setSyncStatus("当前总结没有可写入的内容区", "warn");
+      const section = reportData.modules[target.moduleIndex].sections[target.sectionIndex];
+      if (!window.confirm(`将覆盖“${reportData.modules[target.moduleIndex].title} / ${section.title}”现有内容，确认写入吗？`)) return;
+      if (!applyAiReportText(reportData, $("aiReportText").value, { canEdit: reportCanEdit })) return;
+      renderReportEditor();
+      renderReportPreview();
+      scheduleReportSave();
+      closeAiReportModal();
+      setSyncStatus("AI总结已写入当前草稿", "ok");
     }
 
     $("generateReportBtn").addEventListener("click", openTaskHistory);
@@ -5153,6 +5256,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (event.target.id === "aiReportModal") closeAiReportModal();
     });
     $("generateAiReportBtn").addEventListener("click", generateAiReport);
+    $("applyAiReportBtn").addEventListener("click", applyPendingAiReport);
     $("copyOriginalFromAiBtn").addEventListener("click", async () => {
       try {
         await copyTextToClipboard(renderReportText());
