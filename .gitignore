@@ -5,6 +5,7 @@ node_modules/
 .netlify/
 .playwright-cli/
 .superpowers/
+.worktrees/
 *.log
 server.out.log
 server.err.log
