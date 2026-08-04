@@ -128,3 +128,31 @@ test("tasks persist multiple linked goal contributions after update and reload",
   assert.deepEqual(task.goalLinks.map((link) => link.goalId), ["goal-a", "goal-b", "goal-c"]);
   assert.deepEqual(task.goalLinks.map((link) => link.contribution), [8, 3, 1]);
 });
+
+test("goals derive current values from completed tasks and deletion clears task links", async () => {
+  const savedGoals = await api("/goals", {
+    method: "POST",
+    body: { year: "2026", rows: [{ name: "交付数", target: 10, current: 999 }] },
+  });
+  const goalId = savedGoals.body.rows[0].id;
+  const week = await api("/weeks", {
+    method: "POST",
+    body: { startDate: "2095-01-01", endDate: "2095-01-07" },
+  });
+  for (const [status, contribution] of [["已完成", 5], ["进行中", 90]]) {
+    const created = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
+      method: "POST",
+      body: { task: { title: `${status}任务`, status: "进行中", goalLinks: [{ goalId, contribution, unit: "项", note: status }] } },
+    });
+    if (status === "已完成") {
+      await api(`/task/${encodeURIComponent(created.body.task.id)}`, { method: "POST", body: { task: { status } } });
+    }
+  }
+
+  assert.equal((await api("/goals")).body.rows[0].current, 5);
+
+  await api("/goals", { method: "POST", body: { year: "2026", rows: [] } });
+  const tasks = (await api("/tasks")).body.tasks.filter((task) => task.weekId === week.body.week.id);
+  assert.equal(tasks.length, 2);
+  assert.ok(tasks.every((task) => task.goalLinks.every((link) => link.goalId !== goalId)));
+});

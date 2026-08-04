@@ -1,4 +1,4 @@
-import { applyTaskStatus, buildEmptyTask, buildWeekId, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
+import { applyTaskStatus, buildEmptyTask, buildWeekId, completedGoalContributionById, normalizeTaskGoalLinks, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
 import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config.mjs";
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
@@ -759,12 +759,25 @@ async function handleGoals(req, res, state, parts, now, actor) {
       state.goalsByDepartment[departmentId] = current;
       await saveState(state);
     }
-    return json(res, { ...current, rows: publicGoalRows(current.rows) });
+    const totals = completedGoalContributionById(listTasksForDepartment(state, departmentId));
+    return json(res, { ...current, rows: publicGoalRows(current.rows).map((row) => ({ ...row, current: totals[row.id] || 0 })) });
   }
   if (req.method === "POST") {
     const body = await readBody(req);
     if (!Array.isArray(body.rows)) return json(res, { error: "Invalid goals rows" }, 400);
-    const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"));
+    const incomingIds = new Set(body.rows.map((row) => row?.id).filter(Boolean));
+    const removedIds = new Set(current.rows.map((row) => row?.id).filter((id) => id && !incomingIds.has(id)));
+    for (const task of listTasksForDepartment(state, departmentId)) {
+      task.goalLinks = normalizeTaskGoalLinks(task).filter((link) => !removedIds.has(link.goalId));
+      const first = task.goalLinks[0] || {};
+      task.goalId = first.goalId || "";
+      task.goalContribution = first.contribution || 0;
+      task.goalContributionUnit = first.unit || "";
+      task.goalContributionNote = first.note || "";
+    }
+    const totals = completedGoalContributionById(listTasksForDepartment(state, departmentId));
+    const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"))
+      .map((row) => ({ ...row, current: totals[row.id] || 0 }));
     state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows, updatedAt: now, updatedBy: actor };
     await saveState(state);
     return json(res, {
