@@ -24,7 +24,7 @@ function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
 
 function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}) {
   const blockerFunction = html.match(/    function overdueBlockerText\(task\) \{[\s\S]*?\r?\n    \}/)?.[0];
-  const saveFunctions = html.match(/    async function flushPendingTaskSave[\s\S]*?(?=\r?\n\r?\n    function decodeReportEscapes)/)?.[0];
+  const saveFunctions = html.match(/    function drainPendingTaskSave[\s\S]*?(?=\r?\n\r?\n    function decodeReportEscapes)/)?.[0];
   assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
   const pendingTaskSaves = new Map();
   return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, blockOverdueTasksForListMode };`)(
@@ -299,4 +299,45 @@ test("a failed pending edit remains pending and prevents an overdue overwrite", 
   assert.equal(tasks[0].status, "进行中");
   assert.ok(messages.includes("同步失败"));
   assert.match(html, /pendingTaskSaves\.set\(task\.id/);
+});
+
+test("concurrent flushes share one drain through v2 before overdue blocking", async () => {
+  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "v1" }];
+  const deferred = [];
+  const writes = [];
+  let serverTask = null;
+  const runtime = overdueSaveRuntime(tasks, async (task) => {
+    const snapshot = { ...task };
+    writes.push(snapshot);
+    if (writes.length <= 2) {
+      let resolve;
+      const promise = new Promise((done) => { resolve = done; });
+      deferred.push({ resolve });
+      await promise;
+    }
+    serverTask = snapshot;
+  });
+
+  runtime.scheduleSaveTask(tasks[0]);
+  const firstFlush = runtime.flushPendingTaskSave("a");
+  await Promise.resolve();
+  tasks[0].description = "v2";
+  runtime.scheduleSaveTask(tasks[0]);
+  const migration = runtime.blockOverdueTasksForListMode();
+
+  deferred[0].resolve();
+  while (deferred.length < 2) await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(writes.length, 2, "overdue write must wait for v2 drain");
+  deferred[1].resolve();
+  await Promise.all([firstFlush, migration]);
+
+  assert.deepEqual(writes.map((task) => [task.description, task.status]), [
+    ["v1", "进行中"],
+    ["v2", "进行中"],
+    ["v2", "阻塞"],
+  ]);
+  assert.equal(serverTask.status, "阻塞");
+  assert.equal(serverTask.description, "v2");
+  assert.deepEqual(tasks[0], serverTask);
 });

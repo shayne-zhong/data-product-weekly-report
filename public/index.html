@@ -2926,6 +2926,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return `任务已逾期（原计划完成日期：${task.dueDate}）`;
     }
 
+    function drainPendingTaskSave(id, state) {
+      if (state.drainPromise) return state.drainPromise;
+      const drain = (async () => {
+        while (state.task) {
+          const pendingTask = state.task;
+          state.task = null;
+          try {
+            await persistTask(pendingTask);
+            setSyncStatus("已同步", "ok");
+          } catch (error) {
+            if (!state.task) state.task = pendingTask;
+            setSyncStatus("同步失败", "warn");
+            throw error;
+          }
+        }
+      })();
+      const sharedDrain = drain.finally(() => {
+        if (state.timer) clearTimeout(state.timer);
+        state.timer = null;
+        if (state.drainPromise === sharedDrain) state.drainPromise = null;
+        if (!state.task && pendingTaskSaves.get(id) === state) pendingTaskSaves.delete(id);
+      });
+      state.drainPromise = sharedDrain;
+      return sharedDrain;
+    }
+
     async function flushPendingTaskSave(taskId = "") {
       const taskIds = taskId ? [taskId] : [...pendingTaskSaves.keys()];
       for (const id of taskIds) {
@@ -2935,23 +2961,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           clearTimeout(state.timer);
           state.timer = null;
         }
-        if (state.inFlight) await state.inFlight;
-        while (state.task) {
-          const pendingTask = state.task;
-          state.task = null;
-          state.inFlight = persistTask(pendingTask);
-          try {
-            await state.inFlight;
-            setSyncStatus("已同步", "ok");
-          } catch (error) {
-            if (!state.task) state.task = pendingTask;
-            setSyncStatus("同步失败", "warn");
-            throw error;
-          } finally {
-            state.inFlight = null;
-          }
-        }
-        if (!state.task && !state.inFlight && pendingTaskSaves.get(id) === state) pendingTaskSaves.delete(id);
+        await drainPendingTaskSave(id, state);
       }
     }
 
@@ -2987,7 +2997,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function scheduleSaveTask(task) {
-      const state = pendingTaskSaves.get(task.id) || { task: null, timer: null, inFlight: null };
+      const state = pendingTaskSaves.get(task.id) || { task: null, timer: null, drainPromise: null };
       if (state.timer) clearTimeout(state.timer);
       state.task = { ...task };
       setSyncStatus("待同步", "warn");
