@@ -4,12 +4,24 @@ import assert from "node:assert/strict";
 import {
   buildWeekId,
   buildEmptyTask,
+  completedGoalContributionById,
   applyTaskStatus,
   rolloverTasks,
   summarizeTasksForReport,
   taskStatuses,
   weekDisplayLabel,
 } from "../lib/task-core.mjs";
+
+test("completed goal contributions sum only completed task links", () => {
+  const totals = completedGoalContributionById([
+    buildEmptyTask({ status: "已完成", goalLinks: [{ goalId: "g1", contribution: 2 }] }),
+    buildEmptyTask({ status: "进行中", goalLinks: [{ goalId: "g1", contribution: 99 }] }),
+    buildEmptyTask({ status: "已完成", goalLinks: [{ goalId: "g1", contribution: 3 }, { goalId: "g2", contribution: 4 }] }),
+    { status: "已完成", goalLinks: [{ goalId: "g1", contribution: -1 }, { goalId: "", contribution: 8 }] },
+  ]);
+
+  assert.deepEqual(totals, { g1: 5, g2: 4 });
+});
 
 test("buildWeekId joins ISO start and end dates", () => {
   assert.equal(buildWeekId("2026-06-15", "2026-06-21"), "2026-06-15_2026-06-21");
