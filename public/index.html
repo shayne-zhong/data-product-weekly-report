@@ -68,6 +68,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .quadrant-bulk-bar{margin-bottom:10px}.quadrant-handle{position:absolute;left:var(--split-x);top:var(--split-y);width:26px;height:26px;transform:translate(-50%,-50%);border:3px solid #fff;border-radius:50%;background:var(--primary);box-shadow:0 3px 12px rgba(49,94,251,.35);cursor:move;z-index:3}
 .quadrant-handle:focus-visible{outline:3px solid rgba(49,94,251,.28);outline-offset:3px}
 .column.drag-over,.quadrant.drag-over{outline:3px solid rgba(49,94,251,.28);outline-offset:-3px}
+.task-card.overdue{border-color:#f04438;background:linear-gradient(135deg,#fff5f0,#fff);box-shadow:0 4px 16px rgba(240,68,56,.16)}
+.overdue-badge{background:#fff0e8;color:#c4320a;border:1px solid #fdbda8;font-weight:800}
+.task-desc,.risk-box{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:pre-wrap}
 @media(max-width:760px){.quadrant-board{display:block;min-height:0}.quadrant{min-height:240px}.quadrant-handle{display:none}.quadrant-cards{grid-template-columns:1fr}}
 </style>
 <style>
@@ -2097,6 +2100,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       reportCanEdit = false;
       reportLock = null;
       renderAll();
+      if (taskViewMode === "list") {
+        await blockOverdueTasksForListMode();
+        renderBoard();
+      }
       await autoRolloverFromPrevious();
     }
 
@@ -2614,7 +2621,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function renderTaskCard(task) {
       const percent = taskProgressPercent(task);
       return `
-        <article class="task-card ${task.id === selectedTaskId ? "active" : ""}" data-task-id="${task.id}" draggable="${!batchMode}">
+        <article class="task-card ${task.id === selectedTaskId ? "active" : ""} ${isOverdue(task) ? "overdue" : ""}" data-task-id="${task.id}" draggable="${!batchMode}">
           ${batchMode ? `<label class="select-box"><input type="checkbox" data-select-task="${task.id}" ${selectedTaskIds.has(task.id) ? "checked" : ""} /> 选择</label>` : ""}
           <div class="task-top">
             <div class="task-title">${escapeHtml(task.title || "未命名任务")}</div>
@@ -2626,6 +2633,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             ${validGoalLinks(task).length ? `<span class="tag module-data">目标贡献 ${validGoalLinks(task).length}项</span>` : ""}
             ${latestLog(task)?.date === todayIso() ? `<span class="tag module-data">今日已更新</span>` : ""}
             ${task.completedAt ? `<span class="tag module-data">✓ 已完成</span>` : ""}
+            ${isOverdue(task) ? `<span class="tag overdue-badge">已逾期</span>` : ""}
           </div>
           <div class="task-meta">
             <span>${task.dueDate ? `${isOverdue(task) ? "已逾期 " : ""}${escapeHtml(displayDate(task.dueDate))}` : "未设截止日"}</span>
@@ -2912,6 +2920,34 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task }),
       });
+    }
+
+    function overdueBlockerText(task) {
+      return `任务已逾期（原计划完成日期：${task.dueDate}）`;
+    }
+
+    async function blockOverdueTasksForListMode() {
+      const overdueTasks = tasks.filter((task) => task.status !== "已完成" && task.status !== "阻塞" && task.dueDate && task.dueDate < todayIso());
+      let failedCount = 0;
+      for (const task of overdueTasks) {
+        const overdueText = overdueBlockerText(task);
+        const existingBlocker = String(task.blocker || "").trim();
+        const updatedTask = {
+          ...task,
+          status: "阻塞",
+          blocker: existingBlocker && !task.blocker.includes(overdueText) ? `${existingBlocker}\n${overdueText}` : (existingBlocker || overdueText),
+        };
+        try {
+          await persistTask(updatedTask);
+          const taskIndex = tasks.findIndex((item) => item.id === task.id);
+          if (taskIndex >= 0) tasks[taskIndex] = updatedTask;
+        } catch (error) {
+          failedCount += 1;
+          setSyncStatus(`逾期任务自动阻塞失败：${task.title || "未命名任务"}`, "warn");
+        }
+      }
+      if (failedCount) setSyncStatus(`${failedCount} 项逾期任务自动阻塞失败`, "warn");
+      else if (overdueTasks.length) setSyncStatus("逾期任务已自动标记为阻塞", "ok");
     }
 
     function scheduleSaveTask(task) {
@@ -3838,6 +3874,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (taskViewButton) {
         taskViewMode = taskViewButton.dataset.taskViewMode === "list" ? "list" : "quadrant";
         saveTaskViewPreferences();
+        if (taskViewMode === "list") await blockOverdueTasksForListMode();
         renderBoard();
         return;
       }

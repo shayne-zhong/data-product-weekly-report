@@ -184,3 +184,23 @@ test("quadrant layout is bounded resettable and keyboard accessible", () => {
   assert.match(html, /saveTaskViewPreferences\(\)/);
   assert.match(html, /saveTaskViewPreferences\(\);\s+applyQuadrantLayoutToBoard\(\);/);
 });
+
+test("overdue task cards are visibly warned without changing their quadrant", () => {
+  assert.match(html, /task-card[^\n]*\$\{isOverdue\(task\) \? "overdue" : ""\}/);
+  assert.match(html, /class="tag overdue-badge">已逾期/);
+  assert.match(html, /\.task-card\.overdue\{/);
+  assert.match(html, /\.overdue-badge\{/);
+  assert.match(html, /\.task-desc,\.risk-box\{[^}]*-webkit-line-clamp:2/);
+  assert.match(html, /normalizePriority\(task\.priority\) === definition\.priority/);
+});
+
+test("entering list mode blocks overdue tasks independently and idempotently", () => {
+  assert.match(html, /function overdueBlockerText\(task\)/);
+  assert.match(html, /任务已逾期（原计划完成日期：\$\{task\.dueDate\}）/);
+  assert.match(html, /task\.status !== "已完成" && task\.status !== "阻塞" && task\.dueDate && task\.dueDate < todayIso\(\)/);
+  assert.match(html, /task\.blocker\.includes\(overdueText\)/);
+  assert.match(html, /await persistTask\(updatedTask\)/);
+  assert.match(html, /tasks\[taskIndex\] = updatedTask/);
+  assert.match(html, /catch \(error\)[\s\S]{0,300}逾期任务自动阻塞失败/);
+  assert.match(html, /await blockOverdueTasksForListMode\(\);\s*renderBoard\(\)/);
+});
