@@ -334,28 +334,22 @@ test("goal table renders eleven stable columns with accessible pointer resize ha
 });
 
 function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
-  const blockerFunction = html.match(/ {4}function overdueBlockerText\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
-  const migrationFunction = html.match(/ {4}async function blockOverdueTasksForListMode\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function scheduleSaveTask)/)?.[0];
-  assert.ok(blockerFunction && migrationFunction, "missing executable overdue migration functions");
-  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", `async function flushPendingTaskSave() {}\n${blockerFunction}\n${migrationFunction}\nreturn blockOverdueTasksForListMode;`)(
-    tasks,
-    () => "2026-08-04",
-    persistTask,
-    setSyncStatus,
-  );
+  return overdueSaveRuntime(tasks, persistTask, setSyncStatus).blockOverdueTasksForListMode;
 }
 
 function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}, timers = {}) {
   const blockerFunction = html.match(/ {4}function overdueBlockerText\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
-  const saveFunctions = html.match(/ {4}function drainPendingTaskSave[\s\S]*?(?=\r?\n\r?\n {4}function decodeReportEscapes)/)?.[0];
+  const saveFunctions = html.match(/ {4}function taskWithOverdueSaveBarrier[\s\S]*?(?=\r?\n\r?\n {4}function decodeReportEscapes)/)?.[0];
   assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
   const pendingTaskSaves = new Map();
-  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, blockOverdueTasksForListMode };`)(
+  const overdueTaskSaveBarriers = new Map();
+  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "overdueTaskSaveBarriers", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, blockOverdueTasksForListMode };`)(
     tasks,
     () => "2026-08-04",
     persistTask,
     setSyncStatus,
     pendingTaskSaves,
+    overdueTaskSaveBarriers,
     timers.setTimeout || (() => 1),
     timers.clearTimeout || (() => {}),
   );
@@ -542,6 +536,7 @@ test("overdue task cards are visibly warned without changing their quadrant", ()
   assert.match(html, /\.task-card\.overdue\{/);
   assert.match(html, /\.overdue-badge\{/);
   assert.match(html, /\.task-desc,\.risk-box\{[^}]*-webkit-line-clamp:2/);
+  assert.doesNotMatch(html, /escapeHtml\(task\.description\)\.slice\(0, 120\)/);
   assert.match(html, /normalizePriority\(task\.priority\) === definition\.priority/);
 });
 
@@ -550,8 +545,9 @@ test("entering list mode blocks overdue tasks independently and idempotently", (
   assert.match(html, /任务已逾期（原计划完成日期：\$\{task\.dueDate\}）/);
   assert.match(html, /task\.status !== "已完成" && task\.status !== "阻塞" && task\.dueDate && task\.dueDate < todayIso\(\)/);
   assert.match(html, /includes\(overdueText\)/);
-  assert.match(html, /await persistTask\(updatedTask\)/);
-  assert.match(html, /tasks\[taskIndex\] = updatedTask/);
+  assert.match(html, /enqueuePendingTaskSave\(latestTask, \{ delay: false \}\)/);
+  assert.match(html, /await flushPendingTaskSave\(task\.id\)/);
+  assert.match(html, /tasks\[taskIndex\] = taskWithOverdueSaveBarrier/);
   assert.match(html, /catch \(error\)[\s\S]{0,300}逾期任务自动阻塞失败/);
   assert.match(html, /await blockOverdueTasksForListMode\(\);\s*renderBoard\(\)/);
   assert.match(html, /previousMode !== "list" && nextMode === "list"/);
@@ -720,4 +716,62 @@ test("flush-all drains a newly pending second task before overdue migration", as
   for (const callback of timers.values()) callback();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(writes.length, 4, "no delayed timer save may overwrite B");
+});
+
+test("edits during overdue migration remain blocked and preserve latest fields", async () => {
+  const tasks = [
+    { id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "A旧" },
+    { id: "b", title: "B", status: "待开始", dueDate: "2026-08-02", blocker: "", description: "B旧" },
+  ];
+  const timers = new Map();
+  const deferred = [];
+  const writes = [];
+  const serverTasks = new Map();
+  let timerId = 0;
+  const runtime = overdueSaveRuntime(tasks, async (task) => {
+    const snapshot = { ...task };
+    writes.push(snapshot);
+    if (deferred.length < 2) {
+      let resolve;
+      const promise = new Promise((done) => { resolve = done; });
+      deferred.push({ resolve });
+      await promise;
+    }
+    serverTasks.set(snapshot.id, snapshot);
+  }, () => {}, {
+    setTimeout(callback) {
+      timerId += 1;
+      timers.set(timerId, callback);
+      return timerId;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+  });
+
+  const migration = runtime.blockOverdueTasksForListMode();
+  while (deferred.length < 1) await new Promise((resolve) => setImmediate(resolve));
+  tasks[0].description = "A最新";
+  runtime.scheduleSaveTask(tasks[0]);
+  tasks[1].description = "B最新";
+  runtime.scheduleSaveTask(tasks[1]);
+  deferred[0].resolve();
+  while (deferred.length < 2) await new Promise((resolve) => setImmediate(resolve));
+  deferred[1].resolve();
+  await migration;
+  for (const callback of [...timers.values()]) callback();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(writes.length, 3, "only A in-flight edit requires a second serialized write");
+  assert.deepEqual(writes.map((task) => [task.id, task.description, task.status]), [
+    ["a", "A旧", "阻塞"],
+    ["a", "A最新", "阻塞"],
+    ["b", "B最新", "阻塞"],
+  ]);
+  for (const [id, description] of [["a", "A最新"], ["b", "B最新"]]) {
+    assert.equal(serverTasks.get(id).status, "阻塞");
+    assert.equal(serverTasks.get(id).description, description);
+    assert.match(serverTasks.get(id).blocker, /任务已逾期/);
+    assert.deepEqual(tasks.find((task) => task.id === id), serverTasks.get(id));
+  }
 });

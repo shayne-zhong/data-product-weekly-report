@@ -805,6 +805,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let reportMonthFilter = "all";
     let reportTypeFilter = "weekly";
     const pendingTaskSaves = new Map();
+    const overdueTaskSaveBarriers = new Map();
     let batchMode = false;
     let selectedTaskIds = new Set();
     let importCandidates = [];
@@ -2714,7 +2715,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <span>${task.dueDate ? `${isOverdue(task) ? "已逾期 " : ""}${escapeHtml(displayDate(task.dueDate))}` : "未设截止日"}</span>
             <span class="mini-avatar">${escapeHtml(ownerInitial(task))}</span>
           </div>
-          ${task.description ? `<div class="task-desc">${escapeHtml(task.description).slice(0, 120)}</div>` : ""}
+          ${task.description ? `<div class="task-desc">${escapeHtml(task.description)}</div>` : ""}
           ${validGoalLinks(task).length ? `<div class="task-desc">关联指标：${escapeHtml(goalLinksSummary(task))}</div>` : ""}
           ${task.blocker ? `<div class="risk-box">${escapeHtml(task.blocker)}</div>` : ""}
           <div class="progress-row">
@@ -3001,6 +3002,32 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return `任务已逾期（原计划完成日期：${task.dueDate}）`;
     }
 
+    function taskWithOverdueSaveBarrier(task) {
+      const overdueText = overdueTaskSaveBarriers.get(task.id);
+      if (!overdueText) return { ...task };
+      const originalBlocker = String(task.blocker || "");
+      const hasExistingBlocker = originalBlocker.trim().length > 0;
+      return {
+        ...task,
+        status: "阻塞",
+        blocker: originalBlocker.includes(overdueText) ? originalBlocker : (hasExistingBlocker ? `${originalBlocker}\n${overdueText}` : overdueText),
+      };
+    }
+
+    function enqueuePendingTaskSave(task, { delay = true } = {}) {
+      const state = pendingTaskSaves.get(task.id) || { task: null, timer: null, drainPromise: null };
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      state.task = taskWithOverdueSaveBarrier(task);
+      pendingTaskSaves.set(task.id, state);
+      if (delay) {
+        state.timer = setTimeout(() => {
+          state.timer = null;
+          flushPendingTaskSave(task.id).catch(() => {});
+        }, 650);
+      }
+    }
+
     function drainPendingTaskSave(id, state) {
       if (state.drainPromise) return state.drainPromise;
       const drain = (async () => {
@@ -3062,18 +3089,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       let failedCount = 0;
       for (const task of overdueTasks) {
         const overdueText = overdueBlockerText(task);
-        const originalBlocker = String(task.blocker || "");
-        const hasExistingBlocker = originalBlocker.trim().length > 0;
-        const alreadyHasOverdueText = originalBlocker.includes(overdueText);
-        const updatedTask = {
-          ...task,
-          status: "阻塞",
-          blocker: alreadyHasOverdueText ? originalBlocker : (hasExistingBlocker ? `${originalBlocker}\n${overdueText}` : overdueText),
-        };
+        overdueTaskSaveBarriers.set(task.id, overdueText);
+        const latestTask = tasks.find((item) => item.id === task.id) || task;
+        enqueuePendingTaskSave(latestTask, { delay: false });
         try {
-          await persistTask(updatedTask);
+          await flushPendingTaskSave(task.id);
           const taskIndex = tasks.findIndex((item) => item.id === task.id);
-          if (taskIndex >= 0) tasks[taskIndex] = updatedTask;
+          if (taskIndex >= 0) tasks[taskIndex] = taskWithOverdueSaveBarrier(tasks[taskIndex]);
+          overdueTaskSaveBarriers.delete(task.id);
         } catch (error) {
           failedCount += 1;
           setSyncStatus(`逾期任务自动阻塞失败：${task.title || "未命名任务"}`, "warn");
@@ -3084,15 +3107,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function scheduleSaveTask(task) {
-      const state = pendingTaskSaves.get(task.id) || { task: null, timer: null, drainPromise: null };
-      if (state.timer) clearTimeout(state.timer);
-      state.task = { ...task };
       setSyncStatus("待同步", "warn");
-      state.timer = setTimeout(() => {
-        state.timer = null;
-        flushPendingTaskSave(task.id).catch(() => {});
-      }, 650);
-      pendingTaskSaves.set(task.id, state);
+      enqueuePendingTaskSave(task);
     }
 
     function decodeReportEscapes(value) {
