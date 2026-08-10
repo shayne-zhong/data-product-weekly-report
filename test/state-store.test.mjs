@@ -6,7 +6,7 @@ import { createStateStore, defaultLocalStatePath } from "../lib/state-store.mjs"
 
 function fakeDatabase() {
   const records = new Map();
-  return {
+  const database = {
     records,
     collection(name) {
       assert.equal(name, "workbench_state");
@@ -24,7 +24,11 @@ function fakeDatabase() {
         },
       };
     },
+    async runTransaction(callback) {
+      return callback(database);
+    },
   };
+  return database;
 }
 
 test("CloudBase store round-trips the state document", async () => {
@@ -56,11 +60,58 @@ test("CloudBase store returns null before the first import", async () => {
   assert.equal(await store.load(), null);
 });
 
+test("CloudBase transaction preserves a task deletion across stale instance saves", async () => {
+  const database = fakeDatabase();
+  const options = { env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" }, cloudbaseDatabase: database };
+  const firstInstance = createStateStore(options);
+  const secondInstance = createStateStore(options);
+  const initial = { tasks: { taskA: { id: "taskA", title: "待删除" } }, settings: { theme: "light" } };
+  await firstInstance.save(initial);
+
+  const firstBase = await firstInstance.load();
+  const secondBase = await secondInstance.load();
+  const afterDelete = structuredClone(firstBase);
+  const staleSettingsSave = structuredClone(secondBase);
+  delete afterDelete.tasks.taskA;
+  staleSettingsSave.settings.theme = "dark";
+
+  await firstInstance.save(afterDelete, { baseState: firstBase });
+  await secondInstance.save(staleSettingsSave, { baseState: secondBase });
+
+  assert.deepEqual(await firstInstance.load(), { tasks: {}, settings: { theme: "dark" } });
+});
+
 test("production never falls back to temporary disk", async () => {
   const store = createStateStore({ env: { NODE_ENV: "production" } });
 
   await assert.rejects(() => store.load(), /durable state storage is not configured/i);
   await assert.rejects(() => store.save({}), /durable state storage is not configured/i);
+});
+
+test("production surfaces CloudBase write failures instead of reporting a temporary-disk success", async () => {
+  const database = fakeDatabase();
+  database.collection = () => ({ doc: () => ({
+    async set() { throw new Error("cloud write failed"); },
+  }) });
+  const store = createStateStore({
+    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
+    cloudbaseDatabase: database,
+  });
+
+  await assert.rejects(() => store.save({ tasks: {} }), /cloud write failed/);
+});
+
+test("production surfaces CloudBase read failures instead of serving stale local state", async () => {
+  const database = fakeDatabase();
+  database.collection = () => ({ doc: () => ({
+    async get() { throw new Error("cloud read failed"); },
+  }) });
+  const store = createStateStore({
+    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
+    cloudbaseDatabase: database,
+  });
+
+  await assert.rejects(() => store.load(), /cloud read failed/);
 });
 
 test("local fallback state survives a server process restart", () => {

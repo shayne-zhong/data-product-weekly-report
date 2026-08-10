@@ -41,6 +41,7 @@ const defaultDepartmentAccounts = [
   ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
 ].map(([name, username]) => ({ name, username }));
 let memoryState = null;
+const stateBaseSnapshots = new WeakMap();
 const stateStore = createStateStore();
 const mutationLock = createMutationLock();
 const artifactStore = createArtifactStore();
@@ -315,12 +316,18 @@ function hydrateState(state = {}) {
 async function loadState() {
   const state = await stateStore.load();
   memoryState = state ? hydrateState(state) : emptyState();
+  stateBaseSnapshots.set(memoryState, structuredClone(memoryState));
   return memoryState;
 }
 
 async function saveState(state) {
+  const persistedState = await stateStore.save(state, { baseState: stateBaseSnapshots.get(state) });
+  if (persistedState && persistedState !== state) {
+    Object.keys(state).forEach((key) => delete state[key]);
+    Object.assign(state, persistedState);
+  }
   memoryState = state;
-  await stateStore.save(state);
+  stateBaseSnapshots.set(state, structuredClone(state));
 }
 
 async function readBody(req) {
