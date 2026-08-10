@@ -1363,6 +1363,24 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return source.filter((task) => normalizeGoalLinks(task).some((link) => link.goalId === goalId));
     }
 
+    function latestTasksForGoalDisplay(tasks) {
+      const byId = new Map(tasks.map((task) => [task.id, task]));
+      const latestByRoot = new Map();
+      tasks.forEach((task) => {
+        let root = task;
+        const visited = new Set([task.id]);
+        while (root.sourceTaskId && byId.has(root.sourceTaskId) && !visited.has(root.sourceTaskId)) {
+          visited.add(root.sourceTaskId);
+          root = byId.get(root.sourceTaskId);
+        }
+        const existing = latestByRoot.get(root.id);
+        const timestamp = Number(task.updatedAt || task.completedAt || task.createdAt || 0);
+        const existingTimestamp = Number(existing?.updatedAt || existing?.completedAt || existing?.createdAt || 0);
+        if (!existing || timestamp >= existingTimestamp) latestByRoot.set(root.id, task);
+      });
+      return [...latestByRoot.values()];
+    }
+
     function goalNameById(goalId) {
       const index = goalsRows.findIndex((goal, rowIndex) => goalRowId(goal, rowIndex) === goalId);
       return index >= 0 ? goalsRows[index].name || goalsRows[index].level || "年度指标" : "";
@@ -1838,10 +1856,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function openGoalTaskModal(goalId) {
       const goalIndex = goalsRows.findIndex((goal, index) => goalRowId(goal, index) === goalId);
       const goal = goalsRows[goalIndex] || {};
-      const rows = tasksForGoal(goalId).sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0));
+      const linkedTasks = tasksForGoal(goalId);
+      const rows = latestTasksForGoalDisplay(linkedTasks).sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0));
       const goalLinkForTask = (task) => normalizeGoalLinks(task).find((link) => link.goalId === goalId) || { contribution: 0, note: "" };
       const contributionForTask = (task) => goalLinkForTask(task).contribution;
-      const total = rows.filter((task) => task.status === "已完成").reduce((sum, task) => sum + contributionForTask(task), 0);
+      const total = linkedTasks.filter((task) => task.status === "已完成").reduce((sum, task) => sum + contributionForTask(task), 0);
       $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} · 关联待办事项详情`;
       $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联待办，已完成贡献数 ${total}${goalUnitById(goalId) || ""}；本页仅供查看。`;
       $("goalTaskList").innerHTML = rows.map((task) => `

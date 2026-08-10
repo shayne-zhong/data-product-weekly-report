@@ -360,6 +360,24 @@ function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}, timers
   );
 }
 
+function goalTaskDisplayRuntime() {
+  const source = html.match(/ {4}function latestTasksForGoalDisplay\(tasks\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  assert.ok(source, "missing goal task rollover-chain deduplication function");
+  return new Function(`${source}\nreturn latestTasksForGoalDisplay;`)();
+}
+
+test("goal task details show only the latest task from each rollover chain", () => {
+  const latestTasksForGoalDisplay = goalTaskDisplayRuntime();
+  const tasks = [
+    { id: "original", title: "同名但独立", updatedAt: 10 },
+    { id: "rolled-1", sourceTaskId: "original", title: "同名但独立", updatedAt: 20 },
+    { id: "rolled-2", sourceTaskId: "rolled-1", title: "同名但独立", updatedAt: 30 },
+    { id: "independent", title: "同名但独立", updatedAt: 25 },
+  ];
+
+  assert.deepEqual(latestTasksForGoalDisplay(tasks).map((task) => task.id), ["rolled-2", "independent"]);
+});
+
 test("deleting a task cancels queued saves and blocks new saves", async () => {
   const task = { id: "a", title: "A", status: "进行中", dueDate: "2026-08-10" };
   const persisted = [];
