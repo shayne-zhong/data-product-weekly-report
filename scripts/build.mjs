@@ -6,7 +6,7 @@ import { join } from "node:path";
 const execFileAsync = promisify(execFile);
 const root = process.cwd();
 const output = join(root, "build");
-const entries = ["server.mjs", "api", "lib", "public", "package.json", "package-lock.json"];
+const entries = ["server.mjs", "api", "lib", "public", "package.json", "package-lock.json", "cloudbaserc.json"];
 
 const html = await readFile(join(root, "public", "index.html"), "utf8");
 const inlineScript = html.match(/<script>([\s\S]*?)<\/script>/);
@@ -18,6 +18,20 @@ await mkdir(output, { recursive: true });
 for (const entry of entries) {
   await cp(join(root, entry), join(output, entry), { recursive: true });
 }
+
+// Generate deployment Dockerfile with paths relative to build/ context
+await writeFile(join(output, "Dockerfile"), `FROM node:22-alpine
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY . ./
+
+EXPOSE 3000
+USER node
+
+CMD ["node", "server.mjs"]
+`, "utf8");
 
 const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root });
 const manifest = {

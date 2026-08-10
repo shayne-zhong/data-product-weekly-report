@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import { assertStateFingerprint, fingerprintState } from "../lib/state-fingerprint.mjs";
+
+const migrationScriptPath = new URL("../scripts/migrate-goal-forecast.mjs", import.meta.url);
 
 const state = {
   users: { alice: { username: "alice" } },
@@ -54,4 +57,16 @@ test("fingerprint verification rejects a different read-back payload", () => {
   changed.tasks.task.title = "changed after import";
 
   assert.throws(() => assertStateFingerprint(changed, metadata), /fingerprint mismatch/i);
+});
+
+test("goal forecast migration persists preview evidence and verifies the written state", async () => {
+  const source = await readFile(migrationScriptPath, "utf8");
+
+  assert.match(source, /fingerprintState/);
+  assert.match(source, /writeFile\(reportPath/);
+  assert.ok(
+    source.indexOf("writeFile(reportPath") < source.indexOf("if (!isWrite)"),
+    "preview report must be written before the script exits in preview mode",
+  );
+  assert.match(source, /assertStateFingerprint\(reloaded/);
 });

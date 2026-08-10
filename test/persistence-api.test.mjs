@@ -156,3 +156,36 @@ test("goals derive current values from completed tasks and deletion clears task 
   assert.equal(tasks.length, 2);
   assert.ok(tasks.every((task) => task.goalLinks.every((link) => link.goalId !== goalId)));
 });
+
+test("expectedCurrent persists across saves and is not overwritten by server contribution totals", async () => {
+  const savedGoals = await api("/goals", {
+    method: "POST",
+    body: { year: "2026", rows: [{ name: "预计测试", target: "20项", expectedCurrent: "12项" }] },
+  });
+  const goalId = savedGoals.body.rows[0].id;
+  assert.equal(savedGoals.body.rows[0].expectedCurrent, "12项");
+  assert.equal(savedGoals.body.rows[0].current, 0);
+
+  const updated = await api("/goals", {
+    method: "POST",
+    body: { year: "2026", rows: [{ id: goalId, name: "预计测试", target: "20项", expectedCurrent: "15项" }] },
+  });
+  assert.equal(updated.body.rows[0].expectedCurrent, "15项");
+  assert.equal(updated.body.rows[0].current, 0);
+
+  const reloaded = await api("/goals");
+  const row = reloaded.body.rows.find((item) => item.id === goalId);
+  assert.ok(row);
+  assert.equal(row.expectedCurrent, "15项");
+  assert.equal(row.current, 0);
+});
+
+test("new goals default expectedCurrent to empty and current remains server-derived", async () => {
+  const savedGoals = await api("/goals", {
+    method: "POST",
+    body: { year: "2026", rows: [{ name: "空预计测试", target: "100" }] },
+  });
+  const row = savedGoals.body.rows[0];
+  assert.equal(row.expectedCurrent || "", "");
+  assert.equal(row.current, 0);
+});

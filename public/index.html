@@ -807,6 +807,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let reportMonthFilter = "all";
     let reportTypeFilter = "weekly";
     const pendingTaskSaves = new Map();
+    const deletingTaskIds = new Set();
     const overdueTaskSaveBarriers = new Map();
     let batchMode = false;
     let selectedTaskIds = new Set();
@@ -882,10 +883,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       { key: "owner", label: "Owner", defaultWidth: 100, minWidth: 76, maxWidth: 220 },
       { key: "lastYearActual", label: "上年实际", defaultWidth: 120, minWidth: 90, maxWidth: 260 },
       { key: "target", label: "目标", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
-      { key: "current", label: "已达成", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
+      { key: "expectedCurrent", label: "预计达成", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
+      { key: "current", label: "实际达成", defaultWidth: 140, minWidth: 90, maxWidth: 320 },
       { key: "progress", label: "完成度", defaultWidth: 190, minWidth: 150, maxWidth: 320 },
       { key: "status", label: "状态", defaultWidth: 110, minWidth: 88, maxWidth: 180 },
-      { key: "actions", label: "关联待办", defaultWidth: 160, minWidth: 130, maxWidth: 260 },
+      { key: "actions", label: "关联待办", defaultWidth: 120, minWidth: 100, maxWidth: 180 },
     ];
     let goalColumnWidths = {};
     let goalColumnWidthsKey = "";
@@ -956,14 +958,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     const initialGoalsRows = [
-      { seq: "1", name: "集团核心指标线上化80个", definition: "集团及各事业部核心指标线上化", dimension: "领域、组织", formula: "", logic: "数据中心已线上化的指标数量", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "0", current: "32", target: "80", remark: "" },
-      { seq: "2", name: "报表访问次数3W", definition: "数据中心报表访问次数", dimension: "月、季、年、业务领域", formula: "/", logic: "全公司有数据中心权限的用户访问报表次数之和", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "55000+", current: "55000+", target: "60000+", remark: "" },
-      { seq: "3", name: "数据处理效率", definition: "核心数据更新完成时间", dimension: "日", formula: "每日核心更新完成作业数/核心作业数", logic: "核心作业每日8小时内完成更新", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "", current: "每天8点前完成", target: "每天8点前完成", remark: "" },
-      { seq: "4", name: "AI降本500万", definition: "集团AI+X项目整体降本金额达到500万", dimension: "组织", formula: "Pending", logic: "Pending", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "0", current: "", target: "500万", remark: "" },
-      { seq: "5", name: "AI智能体上线数量50个", definition: "HiAgent平台、本地化或云端部署上线的智能体数量", dimension: "组织", formula: "正式上线智能体数量合计", logic: "统计周期内正式上线并投入业务使用的智能体", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "0", current: "", target: "50个", remark: "" },
-      { seq: "6", name: "Vibe Coding效率提升50%", definition: "代码交付量提升或需求处理交付速度提升", dimension: "组织", formula: "效率提升率", logic: "以使用前后实际交付数据为准", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "0", current: "", target: "50%", remark: "以TAPD为准" },
-      { seq: "7", name: "月结效率48小时内", definition: "集团财经应收、应付、费用、库存、利润表等业务", dimension: "组织", formula: "数据公布时间-数据更新时间<=48小时", logic: "保证在48小时内完成月结效率提交", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "48小时内", current: "48小时内", target: "48小时内", remark: "" },
-      { seq: "8", name: "财经共享效率提升30%", definition: "应收应付、费用类审单效率提升", dimension: "组织", formula: "财经共享月度审单平均处理耗时", logic: "引入AI辅助审单后预计处理效率提升30%", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "", current: "", target: "提升30%", remark: "" },
+      { seq: "1", name: "集团核心指标线上化80个", definition: "集团及各事业部核心指标线上化", dimension: "领域、组织", formula: "", logic: "数据中心已线上化的指标数量", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "0", expectedCurrent: "32", current: "", target: "80", remark: "" },
+      { seq: "2", name: "报表访问次数3W", definition: "数据中心报表访问次数", dimension: "月、季、年、业务领域", formula: "/", logic: "全公司有数据中心权限的用户访问报表次数之和", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "55000+", expectedCurrent: "55000+", current: "", target: "60000+", remark: "" },
+      { seq: "3", name: "数据处理效率", definition: "核心数据更新完成时间", dimension: "日", formula: "每日核心更新完成作业数/核心作业数", logic: "核心作业每日8小时内完成更新", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "", expectedCurrent: "每天8点前完成", current: "", target: "每天8点前完成", remark: "" },
+      { seq: "4", name: "AI降本500万", definition: "集团AI+X项目整体降本金额达到500万", dimension: "组织", formula: "Pending", logic: "Pending", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "0", expectedCurrent: "", current: "", target: "500万", remark: "" },
+      { seq: "5", name: "AI智能体上线数量50个", definition: "HiAgent平台、本地化或云端部署上线的智能体数量", dimension: "组织", formula: "正式上线智能体数量合计", logic: "统计周期内正式上线并投入业务使用的智能体", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "是", lastYearActual: "0", expectedCurrent: "", current: "", target: "50个", remark: "" },
+      { seq: "6", name: "Vibe Coding效率提升50%", definition: "代码交付量提升或需求处理交付速度提升", dimension: "组织", formula: "效率提升率", logic: "以使用前后实际交付数据为准", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "0", expectedCurrent: "", current: "", target: "50%", remark: "以TAPD为准" },
+      { seq: "7", name: "月结效率48小时内", definition: "集团财经应收、应付、费用、库存、利润表等业务", dimension: "组织", formula: "数据公布时间-数据更新时间<=48小时", logic: "保证在48小时内完成月结效率提交", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "48小时内", expectedCurrent: "48小时内", current: "", target: "48小时内", remark: "" },
+      { seq: "8", name: "财经共享效率提升30%", definition: "应收应付、费用类审单效率提升", dimension: "组织", formula: "财经共享月度审单平均处理耗时", logic: "引入AI辅助审单后预计处理效率提升30%", scope: "数据产品组", productGroup: "数据产品组", owner: "钟南海", systemCount: "否", lastYearActual: "", expectedCurrent: "", current: "", target: "提升30%", remark: "" },
     ];
 
     const $ = (id) => document.getElementById(id);
@@ -1793,6 +1795,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="owner">${escapeHtml(row.owner || "")}</td>
                 <td class="goal-nowrap" contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="lastYearActual">${escapeHtml(row.lastYearActual || "")}</td>
                 <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="target">${escapeHtml(row.target || "")}</td>
+                <td contenteditable="true" data-goal-row="${rowIndex}" data-goal-key="expectedCurrent">${escapeHtml(row.expectedCurrent || "")}</td>
                 <td>${escapeHtml(String(row.current || 0))}</td>
                 <td>
                   <div class="goal-progress editable-progress">
@@ -1915,7 +1918,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     function goalMatchesFilters(row) {
       const query = normalizeText(goalSearchQuery);
-      const haystack = normalizeText([row.name, row.definition, row.owner, row.lastYearActual, row.current, row.target, row.status, row.progress].join(" "));
+      const haystack = normalizeText([row.name, row.definition, row.owner, row.lastYearActual, row.expectedCurrent, row.current, row.target, row.status, row.progress].join(" "));
       if (query && !haystack.includes(query)) return false;
       if (goalStatusFilter !== "all" && goalStatus(row) !== goalStatusFilter) return false;
       return true;
@@ -1933,13 +1936,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function goalCompletion(row) {
-      const currentText = normalizeText(row.current);
+      const currentText = normalizeText(row.expectedCurrent);
       const targetText = normalizeText(row.target);
       if (!currentText) return 0;
       if (targetText && currentText === targetText) return 100;
       if (targetText && targetText !== "/" && currentText.includes(targetText)) return 100;
       if (/暂无|待定|pending|未开始/i.test(currentText)) return 0;
-      const current = firstNumber(row.current);
+      const current = firstNumber(row.expectedCurrent);
       const target = firstNumber(row.target);
       if (current !== null && target !== null && target > 0) return Math.max(0, Math.min(100, Math.round((current / target) * 100)));
       return 60;
@@ -3068,6 +3071,23 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
     }
 
+    async function cancelPendingTaskSave(taskId) {
+      deletingTaskIds.add(taskId);
+      const state = pendingTaskSaves.get(taskId);
+      if (!state) return;
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      state.task = null;
+      if (state.drainPromise) {
+        try {
+          await state.drainPromise;
+        } catch {
+          // The delete request remains authoritative even when an older save failed.
+        }
+      }
+      if (pendingTaskSaves.get(taskId) === state) pendingTaskSaves.delete(taskId);
+    }
+
     async function blockOverdueTasksForListMode() {
       try {
         await flushPendingTaskSave();
@@ -3097,6 +3117,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function scheduleSaveTask(task) {
+      if (deletingTaskIds.has(task.id)) return;
       setSyncStatus("待同步", "warn");
       enqueuePendingTaskSave(task);
     }
@@ -4162,7 +4183,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         if (!selectedTaskIds.size) return setSyncStatus("未选择任务", "warn");
         if (!confirm(`确认删除 ${selectedTaskIds.size} 个任务？`)) return;
         const ids = [...selectedTaskIds];
-        await Promise.all(ids.map((id) => apiJson(`/api/task/${encodeURIComponent(id)}`, { method: "DELETE" })));
+        await Promise.all(ids.map(cancelPendingTaskSave));
+        try {
+          await Promise.all(ids.map((id) => apiJson(`/api/task/${encodeURIComponent(id)}`, { method: "DELETE" })));
+        } catch (error) {
+          ids.forEach((id) => deletingTaskIds.delete(id));
+          throw error;
+        }
         tasks = tasks.filter((task) => !selectedTaskIds.has(task.id));
         selectedTaskIds.clear();
         selectedTaskId = tasks[0]?.id || "";
@@ -4212,7 +4239,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (event.target.id === "deleteTaskBtn") {
         const task = selectedTask();
         if (!task || !confirm("确认删除该任务？")) return;
-        await apiJson(`/api/task/${encodeURIComponent(task.id)}`, { method: "DELETE" });
+        await cancelPendingTaskSave(task.id);
+        try {
+          await apiJson(`/api/task/${encodeURIComponent(task.id)}`, { method: "DELETE" });
+        } catch (error) {
+          deletingTaskIds.delete(task.id);
+          throw error;
+        }
         tasks = tasks.filter((item) => item.id !== task.id);
         selectedTaskId = tasks[0]?.id || "";
         closeTaskModal();

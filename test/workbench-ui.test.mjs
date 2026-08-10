@@ -273,7 +273,7 @@ function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => s
 test("goal column widths recover defaults, clamp bounds, and restore isolated storage", () => {
   const storage = new Map();
   const runtime = goalColumnWidthRuntime(storage);
-  assert.deepEqual(runtime.goalTableColumns.map(({ key }) => key), ["seq", "name", "definition", "owner", "lastYearActual", "target", "current", "progress", "status", "actions"]);
+  assert.deepEqual(runtime.goalTableColumns.map(({ key }) => key), ["seq", "name", "definition", "owner", "lastYearActual", "target", "expectedCurrent", "current", "progress", "status", "actions"]);
 
   storage.set(runtime.goalColumnWidthStorageKey(), "not-json");
 
@@ -303,13 +303,13 @@ test("goal resize handle aria follows clamped width", () => {
   const attributes = new Map();
   const handle = { setAttribute: (key, value) => attributes.set(key, String(value)) };
   const width = runtime.updateGoalColumnResizeHandle(handle, "actions", 999);
-  assert.equal(width, 260);
-  assert.equal(attributes.get("aria-valuemin"), "130");
-  assert.equal(attributes.get("aria-valuemax"), "260");
-  assert.equal(attributes.get("aria-valuenow"), "260");
+  assert.equal(width, 180);
+  assert.equal(attributes.get("aria-valuemin"), "100");
+  assert.equal(attributes.get("aria-valuemax"), "180");
+  assert.equal(attributes.get("aria-valuenow"), "180");
 });
 
-test("goal table renders ten stable columns with accessible pointer resize handles", () => {
+test("goal table renders eleven stable columns with accessible pointer resize handles", () => {
   assert.match(html, /<colgroup>\$\{goalDeleteMode/);
   assert.match(html, /data-goal-column="\$\{column\.key\}"/);
   assert.match(html, /class="goal-column-resize"/);
@@ -328,6 +328,12 @@ test("goal table renders ten stable columns with accessible pointer resize handl
   assert.match(html, /goalColumnWidthsKey !== goalColumnWidthStorageKey\(\)/);
   assert.doesNotMatch(html, /id="resetGoalsBtn"/);
   assert.match(html, /id="deleteGoalsBtn"/);
+  assert.match(html, /label: "预计达成"/);
+  assert.match(html, /label: "实际达成"/);
+  assert.match(html, /data-goal-key="expectedCurrent"/);
+  assert.match(html, /\$\{escapeHtml\(String\(row\.current \|\| 0\)\)\}/);
+  assert.doesNotMatch(html, /label: "已达成"/);
+  assert.match(html, /"actions".*defaultWidth: 120.*minWidth: 100.*maxWidth: 180/);
 });
 
 function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
@@ -339,18 +345,33 @@ function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}, timers
   const saveFunctions = html.match(/ {4}function taskWithOverdueSaveBarrier[\s\S]*?(?=\r?\n\r?\n {4}function decodeReportEscapes)/)?.[0];
   assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
   const pendingTaskSaves = new Map();
+  const deletingTaskIds = new Set();
   const overdueTaskSaveBarriers = new Map();
-  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "overdueTaskSaveBarriers", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, blockOverdueTasksForListMode };`)(
+  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "deletingTaskIds", "overdueTaskSaveBarriers", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, cancelPendingTaskSave, blockOverdueTasksForListMode };`)(
     tasks,
     () => "2026-08-04",
     persistTask,
     setSyncStatus,
     pendingTaskSaves,
+    deletingTaskIds,
     overdueTaskSaveBarriers,
     timers.setTimeout || (() => 1),
     timers.clearTimeout || (() => {}),
   );
 }
+
+test("deleting a task cancels queued saves and blocks new saves", async () => {
+  const task = { id: "a", title: "A", status: "进行中", dueDate: "2026-08-10" };
+  const persisted = [];
+  const runtime = overdueSaveRuntime([task], async (value) => persisted.push({ ...value }));
+
+  runtime.scheduleSaveTask(task);
+  await runtime.cancelPendingTaskSave(task.id);
+  runtime.scheduleSaveTask({ ...task, title: "删除期间的旧编辑" });
+  await runtime.flushPendingTaskSave(task.id);
+
+  assert.deepEqual(persisted, []);
+});
 
 test("workbench uses the generic page title and custom favicon", () => {
   assert.match(html, /<title>部门工作台<\/title>/);

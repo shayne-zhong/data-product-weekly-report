@@ -777,7 +777,11 @@ async function handleGoals(req, res, state, parts, now, actor) {
     }
     const totals = completedGoalContributionById(listTasksForDepartment(state, departmentId));
     const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"))
-      .map((row) => ({ ...row, current: totals[row.id] || 0 }));
+      .map((row) => ({
+        ...row,
+        expectedCurrent: String(row.expectedCurrent || ""),
+        current: totals[row.id] || 0,
+      }));
     state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows, updatedAt: now, updatedBy: actor };
     await saveState(state);
     return json(res, {
