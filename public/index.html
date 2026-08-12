@@ -1378,7 +1378,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         const existingTimestamp = Number(existing?.updatedAt || existing?.completedAt || existing?.createdAt || 0);
         if (!existing || timestamp >= existingTimestamp) latestByRoot.set(root.id, task);
       });
-      return [...latestByRoot.values()];
+      const latestByBusinessKey = new Map();
+      [...latestByRoot.values()].forEach((task) => {
+        const normalized = (value) => String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+        const key = [task.title, task.module, task.owner].map(normalized).join("\u0000");
+        const existing = latestByBusinessKey.get(key);
+        const timestamp = Number(task.updatedAt || task.completedAt || task.createdAt || 0);
+        const existingTimestamp = Number(existing?.updatedAt || existing?.completedAt || existing?.createdAt || 0);
+        if (!existing || timestamp >= existingTimestamp) latestByBusinessKey.set(key, task);
+      });
+      return [...latestByBusinessKey.values()];
     }
 
     function goalNameById(goalId) {

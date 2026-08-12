@@ -81,6 +81,78 @@ test("CloudBase transaction preserves a task deletion across stale instance save
   assert.deepEqual(await firstInstance.load(), { tasks: {}, settings: { theme: "dark" } });
 });
 
+test("CloudBase transaction does not resurrect a deleted task from a stale task update", async () => {
+  const database = fakeDatabase();
+  const options = { env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" }, cloudbaseDatabase: database };
+  const deletingInstance = createStateStore(options);
+  const staleInstance = createStateStore(options);
+  const initial = { tasks: { taskA: { id: "taskA", title: "删除前" } } };
+  await deletingInstance.save(initial);
+
+  const deleteBase = await deletingInstance.load();
+  const staleBase = await staleInstance.load();
+  const afterDelete = structuredClone(deleteBase);
+  const staleUpdate = structuredClone(staleBase);
+  delete afterDelete.tasks.taskA;
+  staleUpdate.tasks.taskA.title = "旧页面仍在保存";
+
+  await deletingInstance.save(afterDelete, { baseState: deleteBase });
+  await staleInstance.save(staleUpdate, { baseState: staleBase });
+
+  assert.deepEqual(await deletingInstance.load(), { tasks: {} });
+});
+
+test("CloudBase transaction preserves unrelated state when transaction reads return data.list", async () => {
+  const database = fakeDatabase();
+  const originalCollection = database.collection.bind(database);
+  database.runTransaction = async (callback) => callback({
+    collection(name) {
+      const collection = originalCollection(name);
+      return {
+        doc(id) {
+          const document = collection.doc(id);
+          return {
+            ...document,
+            async get() {
+              const result = await document.get();
+              return { data: { list: result.data } };
+            },
+          };
+        },
+      };
+    },
+  });
+  const store = createStateStore({
+    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
+    cloudbaseDatabase: database,
+  });
+  const initial = { users: { alice: { username: "alice" } }, tasks: { taskA: { id: "taskA" } }, loginAttempts: {} };
+  await store.save(initial);
+  const base = await store.load();
+  const next = structuredClone(base);
+  next.loginAttempts.alice = { failures: 1 };
+
+  await store.save(next, { baseState: base });
+
+  assert.deepEqual(await store.load(), next);
+});
+
+test("CloudBase transaction persists normalized fields that are missing from legacy state", async () => {
+  const database = fakeDatabase();
+  const store = createStateStore({
+    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
+    cloudbaseDatabase: database,
+  });
+  await store.save({ users: {}, tasks: {} });
+  const base = { users: {}, tasks: {}, sessions: {}, loginAttempts: {} };
+  const next = structuredClone(base);
+  next.loginAttempts.alice = { failures: 1 };
+
+  await store.save(next, { baseState: base });
+
+  assert.deepEqual(await store.load(), next);
+});
+
 test("production never falls back to temporary disk", async () => {
   const store = createStateStore({ env: { NODE_ENV: "production" } });
 

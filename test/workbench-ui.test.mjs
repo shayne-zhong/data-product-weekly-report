@@ -366,16 +366,17 @@ function goalTaskDisplayRuntime() {
   return new Function(`${source}\nreturn latestTasksForGoalDisplay;`)();
 }
 
-test("goal task details show only the latest task from each rollover chain", () => {
+test("goal task details merge rollover chains and duplicate title module owner records", () => {
   const latestTasksForGoalDisplay = goalTaskDisplayRuntime();
   const tasks = [
-    { id: "original", title: "同名但独立", updatedAt: 10 },
-    { id: "rolled-1", sourceTaskId: "original", title: "同名但独立", updatedAt: 20 },
-    { id: "rolled-2", sourceTaskId: "rolled-1", title: "同名但独立", updatedAt: 30 },
-    { id: "independent", title: "同名但独立", updatedAt: 25 },
+    { id: "original", title: "指标上线", module: "数据治理", owner: "黄嘉颖", updatedAt: 10 },
+    { id: "rolled-1", sourceTaskId: "original", title: "指标上线", module: "数据治理", owner: "黄嘉颖", updatedAt: 20 },
+    { id: "rolled-2", sourceTaskId: "rolled-1", title: "指标上线", module: "数据治理", owner: "黄嘉颖", updatedAt: 30 },
+    { id: "imported-duplicate", title: " 指标上线 ", module: "数据治理", owner: "黄嘉颖", updatedAt: 25 },
+    { id: "different-owner", title: "指标上线", module: "数据治理", owner: "其他人", updatedAt: 35 },
   ];
 
-  assert.deepEqual(latestTasksForGoalDisplay(tasks).map((task) => task.id), ["rolled-2", "independent"]);
+  assert.deepEqual(latestTasksForGoalDisplay(tasks).map((task) => task.id), ["rolled-2", "different-owner"]);
 });
 
 test("deleting a task cancels queued saves and blocks new saves", async () => {
