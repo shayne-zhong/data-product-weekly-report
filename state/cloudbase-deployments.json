@@ -210,5 +210,33 @@
       "probeCleaned": true,
       "preservedTaskCount": 96
     }
+  },
+  {
+    "deployedAt": "2026-08-13T06:18:03.000Z",
+    "environmentId": "shayen-d0g1qu7hfe1045db1",
+    "environmentAlias": "shayen",
+    "region": "ap-shanghai",
+    "service": "department-workbench",
+    "cloudVersion": "department-workbench-028",
+    "buildId": 2601681839,
+    "sourceVersion": "990c80f174623e41ea949564bc1f509ece81d872",
+    "url": "https://department-workbench-4144803-1301331867.ap-shanghai.run.tcloudbase.com",
+    "status": "normal",
+    "trafficPercent": 100,
+    "checks": {
+      "tests": 178,
+      "lint": true,
+      "productionBuild": true,
+      "concurrentDeleteRegression": true,
+      "staleTaskUpdateRegression": true,
+      "health": 200,
+      "home": 200,
+      "latestDeleteSaveBarrierServed": true,
+      "productionDeleteProbeAbsentAfterRefresh": true,
+      "databaseConfirmedAbsentTwice": true,
+      "probeCleaned": true,
+      "healthVersionEnvironmentStale": "d9b7887d854837b59a23e2317024fa06c56706ad+dirty",
+      "cloudLogsEnabled": false
+    }
   }
 ]
