@@ -4,6 +4,12 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
+test("loading a week only fetches its tasks and never triggers rollover", () => {
+  const source = html.match(/ {4}async function loadWeek\(weekId\) \{[\s\S]*?\r?\n {4}\}/)?.[0] || "";
+  assert.ok(source, "missing loadWeek");
+  assert.doesNotMatch(source, /autoRolloverFromPrevious|\/rollover/);
+});
+
 function aiReportHelpersRuntime() {
   const source = html.match(/ {4}function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/)?.[0];
   assert.ok(source, "missing executable AI report source/apply helpers");

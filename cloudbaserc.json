@@ -1,5 +1,26 @@
 {
   "envId": "shayen-d0g1qu7hfe1045db1",
+  "functionRoot": "cloudfunctions",
+  "functions": [
+    {
+      "name": "weekly-task-rollover",
+      "type": "Event",
+      "runtime": "Nodejs18.15",
+      "handler": "index.main",
+      "timeout": 30,
+      "envVariables": {
+        "TZ": "Asia/Shanghai",
+        "WORKBENCH_URL": "https://department-workbench-4144803-1301331867.ap-shanghai.run.tcloudbase.com"
+      },
+      "triggers": [
+        {
+          "name": "weekly-task-rollover-monday",
+          "type": "timer",
+          "config": "0 5 0 ? * MON *"
+        }
+      ]
+    }
+  ],
   "cloudrun": {
     "name": "department-workbench"
   }

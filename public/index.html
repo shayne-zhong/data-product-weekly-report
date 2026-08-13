@@ -2190,13 +2190,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         await blockOverdueTasksForListMode();
         renderBoard();
       }
-      await autoRolloverFromPrevious();
-    }
-
-    function previousWeekFor(weekId) {
-      const sorted = [...weeks].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
-      const index = sorted.findIndex((week) => week.id === weekId);
-      return index > 0 ? sorted[index - 1] : null;
     }
 
     function normalizePriority(value) {
@@ -2480,32 +2473,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       closeHistorySupplementModal();
       await openTaskHistory();
       setSyncStatus(`已补录${pending.length}项历史任务`, "ok");
-    }
-
-    async function autoRolloverFromPrevious() {
-      const source = previousWeekFor(currentWeek?.id);
-      if (!source) return;
-      await importPreviousTodos(source, false);
-    }
-
-    async function importPreviousTodos(source, showEmptyMessage = true) {
-      try {
-        const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/rollover`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sourceWeekId: source.id }),
-        });
-        if (result.tasks?.length) {
-          tasks = [...result.tasks, ...tasks];
-          selectedTaskId = tasks[0]?.id || "";
-          renderAll();
-          setSyncStatus(`已自动带入${result.tasks.length}项`, "ok");
-        } else if (showEmptyMessage) {
-          setSyncStatus("无可导入事项", "ok");
-        }
-      } catch {
-        setSyncStatus("导入失败", "warn");
-      }
     }
 
     async function previewTasksFromWeek(source) {

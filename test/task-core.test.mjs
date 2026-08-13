@@ -56,7 +56,7 @@ test("applyTaskStatus requires blockers and records completion lifecycle", () =>
   assert.equal(reopened.completedAt, "");
 });
 
-test("rolloverTasks carries unfinished, blocked, or explicitly carried tasks into the target week", () => {
+test("rolloverTasks carries only unfinished tasks into the target week", () => {
   const sourceTasks = [
     buildEmptyTask({ id: "done", weekId: "2026-06-08_2026-06-14", title: "已完成", status: "已完成" }),
     buildEmptyTask({ id: "doing", weekId: "2026-06-08_2026-06-14", title: "继续推进", status: "进行中" }),
@@ -70,7 +70,7 @@ test("rolloverTasks carries unfinished, blocked, or explicitly carried tasks int
     now: 1000,
   });
 
-  assert.deepEqual(rolled.map((task) => task.title), ["继续推进", "存在阻塞", "显式带入"]);
+  assert.deepEqual(rolled.map((task) => task.title), ["继续推进", "存在阻塞"]);
   assert.equal(rolled[0].weekId, "2026-06-15_2026-06-21");
   assert.equal(rolled[0].sourceTaskId, "doing");
   assert.equal(rolled[0].sourceWeekId, "2026-06-08_2026-06-14");

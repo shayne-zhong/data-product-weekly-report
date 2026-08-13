@@ -14,6 +14,7 @@
 - `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api` 并托管静态资源。
 - `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
 - `netlify/functions/api.mjs`：Netlify 到统一 API 的运行时适配层。
+- `cloudfunctions/weekly-task-rollover/`：CloudBase Event Function，每周触发一次受保护的任务结转入口。
 - `scripts/build.mjs`：校验内联脚本，生成 `build` 目录和构建清单。
 
 常用命令：`npm.cmd start`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run lint`、`npm.cmd run format:check`。
@@ -25,12 +26,14 @@
 - `lib/`：可独立测试的领域逻辑、安全、持久化和附件能力。
 - `test/`：API、领域模块、生产构建和 UI 行为测试。
 - `netlify/functions/`：Netlify 运行时适配层。
+- `cloudfunctions/`：CloudBase 定时事件函数；函数仅负责任务调度，不直接操作业务状态。
 - `scripts/`：构建、静态服务和状态迁移或恢复工具。
 - `data/`：本地附件等运行数据；`build/`：生成产物，不作为源代码修改。
 
 ## 主要模块映射
 
 - 任务与指标贡献：`lib/task-core.mjs`、`lib/workbench-utils.mjs` 及对应任务测试；指标当前值由已完成待办的 `goalLinks` 贡献数汇总。
+- 周任务结转：`lib/weekly-rollover.mjs` 负责北京时间周窗口、按部门持久化防重和任务复制；浏览器加载周数据不触发结转。
 - 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
@@ -45,11 +48,14 @@
 4. `lib/state-store.mjs` 依次按环境选择 CloudBase、Netlify Blobs、Vercel Blob；非生产环境可使用临时目录 JSON。
 5. API 返回 JSON，浏览器更新页面状态和视图。
 
-顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`。
+周任务结转由 CloudBase 定时触发器调用 `cloudfunctions/weekly-task-rollover/`，函数携带共享密钥请求 `/api/internal/weekly-rollover`；API 在持久化状态中以“部门 + 源周 + 目标周”记录执行结果。
+
+顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`、`internal`；`internal` 仅接受服务端共享密钥。
 
 ## 定向读取指南
 
 - 待办任务：任务 UI → `lib/task-core.mjs`、`lib/workbench-utils.mjs` → 任务测试；涉及保存或产物时补读任务 API 与 `lib/task-artifact-service.mjs`。
+- 周任务结转：`cloudfunctions/weekly-task-rollover/` → `/api/internal/weekly-rollover` → `lib/weekly-rollover.mjs` → 结转与持久化 API 测试。
 - 部门目标：目标 UI → `lib/task-core.mjs` 的贡献汇总 → 目标与任务 API 测试。
 - 周报：周报 UI → 报告 API → `test/report-api.test.mjs`。
 - 登录管理：鉴权 UI → 鉴权 API → 管理员和安全模块。

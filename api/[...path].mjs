@@ -1,4 +1,6 @@
-import { applyTaskStatus, buildEmptyTask, buildWeekId, completedGoalContributionById, normalizeTaskGoalLinks, rolloverTasks, summarizeTasksForReport } from "../lib/task-core.mjs";
+import { timingSafeEqual } from "node:crypto";
+
+import { applyTaskStatus, buildEmptyTask, buildWeekId, completedGoalContributionById, normalizeTaskGoalLinks, summarizeTasksForReport } from "../lib/task-core.mjs";
 import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config.mjs";
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
@@ -11,6 +13,7 @@ import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
+import { applyWeeklyRollover } from "../lib/weekly-rollover.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -320,6 +323,15 @@ async function loadState() {
   return memoryState;
 }
 
+function weeklyRolloverAuthorized(req) {
+  const expected = String(process.env.WEEKLY_ROLLOVER_SECRET || "");
+  const provided = String(req.headers?.["x-weekly-rollover-secret"] || "");
+  if (!expected || !provided) return false;
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
 async function saveState(state) {
   const persistedState = await stateStore.save(state, { baseState: stateBaseSnapshots.get(state) });
   if (persistedState && persistedState !== state) {
@@ -617,14 +629,6 @@ async function handleWeek(req, res, state, parts, now, actor) {
     week.updatedAt = now;
     await saveState(state);
     return json(res, { task: publicTask(task) }, 201);
-  }
-  if (req.method === "POST" && action === "rollover") {
-    const body = await readBody(req);
-    const sourceTasks = listTasksForWeek(state, body.sourceWeekId, departmentId);
-    const rolled = rolloverTasks(sourceTasks, { targetWeekId: weekId, sourceWeekId: body.sourceWeekId, existingTargetTasks: listTasksForWeek(state, weekId, departmentId), now });
-    rolled.forEach((task) => { task.departmentId = departmentId; task.createdBy = actor; task.updatedBy = actor; state.tasks[task.id] = task; });
-    await saveState(state);
-    return json(res, { tasks: rolled.map(publicTask) }, 201);
   }
   if (req.method === "POST" && action === "generate-report") {
     const settings = settingsForDepartment(state, departmentId);
@@ -1179,6 +1183,16 @@ export default async function handler(req, res) {
     const now = Date.now();
     const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
     const parts = routePath.split("/").filter(Boolean);
+    if (parts[0] === "internal" && parts[1] === "weekly-rollover") {
+      if (req.method !== "POST") return methodNotAllowed(res);
+      if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
+      const body = await readBody(req);
+      const triggeredAt = Date.parse(String(body.triggeredAt || ""));
+      const result = applyWeeklyRollover(state, { now: Number.isNaN(triggeredAt) ? now : triggeredAt });
+      if (result.changed) await saveState(state);
+      console.info("Weekly task rollover:", JSON.stringify(result));
+      return json(res, result);
+    }
     const actor = currentUser(req, state, now);
     if (parts[0] === "auth") return await handleAuth(req, res, state, parts[1], now);
     if (parts[0] === "admin") return await handleAdmin(req, res, state, parts, now, release);

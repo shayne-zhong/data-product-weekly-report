@@ -10,6 +10,7 @@ process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
 process.env.ADMIN_SESSION_SECRET = "persistence-api-admin-session-secret-32-bytes";
 process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 6).toString("base64");
+process.env.WEEKLY_ROLLOVER_SECRET = "weekly-rollover-test-secret-32-bytes";
 
 function mockRes() {
   return {
@@ -77,6 +78,55 @@ test.before(async () => {
   });
   assert.equal(loggedIn.statusCode, 200);
   defaultToken = loggedIn.body.token;
+});
+
+test("weekly rollover is internal, persistent, and idempotent", async () => {
+  const sourceStartDate = "2098-12-29";
+  const sourceEndDate = "2099-01-04";
+  const targetStartDate = "2099-01-05";
+  const targetEndDate = "2099-01-11";
+  const sourceWeek = await api("/weeks", { method: "POST", body: { startDate: sourceStartDate, endDate: sourceEndDate } });
+  const sourceTask = await api(`/week/${encodeURIComponent(sourceWeek.body.week.id)}/tasks`, {
+    method: "POST",
+    body: { task: { title: "定时结转测试", status: "进行中" } },
+  });
+  assert.equal(sourceTask.statusCode, 201);
+
+  const unauthorized = await api("/internal/weekly-rollover", {
+    method: "POST",
+    token: "",
+    body: { triggeredAt: "2099-01-04T16:05:00.000Z" },
+  });
+  assert.equal(unauthorized.statusCode, 403);
+
+  const headers = { "x-weekly-rollover-secret": process.env.WEEKLY_ROLLOVER_SECRET };
+  const first = await api("/internal/weekly-rollover", {
+    method: "POST",
+    token: "",
+    headers,
+    body: { triggeredAt: "2099-01-04T16:05:00.000Z" },
+  });
+  const second = await api("/internal/weekly-rollover", {
+    method: "POST",
+    token: "",
+    headers,
+    body: { triggeredAt: "2099-01-04T16:05:00.000Z" },
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.body.rolledTaskCount, 1);
+  assert.equal(second.statusCode, 200);
+  assert.equal(second.body.rolledTaskCount, 0);
+  const targetWeekId = `${targetStartDate}_${targetEndDate}`;
+  const target = await api(`/week/${encodeURIComponent(targetWeekId)}/tasks`);
+  assert.equal(target.statusCode, 200);
+  assert.equal(target.body.tasks.filter((task) => task.sourceTaskId === sourceTask.body.task.id).length, 1);
+
+  const publicRollover = await api(`/week/${encodeURIComponent(targetWeekId)}/rollover`, {
+    method: "POST",
+    body: { sourceWeekId: sourceWeek.body.week.id },
+  });
+  assert.equal(publicRollover.statusCode, 405);
 });
 
 test("tasks persist multiple linked goal contributions after update and reload", async () => {
