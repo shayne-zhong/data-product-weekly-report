@@ -238,5 +238,28 @@
       "healthVersionEnvironmentStale": "d9b7887d854837b59a23e2317024fa06c56706ad+dirty",
       "cloudLogsEnabled": false
     }
+  },
+  {
+    "deployedAt": "2026-08-13T06:27:57.000Z",
+    "environmentId": "shayen-d0g1qu7hfe1045db1",
+    "environmentAlias": "shayen",
+    "region": "ap-shanghai",
+    "service": "department-workbench",
+    "cloudVersion": "department-workbench-029",
+    "buildId": 2601684116,
+    "sourceVersion": "03d484fae4325381d0315fdb047a2338e2800613",
+    "url": "https://department-workbench-4144803-1301331867.ap-shanghai.run.tcloudbase.com",
+    "status": "normal",
+    "trafficPercent": 100,
+    "checks": {
+      "tests": 178,
+      "lint": true,
+      "productionBuild": true,
+      "health": 200,
+      "home": 200,
+      "latestDeleteSaveBarrierServed": true,
+      "deletedProbeStillAbsent": true,
+      "healthVersionEnvironmentStale": "d9b7887d854837b59a23e2317024fa06c56706ad+dirty"
+    }
   }
 ]
