@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
-import handler from "../api/[...path].mjs";
+import handler, { runWeeklyRolloverFromServer } from "../api/[...path].mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
@@ -117,6 +117,11 @@ test("weekly rollover is internal, persistent, and idempotent", async () => {
   assert.equal(first.body.rolledTaskCount, 1);
   assert.equal(second.statusCode, 200);
   assert.equal(second.body.rolledTaskCount, 0);
+  const startupCatchup = await runWeeklyRolloverFromServer({
+    triggeredAt: Date.parse("2099-01-04T16:05:00.000Z"),
+    trigger: "server-startup",
+  });
+  assert.equal(startupCatchup.rolledTaskCount, 0);
   const targetWeekId = `${targetStartDate}_${targetEndDate}`;
   const target = await api(`/week/${encodeURIComponent(targetWeekId)}/tasks`);
   assert.equal(target.statusCode, 200);
@@ -127,6 +132,39 @@ test("weekly rollover is internal, persistent, and idempotent", async () => {
     body: { sourceWeekId: sourceWeek.body.week.id },
   });
   assert.equal(publicRollover.statusCode, 405);
+});
+
+test("global admin can inspect and safely restart scheduled rollover", async () => {
+  const adminLogin = await api("/admin/login", {
+    method: "POST",
+    token: "",
+    body: { username: "Admin", password: "888888" },
+  });
+  assert.equal(adminLogin.statusCode, 200);
+  const headers = { authorization: `Bearer ${adminLogin.body.token}` };
+
+  const unauthorized = await api("/admin/scheduled-tasks", { token: "" });
+  assert.equal(unauthorized.statusCode, 401);
+
+  const before = await api("/admin/scheduled-tasks", { token: "", headers });
+  assert.equal(before.statusCode, 200);
+  assert.equal(before.body.tasks[0].id, "weekly-task-rollover");
+  assert.doesNotMatch(JSON.stringify(before.body), /WEEKLY_ROLLOVER_SECRET/i);
+
+  const first = await api("/admin/scheduled-tasks/weekly-task-rollover/run", {
+    method: "POST",
+    token: "",
+    headers,
+  });
+  const second = await api("/admin/scheduled-tasks/weekly-task-rollover/run", {
+    method: "POST",
+    token: "",
+    headers,
+  });
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.body.task.status, "success");
+  assert.equal(second.statusCode, 200);
+  assert.equal(second.body.result.rolledTaskCount, 0);
 });
 
 test("tasks persist multiple linked goal contributions after update and reload", async () => {

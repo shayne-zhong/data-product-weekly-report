@@ -32,6 +32,34 @@ test("production server forwards API query parameters", () => {
   });
 });
 
+test("production server schedules Beijing Monday rollover and runs startup catch-up", async () => {
+  const sunday = Date.parse("2026-08-16T23:55:00+08:00");
+  assert.equal(productionServer.millisecondsUntilNextWeeklyRollover(sunday), 10 * 60 * 1000);
+  const mondayAfter = Date.parse("2026-08-17T00:06:00+08:00");
+  assert.equal(productionServer.millisecondsUntilNextWeeklyRollover(mondayAfter), 7 * 24 * 60 * 60 * 1000 - 60 * 1000);
+
+  const calls = [];
+  const timers = [];
+  const scheduler = productionServer.startWeeklyRolloverScheduler({
+    run: async (options) => { calls.push(options); return { rolledTaskCount: 0 }; },
+    now: () => sunday,
+    setTimeoutImpl(callback, delay) {
+      const timer = { callback, delay, unref() {} };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeoutImpl() {},
+    logger: { info() {}, error() {} },
+  });
+  await scheduler.startup;
+  assert.deepEqual(calls, [{ triggeredAt: sunday, trigger: "server-startup" }]);
+  assert.equal(timers[0].delay, 10 * 60 * 1000);
+  await timers[0].callback();
+  assert.equal(calls[1].trigger, "server-scheduled");
+  assert.equal(calls[1].triggeredAt, Date.parse("2026-08-17T00:05:00+08:00"));
+  scheduler.stop();
+});
+
 test("production server serves health, UI, and protected API", async () => {
   const server = createProductionServer({ deploymentVersion: "test-version" });
   await listen(server);

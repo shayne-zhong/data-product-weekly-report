@@ -13,7 +13,13 @@ import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
-import { applyWeeklyRollover } from "../lib/weekly-rollover.mjs";
+import {
+  applyWeeklyRollover,
+  completeWeeklyRolloverExecution,
+  failWeeklyRolloverExecution,
+  startWeeklyRolloverExecution,
+  weeklyRolloverTaskSummary,
+} from "../lib/weekly-rollover.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -340,6 +346,35 @@ async function saveState(state) {
   }
   memoryState = state;
   stateBaseSnapshots.set(state, structuredClone(state));
+}
+
+async function executeWeeklyRollover(state, { triggeredAt = Date.now(), trigger = "scheduled" } = {}) {
+  startWeeklyRolloverExecution(state, { now: triggeredAt, trigger });
+  await saveState(state);
+  try {
+    const result = applyWeeklyRollover(state, { now: triggeredAt });
+    completeWeeklyRolloverExecution(state, result, { now: Date.now() });
+    await saveState(state);
+    return result;
+  } catch (error) {
+    failWeeklyRolloverExecution(state, error, { now: Date.now() });
+    try {
+      await saveState(state);
+    } catch (saveError) {
+      console.error("Weekly rollover failure status save failed:", saveError?.message || saveError);
+    }
+    throw error;
+  }
+}
+
+export async function runWeeklyRolloverFromServer({ triggeredAt = Date.now(), trigger = "server-startup" } = {}) {
+  const release = await mutationLock.acquire();
+  try {
+    const state = await loadState();
+    return await executeWeeklyRollover(state, { triggeredAt, trigger });
+  } finally {
+    release();
+  }
 }
 
 async function readBody(req) {
@@ -1153,9 +1188,21 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
+    if (action === "scheduled-tasks") return json(res, { error: "仅全局管理员可管理定时任务" }, 403);
     return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
   }
 
+  if (action === "scheduled-tasks") {
+    if (parts[2] === "weekly-task-rollover" && parts[3] === "run") {
+      if (req.method !== "POST") return methodNotAllowed(res);
+      const result = await executeWeeklyRollover(state, { triggeredAt: now, trigger: `manual:${decoded.username}` });
+      return json(res, { task: weeklyRolloverTaskSummary(state, { now }), result });
+    }
+    if (parts.length === 2) {
+      if (req.method !== "GET") return methodNotAllowed(res);
+      return json(res, { tasks: [weeklyRolloverTaskSummary(state, { now })] });
+    }
+  }
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
   if (action === "users" && parts[3] === "reset-password") {
     return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now);
@@ -1188,8 +1235,10 @@ export default async function handler(req, res) {
       if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
       const body = await readBody(req);
       const triggeredAt = Date.parse(String(body.triggeredAt || ""));
-      const result = applyWeeklyRollover(state, { now: Number.isNaN(triggeredAt) ? now : triggeredAt });
-      if (result.changed) await saveState(state);
+      const result = await executeWeeklyRollover(state, {
+        triggeredAt: Number.isNaN(triggeredAt) ? now : triggeredAt,
+        trigger: "scheduled",
+      });
       console.info("Weekly task rollover:", JSON.stringify(result));
       return json(res, result);
     }

@@ -124,6 +124,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .admin-login{max-width:560px;padding:22px}.admin-login h3{margin:0 0 4px}
 .admin-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:16px;align-items:start}
 .admin-card{padding:18px}.admin-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.admin-card h3{margin:0 0 4px}
+.scheduled-task-list{display:grid;gap:14px}.scheduled-task-card{position:relative;display:grid;grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr) auto;gap:18px;align-items:center;padding:18px;border:1px solid var(--line);border-left:4px solid #64748b;border-radius:14px;background:#fbfcff}.scheduled-task-card.success{border-left-color:#15803d}.scheduled-task-card.failed{border-left-color:#b91c1c}.scheduled-task-card.running{border-left-color:#b45309}.scheduled-task-title{display:flex;align-items:center;gap:9px;margin-bottom:7px}.scheduled-task-title h4{margin:0;font-size:16px}.scheduled-task-meta{display:grid;grid-template-columns:repeat(2,minmax(130px,1fr));gap:9px 16px}.scheduled-task-meta span{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}.scheduled-task-error{grid-column:1/-1;padding:9px 11px;border-radius:9px;background:var(--red-soft);color:var(--red);font-size:12px}.scheduled-task-action{display:grid;justify-items:end;gap:7px}.scheduled-task-action small{color:var(--muted)}@media(max-width:900px){.scheduled-task-card{grid-template-columns:1fr}.scheduled-task-action{justify-items:start}.scheduled-task-meta{grid-template-columns:1fr}}
 .admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row.three{grid-template-columns:1fr 1fr 150px auto}.admin-row.four{grid-template-columns:1fr 1fr 130px 110px auto}.admin-row input,.admin-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus,.admin-row select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
 .admin-ai-card{grid-column:1/-1}.admin-ai-grid{display:grid;grid-template-columns:180px minmax(220px,1fr) 180px;gap:12px}.admin-ai-grid label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.admin-ai-grid select,.admin-ai-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;outline:none}.ai-ready{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcff}.ai-ready.ok{color:var(--green);border-color:rgba(22,163,106,.25);background:var(--green-soft)}.ai-ready.warn{color:var(--orange);border-color:rgba(229,138,0,.28);background:var(--orange-soft)}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
@@ -393,6 +394,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <div class="settings-center">
           <nav class="settings-nav panel" aria-label="后台设置分类">
             <button class="active" data-admin-section="departments">部门管理</button>
+            <button data-admin-section="scheduled-tasks">定时任务</button>
             <button data-admin-section="modules">项目类型</button>
             <button data-admin-section="accounts">账号管理</button>
             <button data-admin-section="ai">AI 服务</button>
@@ -401,6 +403,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <button data-admin-section="leader-modules" hidden>项目类型</button>
           </nav>
           <div class="settings-editor">
+            <section class="panel admin-section" data-admin-panel="scheduled-tasks" hidden>
+              <div class="admin-section-head"><div><h3>定时任务</h3><p>查看自动执行状态和失败原因；人工重新启动仍受防重机制保护。</p></div><button class="ghost-btn" id="reloadScheduledTasksBtn">刷新状态</button></div>
+              <div id="scheduledTaskList" class="scheduled-task-list"></div>
+            </section>
             <section class="panel admin-section" data-admin-panel="departments">
               <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门名称与启用状态；已有部门请停用，不直接删除。</p></div><button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
               <div id="adminDepartmentsList" class="admin-list"></div>
@@ -838,6 +844,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let adminActiveSection = adminRole === "leader" ? "leader-accounts" : "departments";
     let leaderAccounts = [];
     let leaderModules = [];
+    let scheduledTasks = [];
+    let scheduledTaskRunning = false;
     let adminDirty = false;
     let adminResetUsername = "";
     let goalsSaveTimer = null;
@@ -1681,6 +1689,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       ]);
       leaderAccounts = accountsResult.accounts || [];
       leaderModules = modulesResult.modules || [];
+    }
+
+    async function loadScheduledTasks() {
+      const result = await apiJson("/api/admin/scheduled-tasks", { headers: adminRequestHeaders() });
+      scheduledTasks = result.tasks || [];
     }
 
     function renderModuleFilterOptions() {
@@ -3818,6 +3831,35 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderAdmin();
     }
 
+    function scheduledTaskTime(value) {
+      if (!Number(value)) return "-";
+      return new Date(Number(value)).toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function renderScheduledTasks() {
+      const statusLabels = { never: "从未执行", running: "执行中", success: "成功", failed: "失败" };
+      const statusClasses = { never: "status-done", running: "status-normal", success: "status-normal", failed: "status-risk" };
+      $("scheduledTaskList").innerHTML = scheduledTasks.map((task) => `
+        <article class="scheduled-task-card ${escapeHtml(task.status || "never")}">
+          <div>
+            <div class="scheduled-task-title"><h4>${escapeHtml(task.name || "定时任务")}</h4><span class="status-pill ${statusClasses[task.status] || "status-done"}">${statusLabels[task.status] || "未知"}</span></div>
+            <div class="subtitle">${escapeHtml(task.schedule || "-")}</div>
+          </div>
+          <div class="scheduled-task-meta">
+            <div><span>计划执行</span><strong>${escapeHtml(scheduledTaskTime(task.scheduledAt))}</strong></div>
+            <div><span>最近完成</span><strong>${escapeHtml(scheduledTaskTime(task.finishedAt))}</strong></div>
+            <div><span>结转周次</span><strong>${escapeHtml(`${task.sourceWeekId || "-"} → ${task.targetWeekId || "-"}`)}</strong></div>
+            <div><span>执行结果</span><strong>结转 ${Number(task.rolledTaskCount || 0)} 项 · ${Number(task.completedDepartmentCount || 0)}/${Number(task.departmentCount || 0)} 个部门</strong></div>
+            ${task.error ? `<div class="scheduled-task-error">${escapeHtml(task.error)}</div>` : ""}
+          </div>
+          <div class="scheduled-task-action">
+            <button class="primary-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning ? "启动中..." : "重新启动"}</button>
+            <small>${task.trigger?.startsWith("manual:") ? "最近由管理员启动" : "最近由系统调度"}</small>
+          </div>
+        </article>
+      `).join("") || `<div class="empty">暂无定时任务</div>`;
+    }
+
     function renderAdmin() {
       $("adminLoginPanel").hidden = adminAuthed;
       $("adminManagePanel").hidden = !adminAuthed;
@@ -3832,6 +3874,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       });
       document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== adminActiveSection; });
       document.querySelector(".admin-savebar").hidden = !adminDirty;
+      if (adminActiveSection === "scheduled-tasks") renderScheduledTasks();
       const draftDepartments = adminDraftSettings.departments || [];
       if (!draftDepartments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = draftDepartments[0]?.id || "";
       const selectedDepartment = draftDepartments.find((department) => department.id === adminModulesDepartmentId) || draftDepartments[0];
@@ -4908,11 +4951,48 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), enabled: event.target.value === "true" };
       markAdminDirty();
     });
-    document.querySelector(".settings-nav").addEventListener("click", (event) => {
+    document.querySelector(".settings-nav").addEventListener("click", async (event) => {
       const button = event.target.closest("[data-admin-section]");
       if (!button) return;
       adminActiveSection = button.dataset.adminSection;
+      if (adminActiveSection === "scheduled-tasks") {
+        try {
+          await loadScheduledTasks();
+        } catch (error) {
+          setSyncStatus(error.message || "定时任务状态读取失败", "warn");
+        }
+      }
       renderAdmin();
+    });
+    $("reloadScheduledTasksBtn").addEventListener("click", async () => {
+      try {
+        await loadScheduledTasks();
+        renderScheduledTasks();
+        setSyncStatus("定时任务状态已刷新", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "定时任务状态读取失败", "warn");
+      }
+    });
+    $("scheduledTaskList").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-run-scheduled-task]");
+      if (!button || scheduledTaskRunning) return;
+      if (!confirm("确认立即重新启动周任务结转？已成功结转的部门不会重复创建任务。")) return;
+      scheduledTaskRunning = true;
+      renderScheduledTasks();
+      try {
+        const result = await apiJson(`/api/admin/scheduled-tasks/${encodeURIComponent(button.dataset.runScheduledTask)}/run`, {
+          method: "POST",
+          headers: adminRequestHeaders(),
+        });
+        scheduledTasks = result.task ? [result.task] : scheduledTasks;
+        setSyncStatus(`定时任务执行完成，结转 ${Number(result.result?.rolledTaskCount || 0)} 项`, "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "定时任务启动失败", "warn");
+        await loadScheduledTasks().catch(() => {});
+      } finally {
+        scheduledTaskRunning = false;
+        renderScheduledTasks();
+      }
     });
     $("adminSessionDurationMinutes").addEventListener("input", () => markAdminDirty());
     $("adminAiApiKey").addEventListener("input", () => markAdminDirty("输入了新密钥，保存后生效"));

@@ -46,3 +46,40 @@ test("weekly rollover records one durable effect and skips repeated execution", 
   assert.ok(state.weeks[`data-product:${targetWeekId}`]);
   assert.equal(Object.keys(state.weeklyRolloverRuns).length, 1);
 });
+
+test("weekly rollover task status exposes missed schedules, failures, and recovery", async () => {
+  const module = await import("../lib/weekly-rollover.mjs");
+  const now = Date.parse("2026-08-17T01:00:00+08:00");
+  const state = {
+    settings: { departments: [{ id: "data-product", enabled: true }] },
+    tasks: {},
+    weeks: {},
+    weeklyRolloverRuns: {},
+  };
+
+  const missed = module.weeklyRolloverTaskSummary(state, { now });
+  assert.equal(missed.status, "failed");
+  assert.match(missed.error, /未检测到本周执行记录/);
+
+  module.startWeeklyRolloverExecution(state, { now, trigger: "manual:admin" });
+  assert.equal(module.weeklyRolloverTaskSummary(state, { now }).status, "running");
+  const timedOut = module.weeklyRolloverTaskSummary(state, { now: now + 11 * 60 * 1000 });
+  assert.equal(timedOut.status, "failed");
+  assert.match(timedOut.error, /超过 10 分钟/);
+
+  module.failWeeklyRolloverExecution(state, new Error("upstream\nsecret-free failure"), { now: now + 1 });
+  const failed = module.weeklyRolloverTaskSummary(state, { now: now + 1 });
+  assert.equal(failed.status, "failed");
+  assert.equal(failed.error, "upstream secret-free failure");
+
+  const result = module.applyWeeklyRollover(state, { now });
+  module.completeWeeklyRolloverExecution(state, result, { now: now + 2 });
+  const recovered = module.weeklyRolloverTaskSummary(state, { now: now + 2 });
+  assert.equal(recovered.status, "success");
+  assert.equal(recovered.completedDepartmentCount, 1);
+
+  module.failWeeklyRolloverExecution(state, new Error("retry failed"), { now: now + 3 });
+  const retryFailed = module.weeklyRolloverTaskSummary(state, { now: now + 3 });
+  assert.equal(retryFailed.status, "failed");
+  assert.equal(retryFailed.error, "retry failed");
+});
