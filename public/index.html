@@ -281,9 +281,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <p>支持周总结、月总结、季度总结沉淀与归档</p>
         </div>
         <div class="head-actions">
-          <button class="ghost-btn" id="previewDiffBtn">差异预览</button>
           <button class="ghost-btn" id="tempSaveReportBtn">临时保存</button>
-          <button class="primary-btn" id="saveReportBtn">保存并归档</button>
         </div>
       </div>
       <div class="report-layout">
@@ -444,6 +442,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <section class="panel admin-section" data-admin-panel="session" hidden>
               <div class="admin-section-head"><div><h3>登录策略</h3><p>设置普通用户登录状态的保持时间。</p></div></div>
               <div class="form-group" style="max-width:360px;"><label for="adminSessionDurationMinutes">登录保持时间（分钟）</label><input id="adminSessionDurationMinutes" type="number" min="5" max="43200" step="1" /></div>
+              <div class="admin-section-head" style="margin-top:24px;"><div><h3>总结自动归档</h3><p>北京时间到点后，归档对应周期已有的最后保存版本。</p></div></div>
+              <div class="form-grid" style="max-width:720px;">
+                <div><label for="adminWeeklyArchiveTime">周报（每周日）</label><input id="adminWeeklyArchiveTime" type="time" /></div>
+                <div><label for="adminMonthlyArchiveTime">月报（每月最后一天）</label><input id="adminMonthlyArchiveTime" type="time" /></div>
+                <div><label for="adminQuarterlyArchiveTime">季报（每季度最后一天）</label><input id="adminQuarterlyArchiveTime" type="time" /></div>
+              </div>
             </section>
           </div>
         </div>
@@ -771,6 +775,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, modules: [...defaultModules] };
     let departments = [{ ...defaultDepartment, modules: [...defaultModules] }];
     let sessionDurationMinutes = 30;
+    let reportArchiveSettings = { timezone: "Asia/Shanghai", weeklyTime: "20:00", monthlyTime: "20:00", quarterlyTime: "20:00" };
     const reportTypes = {
       weekly: { label: "周总结", title: "数据产品部周重点工作汇报", dateLabel: "汇报周期" },
       monthly: { label: "月总结", title: "数据产品部月度工作总结", dateLabel: "总结周期" },
@@ -834,7 +839,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let aiGenerating = false;
     let pendingAiReportContext = null;
     let aiReportGeneration = 0;
-    let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, ai: { ...aiSettings } };
+    let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, reportArchive: { ...reportArchiveSettings }, ai: { ...aiSettings } };
     let adminModulesDepartmentId = defaultDepartment.id;
     const adminSessionStorageKey = `${storageKey}-admin-session`;
     let adminSession = JSON.parse(sessionStorage.getItem(adminSessionStorageKey) || "null") || { token: "", expiresAt: 0 };
@@ -1644,6 +1649,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       departments = normalizeDepartmentsList(settings.departments);
       accountRows = normalizeAccountsList(settings.accounts);
       sessionDurationMinutes = Number.isInteger(Number(settings.sessionDurationMinutes)) ? Number(settings.sessionDurationMinutes) : 30;
+      reportArchiveSettings = {
+        timezone: "Asia/Shanghai",
+        weeklyTime: settings.reportArchive?.weeklyTime || "20:00",
+        monthlyTime: settings.reportArchive?.monthlyTime || "20:00",
+        quarterlyTime: settings.reportArchive?.quarterlyTime || "20:00",
+      };
       aiSettings = {
         enabled: settings.ai?.enabled === true,
         provider: ["deepseek", "kimi"].includes(settings.ai?.provider) ? settings.ai.provider : "deepseek",
@@ -1656,6 +1667,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         departments: departments.map((department) => ({ ...department, modules: [...department.modules] })),
         accounts: accountRows.map((account) => ({ ...account })),
         sessionDurationMinutes,
+        reportArchive: { ...reportArchiveSettings },
         ai: { ...aiSettings },
       };
       if (!departments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = departments[0].id;
@@ -3222,9 +3234,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function updateReportControls() {
       const canEditReport = reportStatus !== "final";
       reportCanEdit = canEditReport;
-      ["saveReportBtn", "tempSaveReportBtn", "generateReportBtn", "createWeekBtn"].forEach((id) => {
+      ["tempSaveReportBtn", "generateReportBtn", "createWeekBtn"].forEach((id) => {
         const button = $(id);
-        if (button) button.disabled = ["saveReportBtn", "tempSaveReportBtn"].includes(id) && !canEditReport;
+        if (button) button.disabled = id === "tempSaveReportBtn" && !canEditReport;
       });
       document.querySelectorAll(".report-section textarea").forEach((textarea) => {
         textarea.readOnly = !canEditReport;
@@ -3289,14 +3301,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderReportSourceStats() {
-      const progress = tasks.filter((task) => task.includeInReport !== false && (task.status === "已完成" || latestLog(task))).length;
-      const risks = tasks.filter((task) => task.status === "阻塞" || task.blocker).length;
-      const next = tasks.filter((task) => task.status !== "已完成" || task.carryToNextWeek).length;
-      $("reportSourceStats").innerHTML = `
-        <div class="source-card"><b>${progress}条</b> 任务进展<br><small>已完成或本周有更新</small></div>
-        <div class="source-card"><b>${risks}条</b> 风险事项<br><small>来自阻塞任务</small></div>
-        <div class="source-card"><b>${next}条</b> 下周重点<br><small>来自跨周任务</small></div>
-      `;
+      const summaryType = reportData.summaryType || "weekly";
+      if (summaryType !== "weekly") {
+        const sources = selectAiReportSources(reports, { id: currentReportId, ...reportData });
+        const sourceLabel = summaryType === "monthly" ? "已归档周报" : "已归档月报";
+        $("reportSourceStats").innerHTML = sources.length
+          ? sources.map((source) => `<div class="source-card"><b>${escapeHtml(source.title || source.id || "未命名总结")}</b><br><small>${escapeHtml(source.startDate || "-")}—${escapeHtml(source.endDate || "-")} · 已归档</small></div>`).join("")
+          : `<div class="source-card"><b>暂无真实来源</b><br><small>当前周期内没有${sourceLabel}，不会使用草稿或当前任务数代替</small></div>`;
+        return;
+      }
+      const matchesLoadedWeek = currentWeek
+        && normalizeDate(currentWeek.startDate) === normalizeDate(reportData.startDate)
+        && normalizeDate(currentWeek.endDate) === normalizeDate(reportData.endDate);
+      const sourceTasks = matchesLoadedWeek ? tasks.filter((task) => task.includeInReport !== false) : [];
+      $("reportSourceStats").innerHTML = sourceTasks.length
+        ? sourceTasks.map((task) => `<div class="source-card"><b>${escapeHtml(task.title || "未命名任务")}</b><br><small>${escapeHtml(task.status || "未设置状态")} · ${escapeHtml(task.module || "未分类")}</small></div>`).join("")
+        : `<div class="source-card"><b>暂无已核验任务来源</b><br><small>未加载与当前周报周期完全一致的任务，不展示推测统计</small></div>`;
     }
 
     function reportTaskImportText(task, sectionTitle, sequence = 1) {
@@ -3913,6 +3933,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("adminAiModel").value = ai.model || (ai.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash");
       $("adminAiEnabled").value = String(ai.enabled === true);
       $("adminSessionDurationMinutes").value = String(adminDraftSettings.sessionDurationMinutes || 30);
+      $("adminWeeklyArchiveTime").value = adminDraftSettings.reportArchive?.weeklyTime || "20:00";
+      $("adminMonthlyArchiveTime").value = adminDraftSettings.reportArchive?.monthlyTime || "20:00";
+      $("adminQuarterlyArchiveTime").value = adminDraftSettings.reportArchive?.quarterlyTime || "20:00";
       $("adminAiKeyStatus").className = `ai-ready ${ai.configured ? "ok" : "warn"}`;
       $("adminAiKeyStatus").textContent = ai.configured
         ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥已配置${ai.apiKeyMask ? ` · ${ai.apiKeyMask}` : ""}`
@@ -3995,6 +4018,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!Number.isInteger(adminDraftSettings.sessionDurationMinutes) || adminDraftSettings.sessionDurationMinutes < 5 || adminDraftSettings.sessionDurationMinutes > 43200) {
         throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
       }
+      adminDraftSettings.reportArchive = {
+        timezone: "Asia/Shanghai",
+        weeklyTime: $("adminWeeklyArchiveTime").value || "20:00",
+        monthlyTime: $("adminMonthlyArchiveTime").value || "20:00",
+        quarterlyTime: $("adminQuarterlyArchiveTime").value || "20:00",
+      };
       const apiKey = $("adminAiApiKey").value.trim();
       adminDraftSettings.ai = {
         enabled: adminDraftSettings.ai?.enabled === true,
@@ -4995,6 +5024,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
     });
     $("adminSessionDurationMinutes").addEventListener("input", () => markAdminDirty());
+    ["adminWeeklyArchiveTime", "adminMonthlyArchiveTime", "adminQuarterlyArchiveTime"].forEach((id) => $(id).addEventListener("input", () => markAdminDirty()));
     $("adminAiApiKey").addEventListener("input", () => markAdminDirty("输入了新密钥，保存后生效"));
     $("adminAiTestBtn").addEventListener("click", async () => {
       $("adminAiKeyStatus").className = "ai-ready warn";
@@ -5195,7 +5225,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function selectAiReportSources(rows = [], target = {}) {
       const sourceType = target.summaryType === "monthly" ? "weekly" : target.summaryType === "quarterly" ? "monthly" : "";
       if (!sourceType) return [];
-      return rows.filter((row) => row.id !== target.id && reportSummaryType(row) === sourceType && reportPeriodsOverlap(row, target))
+      return rows.filter((row) => row.id !== target.id && row.status === "final" && reportSummaryType(row) === sourceType && reportPeriodsOverlap(row, target))
         .sort((left, right) => reportDateTimestamp(left.startDate) - reportDateTimestamp(right.startDate) || String(left.id || "").localeCompare(String(right.id || "")));
     }
 
@@ -5430,21 +5460,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         setSyncStatus(error.message || "复制AI提炼结果失败", "warn");
       }
     });
-    $("previewDiffBtn").addEventListener("click", () => {
-      const changedModules = reportData.modules.filter((mod) => mod.sections.some((section) => (section.items || []).length)).length;
-      setSyncStatus(`差异预览：当前总结含 ${changedModules} 个有内容模块`, "ok");
-    });
-
     $("tempSaveReportBtn").addEventListener("click", async () => {
       if (reportStatus === "final") return setSyncStatus("已归档，无法临时保存", "warn");
       await saveReportToCloud({ silent: false, archive: false });
       setSyncStatus("已临时保存，仍可继续编辑", "ok");
-    });
-
-    $("saveReportBtn").addEventListener("click", async () => {
-      if (reportStatus === "final") return setSyncStatus("总结已归档，无法重复归档", "warn");
-      if (!confirm("归档后无法编辑，是否确认？")) return;
-      await saveReportToCloud({ archive: true });
     });
 
     $("addGoalRowBtn").addEventListener("click", () => {

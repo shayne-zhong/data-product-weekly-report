@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import apiHandler, { runWeeklyRolloverFromServer } from "./api/[...path].mjs";
+import apiHandler, { runReportAutoArchiveFromServer, runWeeklyRolloverFromServer } from "./api/[...path].mjs";
 import { validateProductionConfig } from "./lib/runtime-config.mjs";
 
 const defaultPublicRoot = fileURLToPath(new URL("./public", import.meta.url));
@@ -170,6 +170,29 @@ export function startWeeklyRolloverScheduler({
   };
 }
 
+export function startReportAutoArchiveScheduler({
+  run = runReportAutoArchiveFromServer,
+  now = Date.now,
+  setIntervalImpl = setInterval,
+  clearIntervalImpl = clearInterval,
+  logger = console,
+} = {}) {
+  const invoke = async (trigger) => {
+    try {
+      const result = await run({ triggeredAt: now(), trigger });
+      logger.info?.("Report auto archive scheduler:", JSON.stringify(result));
+      return result;
+    } catch (error) {
+      logger.error?.("Report auto archive scheduler failed:", error?.message || error);
+      return null;
+    }
+  };
+  const startup = invoke("server-startup");
+  const timer = setIntervalImpl(() => invoke("server-scheduled"), 5 * 60 * 1000);
+  timer?.unref?.();
+  return { startup, stop: () => clearIntervalImpl(timer) };
+}
+
 const isDirectRun = process.argv[1]
   && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
@@ -179,6 +202,7 @@ if (isDirectRun) {
   server.listen(port, "0.0.0.0", () => {
     console.log(`Department workbench listening on port ${port}`);
     const scheduler = startWeeklyRolloverScheduler();
-    server.once("close", () => scheduler.stop());
+    const reportArchiveScheduler = startReportAutoArchiveScheduler();
+    server.once("close", () => { scheduler.stop(); reportArchiveScheduler.stop(); });
   });
 }

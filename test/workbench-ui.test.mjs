@@ -23,12 +23,13 @@ function aiReportHelpersRuntime() {
 test("monthly and quarterly AI source selection filters overlap and type with stable ordering", () => {
   const { selectAiReportSources } = aiReportHelpersRuntime();
   const reports = [
-    { id: "w2", summaryType: "weekly", startDate: "2026/08/03", endDate: "2026/08/09" },
-    { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" },
-    { id: "w1b", summaryType: "weekly", startDate: "2026/07/27", endDate: "2026/08/02" },
-    { id: "w1a", summaryType: "weekly", startDate: "2026/07/27", endDate: "2026/08/02" },
+    { id: "w2", summaryType: "weekly", status: "final", startDate: "2026/08/03", endDate: "2026/08/09" },
+    { id: "self", summaryType: "monthly", status: "final", startDate: "2026/08/01", endDate: "2026/08/31" },
+    { id: "w1b", summaryType: "weekly", status: "final", startDate: "2026/07/27", endDate: "2026/08/02" },
+    { id: "w1a", summaryType: "weekly", status: "final", startDate: "2026/07/27", endDate: "2026/08/02" },
+    { id: "draft-week", summaryType: "weekly", status: "draft", startDate: "2026/08/10", endDate: "2026/08/16" },
     { id: "old", summaryType: "weekly", startDate: "2026/07/01", endDate: "2026/07/07" },
-    { id: "m1", summaryType: "monthly", startDate: "2026/07/01", endDate: "2026/07/31" },
+    { id: "m1", summaryType: "monthly", status: "final", startDate: "2026/07/01", endDate: "2026/07/31" },
   ];
   assert.deepEqual(selectAiReportSources(reports, { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" }).map(({ id }) => id), ["w1a", "w1b", "w2"]);
   assert.deepEqual(selectAiReportSources(reports, { id: "q", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" }).map(({ id }) => id), ["m1", "self"]);
@@ -38,9 +39,9 @@ test("monthly and quarterly AI source selection filters overlap and type with st
 test("quarterly AI sources honor legacy report type inference", () => {
   const { selectAiReportSources } = aiReportHelpersRuntime();
   const reports = [
-    { id: "missing-type", title: "7月月度总结", startDate: "2026/7/1", endDate: "2026/7/31" },
-    { id: "wrong-weekly", summaryType: "weekly", title: "8月月度总结", startDate: "2026/8/1", endDate: "2026/8/31" },
-    { id: "actual-weekly", summaryType: "weekly", title: "普通周报", startDate: "2026/8/1", endDate: "2026/8/7" },
+    { id: "missing-type", status: "final", title: "7月月度总结", startDate: "2026/7/1", endDate: "2026/7/31" },
+    { id: "wrong-weekly", status: "final", summaryType: "weekly", title: "8月月度总结", startDate: "2026/8/1", endDate: "2026/8/31" },
+    { id: "actual-weekly", status: "final", summaryType: "weekly", title: "普通周报", startDate: "2026/8/1", endDate: "2026/8/7" },
   ];
   assert.deepEqual(selectAiReportSources(reports, { id: "q3", summaryType: "quarterly", startDate: "2026/7/1", endDate: "2026/9/30" }).map(({ id }) => id), ["missing-type", "wrong-weekly"]);
 });
@@ -55,9 +56,9 @@ test("AI source overlap accepts non-padded boundary dates and rejects invalid ra
   assert.equal(reportPeriodsOverlap({ startDate: "invalid", endDate: "2026/8/2" }, target), false);
   assert.equal(reportPeriodsOverlap({ startDate: "2026/8/8", endDate: "2026/8/2" }, target), false);
   const selected = selectAiReportSources([
-    { id: "late", summaryType: "weekly", startDate: "2026/8/10", endDate: "2026/8/16" },
-    { id: "early", summaryType: "weekly", startDate: "2026/8/2", endDate: "2026/8/8" },
-    { id: "invalid", summaryType: "weekly", startDate: "2026/8/40", endDate: "2026/8/41" },
+    { id: "late", summaryType: "weekly", status: "final", startDate: "2026/8/10", endDate: "2026/8/16" },
+    { id: "early", summaryType: "weekly", status: "final", startDate: "2026/8/2", endDate: "2026/8/8" },
+    { id: "invalid", summaryType: "weekly", status: "final", startDate: "2026/8/40", endDate: "2026/8/41" },
   ], target);
   assert.deepEqual(selected.map(({ id }) => id), ["early", "late"]);
 });
@@ -383,6 +384,14 @@ test("goal task details merge rollover chains and duplicate title module owner r
   ];
 
   assert.deepEqual(latestTasksForGoalDisplay(tasks).map((task) => task.id), ["rolled-2", "different-owner"]);
+});
+
+test("report UI removes manual archive and diff preview and exposes archive schedule settings", () => {
+  assert.doesNotMatch(html, /id="previewDiffBtn"/);
+  assert.doesNotMatch(html, /id="saveReportBtn"/);
+  for (const id of ["adminWeeklyArchiveTime", "adminMonthlyArchiveTime", "adminQuarterlyArchiveTime"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
 });
 
 test("deleting a task cancels queued saves and blocks new saves", async () => {

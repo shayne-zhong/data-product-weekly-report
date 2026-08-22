@@ -15,6 +15,7 @@
 - `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
 - `netlify/functions/api.mjs`：Netlify 到统一 API 的运行时适配层。
 - `cloudfunctions/weekly-task-rollover/`：CloudBase Event Function，每周触发一次受保护的任务结转入口。
+- `cloudfunctions/report-auto-archive/`：CloudBase Event Function，固定频率唤醒受保护的报告归档入口；实际归档时间读取后台配置。
 - `scripts/build.mjs`：校验内联脚本，生成 `build` 目录和构建清单。
 
 常用命令：`npm.cmd start`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run lint`、`npm.cmd run format:check`。
@@ -49,6 +50,8 @@
 5. API 返回 JSON，浏览器更新页面状态和视图。
 
 周任务结转由 CloudBase 定时触发器调用 `cloudfunctions/weekly-task-rollover/`，函数携带共享密钥请求 `/api/internal/weekly-rollover`；直接运行的 Node 服务也会在启动时补偿并按相同周计划兜底。两条路径最终调用同一 API 执行器，并以“部门 + 源周 + 目标周”记录持久化结果。
+
+报告自动归档由 `cloudfunctions/report-auto-archive/` 固定频率调用 `/api/internal/report-auto-archive`，服务端按北京时间和后台的周/月/季配置判断到期报告；直接运行的 Node 服务每五分钟检查并在启动时补偿漏跑。
 
 顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`、`internal`；`internal` 仅接受服务端共享密钥。
 

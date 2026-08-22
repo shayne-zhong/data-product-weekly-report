@@ -20,6 +20,7 @@ import {
   startWeeklyRolloverExecution,
   weeklyRolloverTaskSummary,
 } from "../lib/weekly-rollover.mjs";
+import { archiveDueReports, defaultReportArchiveSchedule, normalizeReportArchiveSchedule } from "../lib/report-auto-archive.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -209,6 +210,7 @@ function defaultSettings() {
     departments,
     accounts: defaultDepartmentAccounts.map((account) => ({ ...account, departmentId: defaultDepartment.id, enabled: true })),
     sessionDurationMinutes: defaultSessionDurationMinutes,
+    reportArchive: defaultReportArchiveSchedule(),
     ai: normalizeAiSettings(),
   };
 }
@@ -226,6 +228,7 @@ function getSettings(state = {}) {
     departments: resolvedDepartments,
     accounts: accounts.length ? accounts : fallback.accounts,
     sessionDurationMinutes: normalizeSessionDurationMinutes(state.settings?.sessionDurationMinutes),
+    reportArchive: normalizeReportArchiveSchedule(state.settings?.reportArchive),
     ai: normalizeAiSettings(state.settings?.ai || fallback.ai),
   };
 }
@@ -372,6 +375,18 @@ export async function runWeeklyRolloverFromServer({ triggeredAt = Date.now(), tr
   try {
     const state = await loadState();
     return await executeWeeklyRollover(state, { triggeredAt, trigger });
+  } finally {
+    release();
+  }
+}
+
+export async function runReportAutoArchiveFromServer({ triggeredAt = Date.now(), trigger = "server-startup" } = {}) {
+  const release = await mutationLock.acquire();
+  try {
+    const state = await loadState();
+    const result = archiveDueReports(state, { triggeredAt, trigger });
+    if (result.archivedCount) await saveState(state);
+    return result;
   } finally {
     release();
   }
@@ -1009,6 +1024,9 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     sessionDurationMinutes: Object.hasOwn(body, "sessionDurationMinutes")
       ? Number(body.sessionDurationMinutes)
       : current.sessionDurationMinutes,
+    reportArchive: Object.hasOwn(body, "reportArchive")
+      ? normalizeReportArchiveSchedule(body.reportArchive)
+      : current.reportArchive,
     ai: body.ai ? normalizeAiSettings({ ...current.ai, ...body.ai }) : current.ai,
   };
   if (body.ai?.apiKey) {
@@ -1240,6 +1258,18 @@ export default async function handler(req, res) {
         trigger: "scheduled",
       });
       console.info("Weekly task rollover:", JSON.stringify(result));
+      return json(res, result);
+    }
+    if (parts[0] === "internal" && parts[1] === "report-auto-archive") {
+      if (req.method !== "POST") return methodNotAllowed(res);
+      if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
+      const body = await readBody(req);
+      const parsed = Date.parse(String(body.triggeredAt || ""));
+      const result = archiveDueReports(state, {
+        triggeredAt: Number.isNaN(parsed) ? now : parsed,
+        trigger: "scheduled",
+      });
+      if (result.archivedCount) await saveState(state);
       return json(res, result);
     }
     const actor = currentUser(req, state, now);
