@@ -2,9 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  defaultReportArchiveSchedule,
-  normalizeReportArchiveSchedule,
   archiveDueReports,
+  completeReportArchiveExecution,
+  defaultReportArchiveSchedule,
+  failReportArchiveExecution,
+  normalizeReportArchiveSchedule,
+  reportArchiveTaskSummary,
+  startReportArchiveExecution,
 } from "../lib/report-auto-archive.mjs";
 
 test("report archive schedule defaults to 20:00 Asia/Shanghai", () => {
@@ -63,4 +67,28 @@ test("ignores reports whose end date is not the required Sunday, month end, or q
     settings: {},
   };
   assert.equal(archiveDueReports(state, { triggeredAt: Date.parse("2026-09-01T00:00:00Z") }).archivedCount, 0);
+});
+
+test("report archive execution records running success and a safe summary", () => {
+  const state = { settings: { reportArchive: defaultReportArchiveSchedule() } };
+  startReportArchiveExecution(state, { now: 1000, trigger: "manual:admin" });
+  assert.equal(reportArchiveTaskSummary(state, { now: 1001 }).status, "running");
+
+  completeReportArchiveExecution(state, { now: 2000, result: { archivedCount: 2 } });
+  const summary = reportArchiveTaskSummary(state, { now: 2001 });
+  assert.equal(summary.id, "report-auto-archive");
+  assert.equal(summary.status, "success");
+  assert.equal(summary.trigger, "manual:admin");
+  assert.equal(summary.archivedCount, 2);
+  assert.match(summary.schedule, /周日 20:00.*月末 20:00.*季末 20:00/);
+});
+
+test("report archive execution truncates errors and expires stale running state", () => {
+  const state = { settings: {}, reportArchiveExecution: { status: "running", startedAt: 1000, trigger: "scheduled" } };
+  assert.equal(reportArchiveTaskSummary(state, { now: 1000 + 16 * 60 * 1000 }).status, "failed");
+
+  failReportArchiveExecution(state, { now: 3000, error: new Error("x".repeat(500)) });
+  const summary = reportArchiveTaskSummary(state, { now: 3001 });
+  assert.equal(summary.status, "failed");
+  assert.ok(summary.error.length <= 200);
 });
