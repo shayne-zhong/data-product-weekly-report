@@ -3859,6 +3859,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function renderScheduledTasks() {
       const statusLabels = { never: "从未执行", running: "执行中", success: "成功", failed: "失败" };
       const statusClasses = { never: "status-done", running: "status-normal", success: "status-normal", failed: "status-risk" };
+      const taskResult = (task) => task.kind === "report-auto-archive"
+        ? `归档 ${Number(task.archivedCount || 0)} 份`
+        : `结转 ${Number(task.rolledTaskCount || 0)} 项 · ${Number(task.completedDepartmentCount || 0)}/${Number(task.departmentCount || 0)} 个部门`;
       $("scheduledTaskList").innerHTML = scheduledTasks.map((task) => `
         <article class="scheduled-task-card ${escapeHtml(task.status || "never")}">
           <div>
@@ -3868,12 +3871,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <div class="scheduled-task-meta">
             <div><span>计划执行</span><strong>${escapeHtml(scheduledTaskTime(task.scheduledAt))}</strong></div>
             <div><span>最近完成</span><strong>${escapeHtml(scheduledTaskTime(task.finishedAt))}</strong></div>
-            <div><span>结转周次</span><strong>${escapeHtml(`${task.sourceWeekId || "-"} → ${task.targetWeekId || "-"}`)}</strong></div>
-            <div><span>执行结果</span><strong>结转 ${Number(task.rolledTaskCount || 0)} 项 · ${Number(task.completedDepartmentCount || 0)}/${Number(task.departmentCount || 0)} 个部门</strong></div>
+            ${task.kind === "report-auto-archive" ? "" : `<div><span>结转周次</span><strong>${escapeHtml(`${task.sourceWeekId || "-"} → ${task.targetWeekId || "-"}`)}</strong></div>`}
+            <div><span>执行结果</span><strong>${escapeHtml(taskResult(task))}</strong></div>
             ${task.error ? `<div class="scheduled-task-error">${escapeHtml(task.error)}</div>` : ""}
           </div>
           <div class="scheduled-task-action">
-            <button class="primary-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning ? "启动中..." : "重新启动"}</button>
+            <button class="primary-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning ? "启动中..." : task.kind === "report-auto-archive" ? "立即补跑" : "重新启动"}</button>
             <small>${task.trigger?.startsWith("manual:") ? "最近由管理员启动" : "最近由系统调度"}</small>
           </div>
         </article>
@@ -5005,7 +5008,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("scheduledTaskList").addEventListener("click", async (event) => {
       const button = event.target.closest("[data-run-scheduled-task]");
       if (!button || scheduledTaskRunning) return;
-      if (!confirm("确认立即重新启动周任务结转？已成功结转的部门不会重复创建任务。")) return;
+      const task = scheduledTasks.find((item) => item.id === button.dataset.runScheduledTask);
+      const isReportArchive = task?.kind === "report-auto-archive";
+      const message = isReportArchive
+        ? "确认立即补跑报告自动归档？只会归档已经到期的报告，不会提前归档仍在编辑的报告。"
+        : "确认立即重新启动周任务结转？已成功结转的部门不会重复创建任务。";
+      if (!confirm(message)) return;
       scheduledTaskRunning = true;
       renderScheduledTasks();
       try {
@@ -5013,8 +5021,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           method: "POST",
           headers: adminRequestHeaders(),
         });
-        scheduledTasks = result.task ? [result.task] : scheduledTasks;
-        setSyncStatus(`定时任务执行完成，结转 ${Number(result.result?.rolledTaskCount || 0)} 项`, "ok");
+        scheduledTasks = result.task ? scheduledTasks.map((task) => task.id === result.task.id ? result.task : task) : scheduledTasks;
+        setSyncStatus(isReportArchive
+          ? `补跑完成，归档 ${Number(result.result?.archivedCount || 0)} 份`
+          : `定时任务执行完成，结转 ${Number(result.result?.rolledTaskCount || 0)} 项`, "ok");
       } catch (error) {
         setSyncStatus(error.message || "定时任务启动失败", "warn");
         await loadScheduledTasks().catch(() => {});

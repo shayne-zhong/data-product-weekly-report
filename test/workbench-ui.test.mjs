@@ -394,6 +394,14 @@ test("report UI removes manual archive and diff preview and exposes archive sche
   }
 });
 
+test("scheduled task UI supports due-only report archive catch-up", () => {
+  assert.match(html, /task\.kind === "report-auto-archive"/);
+  assert.match(html, /只会归档已经到期的报告/);
+  assert.match(html, /不会提前归档/);
+  assert.match(html, /archivedCount/);
+  assert.match(html, /scheduledTasks\.map/);
+});
+
 test("deleting a task cancels queued saves and blocks new saves", async () => {
   const task = { id: "a", title: "A", status: "进行中", dueDate: "2026-08-10" };
   const persisted = [];
