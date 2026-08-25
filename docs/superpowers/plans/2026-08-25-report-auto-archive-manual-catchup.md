@@ -318,4 +318,3 @@ git log --oneline -5
 ```
 
 Expected: only the pre-existing unrelated `.claude/` remains untracked; all feature files are committed.
-
