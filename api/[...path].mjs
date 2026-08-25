@@ -20,7 +20,15 @@ import {
   startWeeklyRolloverExecution,
   weeklyRolloverTaskSummary,
 } from "../lib/weekly-rollover.mjs";
-import { archiveDueReports, defaultReportArchiveSchedule, normalizeReportArchiveSchedule } from "../lib/report-auto-archive.mjs";
+import {
+  archiveDueReports,
+  completeReportArchiveExecution,
+  defaultReportArchiveSchedule,
+  failReportArchiveExecution,
+  normalizeReportArchiveSchedule,
+  reportArchiveTaskSummary,
+  startReportArchiveExecution,
+} from "../lib/report-auto-archive.mjs";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -384,11 +392,28 @@ export async function runReportAutoArchiveFromServer({ triggeredAt = Date.now(),
   const release = await mutationLock.acquire();
   try {
     const state = await loadState();
-    const result = archiveDueReports(state, { triggeredAt, trigger });
-    if (result.archivedCount) await saveState(state);
-    return result;
+    return await executeReportAutoArchive(state, { triggeredAt, trigger });
   } finally {
     release();
+  }
+}
+
+async function executeReportAutoArchive(state, { triggeredAt = Date.now(), trigger = "scheduled" } = {}) {
+  startReportArchiveExecution(state, { now: triggeredAt, trigger });
+  await saveState(state);
+  try {
+    const result = archiveDueReports(state, { triggeredAt, trigger });
+    completeReportArchiveExecution(state, { now: Date.now(), result });
+    await saveState(state);
+    return result;
+  } catch (error) {
+    failReportArchiveExecution(state, { now: Date.now(), error });
+    try {
+      await saveState(state);
+    } catch (saveError) {
+      console.error("Report archive failure status save failed:", saveError?.message || saveError);
+    }
+    throw error;
   }
 }
 
@@ -1216,9 +1241,14 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
       const result = await executeWeeklyRollover(state, { triggeredAt: now, trigger: `manual:${decoded.username}` });
       return json(res, { task: weeklyRolloverTaskSummary(state, { now }), result });
     }
+    if (parts[2] === "report-auto-archive" && parts[3] === "run") {
+      if (req.method !== "POST") return methodNotAllowed(res);
+      const result = await executeReportAutoArchive(state, { triggeredAt: now, trigger: `manual:${decoded.username}` });
+      return json(res, { task: reportArchiveTaskSummary(state, { now: Date.now() }), result });
+    }
     if (parts.length === 2) {
       if (req.method !== "GET") return methodNotAllowed(res);
-      return json(res, { tasks: [weeklyRolloverTaskSummary(state, { now })] });
+      return json(res, { tasks: [weeklyRolloverTaskSummary(state, { now }), reportArchiveTaskSummary(state, { now })] });
     }
   }
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
@@ -1265,11 +1295,10 @@ export default async function handler(req, res) {
       if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
       const body = await readBody(req);
       const parsed = Date.parse(String(body.triggeredAt || ""));
-      const result = archiveDueReports(state, {
+      const result = await executeReportAutoArchive(state, {
         triggeredAt: Number.isNaN(parsed) ? now : parsed,
         trigger: "scheduled",
       });
-      if (result.archivedCount) await saveState(state);
       return json(res, result);
     }
     const actor = currentUser(req, state, now);

@@ -167,6 +167,58 @@ test("global admin can inspect and safely restart scheduled rollover", async () 
   assert.equal(second.body.result.rolledTaskCount, 0);
 });
 
+test("global admin can manually catch up only due report archives", async () => {
+  const reportPayload = (title, startDate, endDate) => ({
+    status: "draft",
+    data: {
+      summaryType: "weekly",
+      title,
+      startDate,
+      endDate,
+      modules: [{ title: "测试", sections: [{ title: "内容", items: ["待归档"] }] }],
+    },
+  });
+  const due = await api("/reports", {
+    method: "POST",
+    body: reportPayload("漏跑补偿测试周报", "2000/01/01", "2000/01/02"),
+  });
+  const future = await api("/reports", {
+    method: "POST",
+    body: reportPayload("未到期测试周报", "2098/12/29", "2099/01/04"),
+  });
+  assert.equal(due.statusCode, 201);
+  assert.equal(future.statusCode, 201);
+
+  const adminLogin = await api("/admin/login", {
+    method: "POST",
+    token: "",
+    body: { username: "Admin", password: "888888" },
+  });
+  const headers = { authorization: `Bearer ${adminLogin.body.token}` };
+  const list = await api("/admin/scheduled-tasks", { token: "", headers });
+  assert.deepEqual(list.body.tasks.map((task) => task.id), ["weekly-task-rollover", "report-auto-archive"]);
+
+  const anonymous = await api("/admin/scheduled-tasks/report-auto-archive/run", { method: "POST", token: "" });
+  assert.equal(anonymous.statusCode, 401);
+  const run = await api("/admin/scheduled-tasks/report-auto-archive/run", { method: "POST", token: "", headers });
+  assert.equal(run.statusCode, 200);
+  assert.equal(run.body.task.status, "success");
+  assert.equal(run.body.result.trigger.startsWith("manual:"), true);
+  assert.equal(run.body.result.archivedCount, 1);
+
+  const dueReadBack = await api(`/report/${encodeURIComponent(due.body.report.id)}`);
+  const futureReadBack = await api(`/report/${encodeURIComponent(future.body.report.id)}`);
+  assert.equal(dueReadBack.body.report.status, "final");
+  assert.equal(futureReadBack.body.report.status, "draft");
+
+  const repeat = await api("/admin/scheduled-tasks/report-auto-archive/run", { method: "POST", token: "", headers });
+  assert.equal(repeat.statusCode, 200);
+  assert.equal(repeat.body.result.archivedCount, 0);
+  const readBack = await api("/admin/scheduled-tasks", { token: "", headers });
+  assert.equal(readBack.body.tasks[1].status, "success");
+  assert.equal(readBack.body.tasks[1].archivedCount, 0);
+});
+
 test("tasks persist multiple linked goal contributions after update and reload", async () => {
   const suffix = randomUUID();
   const startDate = `2093-03-${suffix}`;
