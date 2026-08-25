@@ -1403,6 +1403,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return [...latestByBusinessKey.values()];
     }
 
+    function summarizeGoalTaskDisplay(tasks, goalId, linksForTask) {
+      const rows = latestTasksForGoalDisplay(tasks);
+      const completedContribution = rows
+        .filter((task) => task.status === "已完成")
+        .reduce((sum, task) => sum + linksForTask(task)
+          .filter((link) => link.goalId === goalId)
+          .reduce((innerSum, link) => innerSum + link.contribution, 0), 0);
+      return { rows, count: rows.length, completedContribution };
+    }
+
     function goalNameById(goalId) {
       const index = goalsRows.findIndex((goal, rowIndex) => goalRowId(goal, rowIndex) === goalId);
       return index >= 0 ? goalsRows[index].name || goalsRows[index].level || "年度指标" : "";
@@ -1419,11 +1429,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function completedContributionForGoal(goalId) {
-      return tasksForGoal(goalId)
-        .filter((task) => task.status === "已完成")
-        .reduce((sum, task) => sum + normalizeGoalLinks(task)
-          .filter((link) => link.goalId === goalId)
-          .reduce((innerSum, link) => innerSum + link.contribution, 0), 0);
+      return summarizeGoalTaskDisplay(tasksForGoal(goalId), goalId, normalizeGoalLinks).completedContribution;
     }
 
     function existingTaskKeys() {
@@ -1829,8 +1835,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <tbody>
           ${rows.map(({ row, rowIndex }) => {
             const goalId = goalRowId(row, rowIndex);
-            const linkedTasks = tasksForGoal(goalId);
-            const contribution = completedContributionForGoal(goalId);
+            const linkedTaskSummary = summarizeGoalTaskDisplay(tasksForGoal(goalId), goalId, normalizeGoalLinks);
+            const contribution = linkedTaskSummary.completedContribution;
             row.current = contribution;
             const status = goalStatus(row);
             const percent = goalCompletion(row);
@@ -1863,7 +1869,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 </td>
                 <td>
                   <div class="row-actions">
-                    <button class="btn small ghost" data-view-goal-tasks="${goalId}">关联待办(${linkedTasks.length})</button>
+                    <button class="btn small ghost" data-view-goal-tasks="${goalId}">关联待办(${linkedTaskSummary.count})</button>
                   </div>
                 </td>
               </tr>
@@ -1890,11 +1896,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function openGoalTaskModal(goalId) {
       const goalIndex = goalsRows.findIndex((goal, index) => goalRowId(goal, index) === goalId);
       const goal = goalsRows[goalIndex] || {};
-      const linkedTasks = tasksForGoal(goalId);
-      const rows = latestTasksForGoalDisplay(linkedTasks).sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0));
+      const linkedTaskSummary = summarizeGoalTaskDisplay(tasksForGoal(goalId), goalId, normalizeGoalLinks);
+      const rows = linkedTaskSummary.rows.sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0));
       const goalLinkForTask = (task) => normalizeGoalLinks(task).find((link) => link.goalId === goalId) || { contribution: 0, note: "" };
       const contributionForTask = (task) => goalLinkForTask(task).contribution;
-      const total = linkedTasks.filter((task) => task.status === "已完成").reduce((sum, task) => sum + contributionForTask(task), 0);
+      const total = linkedTaskSummary.completedContribution;
       $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} · 关联待办事项详情`;
       $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联待办，已完成贡献数 ${total}${goalUnitById(goalId) || ""}；本页仅供查看。`;
       $("goalTaskList").innerHTML = rows.map((task) => `

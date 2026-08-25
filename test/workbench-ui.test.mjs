@@ -373,6 +373,14 @@ function goalTaskDisplayRuntime() {
   return new Function(`${source}\nreturn latestTasksForGoalDisplay;`)();
 }
 
+function goalTaskSummaryRuntime() {
+  const displaySource = html.match(/ {4}function latestTasksForGoalDisplay\(tasks\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  const summarySource = html.match(/ {4}function summarizeGoalTaskDisplay\(tasks, goalId, linksForTask\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  assert.ok(displaySource, "missing goal task rollover-chain deduplication function");
+  assert.ok(summarySource, "missing unified goal task display summary function");
+  return new Function(`${displaySource}\n${summarySource}\nreturn summarizeGoalTaskDisplay;`)();
+}
+
 test("goal task details merge rollover chains and duplicate title module owner records", () => {
   const latestTasksForGoalDisplay = goalTaskDisplayRuntime();
   const tasks = [
@@ -384,6 +392,27 @@ test("goal task details merge rollover chains and duplicate title module owner r
   ];
 
   assert.deepEqual(latestTasksForGoalDisplay(tasks).map((task) => task.id), ["rolled-2", "different-owner"]);
+});
+
+test("goal task count and completed contribution use the deduplicated displayed tasks", () => {
+  const summarizeGoalTaskDisplay = goalTaskSummaryRuntime();
+  const tasks = [
+    { id: "original", title: "指标上线", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 10, goalLinks: [{ goalId: "g1", contribution: 20 }] },
+    { id: "rolled", sourceTaskId: "original", title: "指标上线", module: "数据治理", owner: "黄嘉颖", status: "进行中", updatedAt: 30, goalLinks: [{ goalId: "g1", contribution: 20 }] },
+    { id: "duplicate", title: " 指标上线 ", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 20, goalLinks: [{ goalId: "g1", contribution: 20 }] },
+    { id: "done", title: "报表上线", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 40, goalLinks: [{ goalId: "g1", contribution: 11 }] },
+    { id: "other-goal", title: "其他指标", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 50, goalLinks: [{ goalId: "g2", contribution: 99 }] },
+  ];
+
+  const summary = summarizeGoalTaskDisplay(
+    tasks.filter((task) => task.goalLinks.some((link) => link.goalId === "g1")),
+    "g1",
+    (task) => task.goalLinks,
+  );
+
+  assert.deepEqual(summary.rows.map((task) => task.id), ["rolled", "done"]);
+  assert.equal(summary.count, 2);
+  assert.equal(summary.completedContribution, 11);
 });
 
 test("report UI removes manual archive and diff preview and exposes archive schedule settings", () => {
