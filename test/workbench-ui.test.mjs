@@ -567,6 +567,20 @@ test("department rows expose a leader picker and account rows expose an enable t
   assert.match(html, /account\.enabled !== false/);
 });
 
+test("account management exposes task roles and multi-module responsibility", () => {
+  assert.match(html, /data-admin-account-role="\$\{index\}"/);
+  assert.match(html, /data-admin-account-managed-modules="\$\{index\}"/);
+  assert.match(html, /data-leader-account-role=/);
+  assert.match(html, /\/api\/admin\/leader\/accounts\/\$\{encodeURIComponent\(roleUsername\)\}\/role/);
+});
+
+test("task editing uses the signed-in role to limit assignees and modules", () => {
+  assert.match(html, /function taskEditorModules\(task\)/);
+  assert.match(html, /function taskEditorAccounts\(task\)/);
+  assert.match(html, /data-task-field="ownerUsername"/);
+  assert.match(html, /currentUser\?\.role === "member"/);
+});
+
 test("a department leader gets a cut-down admin panel scoped to their own department", () => {
   assert.match(html, /let adminRole = adminSession\.role === "leader" \? "leader" : "admin"/);
   assert.match(html, /function renderLeaderAdmin\(\)/);
