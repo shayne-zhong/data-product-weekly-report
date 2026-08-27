@@ -125,7 +125,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .admin-grid{display:grid;grid-template-columns:minmax(320px,420px) 1fr;gap:16px;align-items:start}
 .admin-card{padding:18px}.admin-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}.admin-card h3{margin:0 0 4px}
 .scheduled-task-list{display:grid;gap:14px}.scheduled-task-card{position:relative;display:grid;grid-template-columns:minmax(220px,.8fr) minmax(320px,1.2fr) auto;gap:18px;align-items:center;padding:18px;border:1px solid var(--line);border-left:4px solid #64748b;border-radius:14px;background:#fbfcff}.scheduled-task-card.success{border-left-color:#15803d}.scheduled-task-card.failed{border-left-color:#b91c1c}.scheduled-task-card.running{border-left-color:#b45309}.scheduled-task-title{display:flex;align-items:center;gap:9px;margin-bottom:7px}.scheduled-task-title h4{margin:0;font-size:16px}.scheduled-task-meta{display:grid;grid-template-columns:repeat(2,minmax(130px,1fr));gap:9px 16px}.scheduled-task-meta span{display:block;color:var(--muted);font-size:11px;margin-bottom:2px}.scheduled-task-error{grid-column:1/-1;padding:9px 11px;border-radius:9px;background:var(--red-soft);color:var(--red);font-size:12px}.scheduled-task-action{display:grid;justify-items:end;gap:7px}.scheduled-task-action small{color:var(--muted)}@media(max-width:900px){.scheduled-task-card{grid-template-columns:1fr}.scheduled-task-action{justify-items:start}.scheduled-task-meta{grid-template-columns:1fr}}
-.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row.three{grid-template-columns:1fr 1fr 150px auto}.admin-row.four{grid-template-columns:1fr 1fr 130px 110px auto}.admin-row input,.admin-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus,.admin-row select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
+.admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row.three{grid-template-columns:1fr 1fr 150px auto}.admin-row.four{grid-template-columns:1fr 1fr 130px 110px auto}.admin-row.role{grid-template-columns:1fr 1fr 130px 160px 110px auto}.admin-row input,.admin-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus,.admin-row select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
 .admin-ai-card{grid-column:1/-1}.admin-ai-grid{display:grid;grid-template-columns:180px minmax(220px,1fr) 180px;gap:12px}.admin-ai-grid label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.admin-ai-grid select,.admin-ai-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;outline:none}.ai-ready{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcff}.ai-ready.ok{color:var(--green);border-color:rgba(22,163,106,.25);background:var(--green-soft)}.ai-ready.warn{color:var(--orange);border-color:rgba(229,138,0,.28);background:var(--orange-soft)}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
 .admin-savebar{position:sticky;bottom:16px;margin-top:16px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}
@@ -1597,6 +1597,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           username: String(account?.username || "").trim().toLowerCase(),
           departmentId: String(account?.departmentId || departments[0]?.id || defaultDepartment.id).trim(),
           registered: account?.registered === true,
+          enabled: account?.enabled !== false,
+          role: account?.role === "module_leader" ? "module_leader" : "member",
+          managedModules: [...new Set((Array.isArray(account?.managedModules) ? account.managedModules : []).map((item) => String(item || "").trim()).filter(Boolean))],
         }))
         .filter((account) => account.name && account.username)
         .filter((account) => {
@@ -1621,6 +1624,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         name: String(department?.name || "").trim(),
         enabled: department?.enabled !== false,
         modules: normalizeModulesList(department?.modules),
+        leaderUsername: String(department?.leaderUsername || "").trim().toLowerCase(),
+        leaderAssignedAt: Number(department?.leaderAssignedAt) || 0,
       })).filter((department) => department.id && department.name).filter((department) => {
         if (seen.has(department.id)) return false;
         seen.add(department.id);
@@ -2668,6 +2673,19 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return matched?.name || profileName;
     }
 
+    function taskEditorModules(task) {
+      if (currentUser?.role !== "module_leader") return modules;
+      const managedModules = currentUser.managedModules || [];
+      return managedModules.includes(task.module) ? managedModules : [task.module];
+    }
+
+    function taskEditorAccounts(task) {
+      if (currentUser?.role === "department_leader") return accountRows;
+      const currentAccount = accountRows.find((account) => account.username === currentUser?.username);
+      if (currentUser?.role === "member") return currentAccount ? [currentAccount] : [];
+      return (currentUser?.managedModules || []).includes(task.module) ? accountRows : (currentAccount ? [currentAccount] : []);
+    }
+
     function isCurrentUserReportManager() {
       const username = String(currentUser?.username || "").toLowerCase();
       const displayName = String(currentUser?.displayName || "").trim();
@@ -2789,6 +2807,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function renderBoard() {
+      const memberOnly = currentUser?.role === "member";
+      if (memberOnly) onlyMyTasks = false;
+      $("myTasksBtn").hidden = memberOnly;
       $("board").classList.toggle("quadrant-mode", taskViewMode === "quadrant");
       document.querySelectorAll("[data-task-view-mode]").forEach((button) => button.classList.toggle("active", button.dataset.taskViewMode === taskViewMode));
       $("resetQuadrantLayoutBtn").hidden = taskViewMode !== "quadrant";
@@ -2845,13 +2866,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         return;
       }
       const percent = taskProgressPercent(task);
+      const taskModules = taskEditorModules(task);
+      const taskAccounts = taskEditorAccounts(task);
+      const ownerUsername = task.ownerUsername || taskAccounts.find((account) => account.name === task.owner)?.username || "";
       $("taskDetail").innerHTML = `
         <div class="form-grid task-detail-form">
           <div class="field-full"><label>任务标题</label><input data-task-field="title" value="${escapeHtml(task.title)}" /></div>
-          <div><label>所属模块</label><select data-task-field="module">${modules.map((item) => `<option ${item === normalizeModule(task.module) ? "selected" : ""}>${item}</option>`).join("")}</select></div>
-          <div><label>负责人</label><select data-task-field="owner">
+          <div><label>所属模块</label><select data-task-field="module">${taskModules.map((item) => `<option ${item === normalizeModule(task.module) ? "selected" : ""}>${item}</option>`).join("")}</select></div>
+          <div><label>负责人</label><select data-task-field="ownerUsername">
             <option value="">未指定</option>
-            ${accountRows.map((account) => `<option value="${account.name}" ${account.name === task.owner ? "selected" : ""}>${account.name}</option>`).join("")}
+            ${taskAccounts.map((account) => `<option value="${account.username}" ${account.username === ownerUsername ? "selected" : ""}>${account.name}</option>`).join("")}
           </select></div>
           <div><label>状态</label><select data-task-field="status" data-current-status="${escapeHtml(task.status)}">${statuses.map((item) => `<option ${item === task.status ? "selected" : ""}>${item}</option>`).join("")}</select></div>
           <div><label>优先级</label><select data-task-field="priority">${priorityQuadrants.map((item) => `<option ${item === normalizePriority(task.priority) ? "selected" : ""}>${item}</option>`).join("")}</select></div>
@@ -3009,11 +3033,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function persistTask(task) {
-      await apiJson(`/api/task/${encodeURIComponent(task.id)}`, {
+      const result = await apiJson(`/api/task/${encodeURIComponent(task.id)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task }),
       });
+      if (result.task) Object.assign(task, result.task);
     }
 
     function overdueBlockerText(task) {
@@ -3925,18 +3950,26 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <button class="btn small danger" data-remove-admin-module="${index}" ${(selectedDepartment?.modules || []).length <= 1 ? "disabled" : ""}>删除</button>
         </div>
       `).join("");
-      $("adminAccountsList").innerHTML = adminDraftSettings.accounts.map((account, index) => `
-        <div class="admin-row four" data-admin-account-row="${index}">
+      $("adminAccountsList").innerHTML = adminDraftSettings.accounts.map((account, index) => {
+        const accountDepartment = draftDepartments.find((department) => department.id === account.departmentId) || draftDepartments[0];
+        const isDepartmentLeader = draftDepartments.some((department) => department.leaderUsername === account.username);
+        const role = account.role === "module_leader" ? "module_leader" : "member";
+        const managedModules = account.managedModules || [];
+        return `
+        <div class="admin-row role" data-admin-account-row="${index}">
           <input data-admin-account-name="${index}" value="${escapeHtml(account.name)}" placeholder="姓名" />
           <input data-admin-account-username="${index}" value="${escapeHtml(account.username)}" placeholder="用户名" />
           <select data-admin-account-department="${index}">${draftDepartments.map((department) => `<option value="${escapeHtml(department.id)}" ${department.id === account.departmentId ? "selected" : ""}>${escapeHtml(department.name)}</option>`).join("")}</select>
+          ${isDepartmentLeader ? `<span class="account-badge">部门负责人</span>` : `<select data-admin-account-role="${index}"><option value="member" ${role === "member" ? "selected" : ""}>普通用户</option><option value="module_leader" ${role === "module_leader" ? "selected" : ""}>模块负责人</option></select>`}
+          <select multiple size="2" data-admin-account-managed-modules="${index}" ${isDepartmentLeader || role !== "module_leader" ? "disabled" : ""}>${(accountDepartment?.modules || []).map((moduleName) => `<option value="${escapeHtml(moduleName)}" ${managedModules.includes(moduleName) ? "selected" : ""}>${escapeHtml(moduleName)}</option>`).join("")}</select>
           <select data-admin-account-enabled="${index}"><option value="true" ${account.enabled !== false ? "selected" : ""}>启用</option><option value="false" ${account.enabled === false ? "selected" : ""}>停用</option></select>
           <div class="row-actions">
             ${account.registered ? `<button class="btn small ghost" data-admin-reset-password="${escapeHtml(account.username)}">重置密码</button>` : ""}
             <button class="btn small danger" data-remove-admin-account="${index}" ${adminDraftSettings.accounts.length <= 1 ? "disabled" : ""}>删除</button>
           </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
       const ai = adminDraftSettings.ai || aiSettings;
       $("adminAiProvider").value = ai.provider || "deepseek";
       $("adminAiModel").value = ai.model || (ai.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash");
@@ -3960,10 +3993,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       });
       document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== adminActiveSection; });
       document.querySelector(".admin-savebar").hidden = true;
-      $("leaderAccountsList").innerHTML = leaderAccounts.map((account) => `
-        <div class="admin-row three">
+      $("leaderAccountsList").innerHTML = leaderAccounts.map((account) => {
+        const isSelf = account.username === currentUser?.username;
+        const role = account.role === "module_leader" ? "module_leader" : "member";
+        const managedModules = account.managedModules || [];
+        return `
+        <div class="admin-row role">
           <span>${escapeHtml(account.name)}</span>
           <span>${escapeHtml(account.username)}</span>
+          ${isSelf ? `<span class="account-badge">部门负责人</span>` : `<select data-leader-account-role="${escapeHtml(account.username)}"><option value="member" ${role === "member" ? "selected" : ""}>普通用户</option><option value="module_leader" ${role === "module_leader" ? "selected" : ""}>模块负责人</option></select>`}
+          ${isSelf ? `<span class="subtitle">由管理员维护</span>` : `<select multiple size="2" data-leader-account-managed-modules="${escapeHtml(account.username)}" ${role !== "module_leader" ? "disabled" : ""}>${leaderModules.map((moduleName) => `<option value="${escapeHtml(moduleName)}" ${managedModules.includes(moduleName) ? "selected" : ""}>${escapeHtml(moduleName)}</option>`).join("")}</select>`}
           <select data-leader-account-enabled="${escapeHtml(account.username)}" ${account.registered ? "" : "disabled"}>
             <option value="true" ${account.enabled !== false ? "selected" : ""}>启用</option>
             <option value="false" ${account.enabled === false ? "selected" : ""}>停用</option>
@@ -3972,7 +4011,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             ${account.registered ? `<button class="btn small ghost" data-admin-reset-password="${escapeHtml(account.username)}">重置密码</button>` : `<span class="subtitle">未注册</span>`}
           </div>
         </div>
-      `).join("") || `<div class="subtitle">本部门暂无成员</div>`;
+      `;
+      }).join("") || `<div class="subtitle">本部门暂无成员</div>`;
       $("leaderModulesList").innerHTML = leaderModules.map((moduleName, index) => `
         <div class="admin-row" data-leader-module-row="${index}">
           <input data-leader-module="${index}" value="${escapeHtml(moduleName)}" placeholder="例如 AI+X项目" />
@@ -4097,10 +4137,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     async function createTask({ status = "待开始", priority = "重要不紧急", blocker = "" } = {}) {
+      const defaultModule = currentUser?.role === "module_leader"
+        ? (currentUser.managedModules || [])[0]
+        : modules[0];
+      if (!defaultModule) throw new Error("请先在后台为模块负责人配置负责模块");
       const result = await apiJson(`/api/week/${encodeURIComponent(currentWeek.id)}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task: { title: "新增任务", module: modules[0], status, blocker, priority, progress: 0, description: "", includeInReport: true, goalId: "", goalContribution: 0, goalLinks: [], goalContributionNote: "" } }),
+        body: JSON.stringify({ task: { title: "新增任务", module: defaultModule, owner: currentAccountName(), ownerUsername: currentUser?.username || "", status, blocker, priority, progress: 0, description: "", includeInReport: true, goalId: "", goalContribution: 0, goalLinks: [], goalContributionNote: "" } }),
       });
       tasks.unshift(result.task);
       await openTaskModal(result.task.id);
@@ -4351,7 +4395,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           });
         }
         if (["includeInReport", "carryToNextWeek"].includes(taskField)) value = value === "true";
-        patchSelectedTask({ [taskField]: value });
+        if (taskField === "ownerUsername") {
+          const account = accountRows.find((item) => item.username === value);
+          patchSelectedTask({ ownerUsername: value, owner: account?.name || "" });
+        } else patchSelectedTask({ [taskField]: value });
       }
 
       const logIndex = target.dataset.logIndex;
@@ -4904,6 +4951,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("adminAccountsList").addEventListener("change", (event) => {
       const departmentIndex = event.target.dataset.adminAccountDepartment;
       if (departmentIndex !== undefined) adminDraftSettings.accounts[Number(departmentIndex)].departmentId = event.target.value;
+      const roleIndex = event.target.dataset.adminAccountRole;
+      if (roleIndex !== undefined) {
+        const account = adminDraftSettings.accounts[Number(roleIndex)];
+        account.role = event.target.value === "module_leader" ? "module_leader" : "member";
+        if (account.role !== "module_leader") account.managedModules = [];
+        renderAdmin();
+      }
+      const managedModulesIndex = event.target.dataset.adminAccountManagedModules;
+      if (managedModulesIndex !== undefined) {
+        adminDraftSettings.accounts[Number(managedModulesIndex)].managedModules = [...event.target.selectedOptions].map((option) => option.value);
+      }
       const enabledIndex = event.target.dataset.adminAccountEnabled;
       if (enabledIndex !== undefined) adminDraftSettings.accounts[Number(enabledIndex)].enabled = event.target.value === "true";
       markAdminDirty();
@@ -4925,6 +4983,29 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (resetUsername) openAdminPasswordReset(resetUsername);
     });
     $("leaderAccountsList").addEventListener("change", async (event) => {
+      const roleUsername = event.target.dataset.leaderAccountRole || event.target.dataset.leaderAccountManagedModules;
+      if (roleUsername) {
+        const row = event.target.closest(".admin-row");
+        const role = row.querySelector("[data-leader-account-role]")?.value || "member";
+        const managedModules = [...(row.querySelector("[data-leader-account-managed-modules]")?.selectedOptions || [])].map((option) => option.value);
+        if (event.target.dataset.leaderAccountRole && role === "module_leader" && !managedModules.length) {
+          row.querySelector("[data-leader-account-managed-modules]").disabled = false;
+          return;
+        }
+        try {
+          await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(roleUsername)}/role`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+            body: JSON.stringify({ role, managedModules }),
+          });
+          setSyncStatus("人员权限已更新", "ok");
+        } catch (error) {
+          setSyncStatus(error.message || "权限更新失败", "warn");
+        }
+        await loadLeaderWorkspace();
+        renderAdmin();
+        return;
+      }
       const username = event.target.dataset.leaderAccountEnabled;
       if (!username) return;
       const enabled = event.target.value === "true";

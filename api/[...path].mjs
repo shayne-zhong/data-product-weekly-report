@@ -128,6 +128,8 @@ function normalizeAccounts(list, fallbackDepartmentId = defaultDepartment.id) {
       username: String(account?.username || "").trim().toLowerCase(),
       departmentId: safeId(account?.departmentId || fallbackDepartmentId).toLowerCase(),
       enabled: account?.enabled !== false,
+      role: account?.role === "module_leader" ? "module_leader" : "member",
+      managedModules: normalizeModules(account?.managedModules),
     }))
     .filter((account) => account.name && account.username)
     .filter((account) => {
@@ -230,7 +232,14 @@ function getSettings(state = {}) {
   const departments = normalizeDepartments(state.settings?.departments, legacyModules);
   const resolvedDepartments = departments.length ? departments : fallback.departments;
   const accounts = normalizeAccounts(state.settings?.accounts, resolvedDepartments[0].id)
-    .filter((account) => resolvedDepartments.some((department) => department.id === account.departmentId));
+    .filter((account) => resolvedDepartments.some((department) => department.id === account.departmentId))
+    .map((account) => {
+      const department = resolvedDepartments.find((item) => item.id === account.departmentId);
+      const managedModules = account.role === "module_leader"
+        ? account.managedModules.filter((moduleName) => department?.modules.includes(moduleName))
+        : [];
+      return { ...account, managedModules };
+    });
   return {
     modules: resolvedDepartments[0].modules,
     departments: resolvedDepartments,
@@ -428,15 +437,20 @@ async function readBody(req) {
 
 function publicUser(user, state = null) {
   if (!user) return null;
-  const department = state
-    ? getSettings(state).departments.find((item) => item.id === user.departmentId)
-    : null;
+  const settings = state ? getSettings(state) : null;
+  const department = settings?.departments.find((item) => item.id === user.departmentId) || null;
+  const account = settings?.accounts.find((item) => item.username === user.username) || null;
+  const role = department?.leaderUsername === user.username
+    ? "department_leader"
+    : account?.role === "module_leader" ? "module_leader" : "member";
   return {
     id: user.id,
     username: user.username,
     displayName: user.displayName,
     departmentId: user.departmentId || "",
     department: department ? { id: department.id, name: department.name } : null,
+    role,
+    managedModules: role === "module_leader" ? [...(account?.managedModules || [])] : [],
     createdAt: user.createdAt,
   };
 }
@@ -497,6 +511,57 @@ function listTasksForWeek(state, weekId, departmentId) {
   return Object.values(state.tasks)
     .filter((task) => task.weekId === weekId && task.departmentId === departmentId)
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+}
+
+function resolvedTaskOwnerUsername(task, settings, departmentId) {
+  const direct = String(task?.ownerUsername || "").trim().toLowerCase();
+  if (direct) return direct;
+  const ownerName = String(task?.owner || "").trim();
+  if (!ownerName) return "";
+  const matches = settings.accounts.filter((account) => account.departmentId === departmentId && account.name === ownerName);
+  return matches.length === 1 ? matches[0].username : "";
+}
+
+function taskVisibleToActor(task, actor, settings) {
+  if (actor.role === "department_leader") return true;
+  const ownerUsername = resolvedTaskOwnerUsername(task, settings, actor.departmentId);
+  if (ownerUsername === actor.username) return true;
+  return actor.role === "module_leader" && actor.managedModules.includes(task.module);
+}
+
+function accountForTaskOwner(input = {}, settings, departmentId) {
+  const direct = String(input.ownerUsername || "").trim().toLowerCase();
+  if (direct) return settings.accounts.find((account) => account.username === direct && account.departmentId === departmentId) || null;
+  const ownerName = String(input.owner || "").trim();
+  if (!ownerName) return null;
+  const matches = settings.accounts.filter((account) => account.departmentId === departmentId && account.name === ownerName);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function normalizeTaskOwner(input = {}, settings, departmentId) {
+  const ownerWasProvided = Object.hasOwn(input, "owner") || Object.hasOwn(input, "ownerUsername");
+  if (!ownerWasProvided) return { owner: "", ownerUsername: "" };
+  const hasOwner = String(input.owner || input.ownerUsername || "").trim();
+  if (!hasOwner) return { owner: "", ownerUsername: "" };
+  const account = accountForTaskOwner(input, settings, departmentId);
+  if (!account) return { error: "任务负责人必须是本部门唯一账号" };
+  return { owner: account.name, ownerUsername: account.username };
+}
+
+function canCreateTask(actor, task) {
+  if (actor.role === "department_leader") return true;
+  if (actor.role === "module_leader") return actor.managedModules.includes(task.module);
+  return task.ownerUsername === actor.username;
+}
+
+function canUpdateTask(actor, existing, next, settings) {
+  if (actor.role === "department_leader") return true;
+  const existingOwnerUsername = resolvedTaskOwnerUsername(existing, settings, actor.departmentId);
+  if (actor.role === "member") return next.ownerUsername === actor.username;
+  if (actor.managedModules.includes(existing.module) && actor.managedModules.includes(next.module)) return true;
+  return existingOwnerUsername === actor.username
+    && next.ownerUsername === actor.username
+    && existing.module === next.module;
 }
 
 function reportTitleForDepartment(departmentName, summaryType = "weekly") {
@@ -673,16 +738,23 @@ function publicTask(task) {
 
 function handleTasksByPeriod(req, res, state, actor) {
   if (req.method !== "GET") return methodNotAllowed(res);
+  const settings = getSettings(state);
   const startDate = String(req.query.startDate || "");
   const endDate = String(req.query.endDate || "");
   if (!startDate && !endDate) {
-    return json(res, { tasks: listTasksForDepartment(state, actor.departmentId).map(publicTask) });
+    return json(res, {
+      tasks: listTasksForDepartment(state, actor.departmentId)
+        .filter((task) => taskVisibleToActor(task, actor, settings))
+        .map(publicTask),
+    });
   }
   if (!validIsoDate(startDate) || !validIsoDate(endDate) || endDate < startDate) {
     return json(res, { error: "请输入有效的开始日期和结束日期" }, 400);
   }
   return json(res, {
-    tasks: listTasksForPeriod(state, actor.departmentId, startDate, endDate).map(publicTask),
+    tasks: listTasksForPeriod(state, actor.departmentId, startDate, endDate)
+      .filter((task) => taskVisibleToActor(task, actor, settings))
+      .map(publicTask),
   });
 }
 
@@ -692,10 +764,25 @@ async function handleWeek(req, res, state, parts, now, actor) {
   const action = parts[2];
   const week = state.weeks[departmentRecordKey(departmentId, weekId)];
   if (!week) return json(res, { error: "Week not found" }, 404);
-  if (req.method === "GET" && action === "tasks") return json(res, { week: summarizeWeek(week), tasks: listTasksForWeek(state, weekId, departmentId).map(publicTask) });
+  const settings = settingsForDepartment(state, departmentId);
+  if (req.method === "GET" && action === "tasks") {
+    return json(res, {
+      week: summarizeWeek(week),
+      tasks: listTasksForWeek(state, weekId, departmentId)
+        .filter((task) => taskVisibleToActor(task, actor, settings))
+        .map(publicTask),
+    });
+  }
   if (req.method === "POST" && action === "tasks") {
     const body = await readBody(req);
-    const draft = buildEmptyTask({ ...body.task, weekId, now });
+    const ownerFieldsPresent = Object.hasOwn(body.task || {}, "owner") || Object.hasOwn(body.task || {}, "ownerUsername");
+    const owner = !ownerFieldsPresent && actor.role === "member"
+      ? { owner: actor.displayName, ownerUsername: actor.username }
+      : normalizeTaskOwner(body.task || {}, settings, departmentId);
+    if (owner.error) return json(res, { error: owner.error }, 400);
+    const draft = buildEmptyTask({ ...body.task, module: body.task?.module || settings.modules[0], ...owner, weekId, now });
+    if (!settings.modules.includes(draft.module)) return json(res, { error: "任务模块必须属于当前部门" }, 400);
+    if (!canCreateTask(actor, draft)) return json(res, { error: "无权在该范围创建任务" }, 403);
     const task = body.task?.status ? applyTaskStatus(draft, body.task.status, { blocker: body.task.blocker, now }) : draft;
     task.departmentId = departmentId;
     task.createdBy = actor;
@@ -706,8 +793,10 @@ async function handleWeek(req, res, state, parts, now, actor) {
     return json(res, { task: publicTask(task) }, 201);
   }
   if (req.method === "POST" && action === "generate-report") {
-    const settings = settingsForDepartment(state, departmentId);
-    const summary = summarizeTasksForReport(listTasksForWeek(state, weekId, departmentId), { modules: settings.modules });
+    const summary = summarizeTasksForReport(
+      listTasksForWeek(state, weekId, departmentId).filter((task) => taskVisibleToActor(task, actor, settings)),
+      { modules: settings.modules },
+    );
     return json(res, { data: reportDataFromSummary({ week, summary, settings }), summary });
   }
   return methodNotAllowed(res);
@@ -717,6 +806,8 @@ async function handleTask(req, res, state, parts, now, actor) {
   const taskId = decodeURIComponent(parts[1] || "");
   const existing = state.tasks[taskId];
   if (!existing || existing.departmentId !== actor.departmentId) return json(res, { error: "Task not found" }, 404);
+  const settings = settingsForDepartment(state, actor.departmentId);
+  if (!taskVisibleToActor(existing, actor, settings)) return json(res, { error: "Task not found" }, 404);
   const resource = parts[2] || "";
   const action = parts[3] || "";
   if (resource === "artifact") {
@@ -746,7 +837,26 @@ async function handleTask(req, res, state, parts, now, actor) {
   }
   if (req.method === "POST") {
     const body = await readBody(req);
-    const merged = { ...existing, ...body.task, artifact: existing.artifact || null, id: existing.id, weekId: existing.weekId, departmentId: existing.departmentId, updatedAt: now, updatedBy: actor };
+    const ownerFieldsPresent = Object.hasOwn(body.task || {}, "owner") || Object.hasOwn(body.task || {}, "ownerUsername");
+    const owner = ownerFieldsPresent
+      ? normalizeTaskOwner(body.task, settings, actor.departmentId)
+      : { owner: existing.owner || "", ownerUsername: resolvedTaskOwnerUsername(existing, settings, actor.departmentId) };
+    if (owner.error) return json(res, { error: owner.error }, 400);
+    const merged = {
+      ...existing,
+      ...body.task,
+      ...owner,
+      artifact: existing.artifact || null,
+      id: existing.id,
+      weekId: existing.weekId,
+      departmentId: existing.departmentId,
+      updatedAt: now,
+      updatedBy: actor,
+    };
+    if (Object.hasOwn(body.task || {}, "module") && !settings.modules.includes(merged.module)) {
+      return json(res, { error: "任务模块必须属于当前部门" }, 400);
+    }
+    if (!canUpdateTask(actor, existing, merged, settings)) return json(res, { error: "无权修改该任务" }, 403);
     const task = body.task?.status && body.task.status !== existing.status
       ? applyTaskStatus(merged, body.task.status, { blocker: body.task.blocker, now })
       : merged;
@@ -1042,6 +1152,14 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
     return { ...department, leaderUsername, leaderAssignedAt: leaderChanged ? now : previous?.leaderAssignedAt || 0 };
   });
+  const invalidModuleLeader = accounts.find((account) => {
+    if (account.role !== "module_leader") return false;
+    const department = departmentsWithLeaders.find((item) => item.id === account.departmentId);
+    return !account.managedModules.length || account.managedModules.some((moduleName) => !department?.modules.includes(moduleName));
+  });
+  if (invalidModuleLeader) {
+    return json(res, { error: "模块负责人至少负责一个模块，且模块必须属于本部门" }, 400);
+  }
   const next = {
     modules: departmentsWithLeaders[0].modules,
     departments: departmentsWithLeaders,
@@ -1142,6 +1260,34 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
       .filter((account) => account.departmentId === leader.department.id)
       .map((account) => ({ ...account, registered: Boolean(state.users?.[account.username]) }));
     return json(res, { accounts });
+  }
+  if (parts[1] === "leader" && parts[2] === "accounts" && parts[4] === "role") {
+    if (req.method !== "POST" && req.method !== "PATCH") return methodNotAllowed(res);
+    const targetUsername = decodeURIComponent(parts[3] || "").trim().toLowerCase();
+    if (targetUsername === leader.username) return json(res, { error: "不能修改自己的人员类型" }, 400);
+    const settings = getSettings(state);
+    const department = settings.departments.find((item) => item.id === leader.department.id);
+    const targetAccount = settings.accounts.find((account) =>
+      account.username === targetUsername && account.departmentId === leader.department.id
+    );
+    if (!targetAccount || department?.leaderUsername === targetUsername) return json(res, { error: "Not found" }, 404);
+    const body = await readBody(req);
+    const role = body.role === "module_leader" ? "module_leader" : body.role === "member" ? "member" : "";
+    if (!role) return json(res, { error: "人员类型必须是普通用户或模块负责人" }, 400);
+    const requestedModules = normalizeModules(body.managedModules);
+    if (requestedModules.some((moduleName) => !department.modules.includes(moduleName))) {
+      return json(res, { error: "负责模块必须属于当前部门" }, 400);
+    }
+    if (role === "module_leader" && !requestedModules.length) {
+      return json(res, { error: "模块负责人至少负责一个模块" }, 400);
+    }
+    const managedModules = role === "module_leader" ? requestedModules : [];
+    const accounts = settings.accounts.map((account) => account.username === targetUsername
+      ? { ...account, role, managedModules }
+      : account);
+    state.settings = { ...settings, accounts, updatedAt: now };
+    await saveState(state);
+    return json(res, { account: { username: targetUsername, role, managedModules } });
   }
   if (parts[1] === "leader" && parts[2] === "accounts" && parts[4] === "enabled") {
     if (req.method !== "POST") return methodNotAllowed(res);
