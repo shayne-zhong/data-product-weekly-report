@@ -17,7 +17,7 @@ function aiReportHelpersRuntime() {
   const typeSource = html.match(/ {4}function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n {4}function completedContributionForGoal)/)?.[0];
   const reportTypes = { weekly: {}, monthly: {}, quarterly: {} };
   const { normalizeDate, reportSummaryType } = new Function("reportTypes", `${normalizeSource}\n${typeSource}\nreturn { normalizeDate, reportSummaryType };`)(reportTypes);
-  return new Function("reportSummaryType", "normalizeDate", `let aiReportGeneration = 3;\n${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, findAiReportApplyTarget, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
+  return new Function("reportSummaryType", "normalizeDate", `let aiReportGeneration = 3;\n${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, parseAiReportSections, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
 }
 
 test("monthly and quarterly AI source selection filters overlap and type with stable ordering", () => {
@@ -31,7 +31,7 @@ test("monthly and quarterly AI source selection filters overlap and type with st
     { id: "old", summaryType: "weekly", startDate: "2026/07/01", endDate: "2026/07/07" },
     { id: "m1", summaryType: "monthly", status: "final", startDate: "2026/07/01", endDate: "2026/07/31" },
   ];
-  assert.deepEqual(selectAiReportSources(reports, { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" }).map(({ id }) => id), ["w1a", "w1b", "w2"]);
+  assert.deepEqual(selectAiReportSources(reports, { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" }).map(({ id }) => id), ["w1a", "w1b", "w2", "draft-week"]);
   assert.deepEqual(selectAiReportSources(reports, { id: "q", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" }).map(({ id }) => id), ["m1", "self"]);
   assert.deepEqual(selectAiReportSources(reports, { id: "w", summaryType: "weekly", startDate: "2026/08/01", endDate: "2026/08/07" }), []);
 });
@@ -74,29 +74,40 @@ test("AI source text is structured and includes each source period and title", (
   assert.match(text, /本周进展：完成A；完成B/);
 });
 
-test("AI apply mapping prefers the first progress module and preserves structure", () => {
-  const { findAiReportApplyTarget, applyAiReportText } = aiReportHelpersRuntime();
+test("monthly AI result fills target progress and risk without changing next-month plan", () => {
+  const { parseAiReportSections, applyAiReportText } = aiReportHelpersRuntime();
+  const text = "【本月目标】\n1、目标A\n【本月进展】\n1、进展A\n【下月计划】\n1、模型越权计划\n【当前风险】\n无";
+  assert.deepEqual(parseAiReportSections(text, "monthly"), { 本月目标: ["1、目标A"], 本月进展: ["1、进展A"], 当前风险: ["无"] });
   const data = { summaryType: "monthly", modules: [
-    { title: "汇总", sections: [{ title: "目标", items: ["目标"] }, { title: "本月进展", items: ["旧内容"] }] },
-    { title: "本月进展", sections: [{ title: "内容", items: ["旧内容"] }] },
+    { title: "本月目标", sections: [{ title: "内容", items: ["旧目标"] }] },
+    { title: "本月进展", sections: [{ title: "内容", items: ["旧进展"] }] },
+    { title: "下月计划", sections: [{ title: "内容", items: ["人工计划"] }] },
+    { title: "当前风险", sections: [{ title: "内容", items: ["旧风险"] }] },
   ] };
-  assert.deepEqual(findAiReportApplyTarget(data), { moduleIndex: 0, sectionIndex: 1 });
-  assert.equal(applyAiReportText(data, "第一行\n\n 第二行 "), true);
-  assert.deepEqual(data.modules[0].sections[1].items, ["第一行", "第二行"]);
-  assert.deepEqual(data.modules[0].sections[0].items, ["目标"]);
+  assert.equal(applyAiReportText(data, text), true);
+  assert.deepEqual(data.modules.map((module) => module.sections[0].items), [["1、目标A"], ["1、进展A"], ["人工计划"], ["无"]]);
 });
 
-test("AI apply falls back to first visible section and rejects stale or readonly context", () => {
-  const { findAiReportApplyTarget, applyAiReportText, aiReportContextMatches } = aiReportHelpersRuntime();
-  const data = { summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", modules: [{ title: "其他", sections: [{ title: "隐藏", hidden: true, items: [] }, { title: "可见", items: ["旧"] }] }] };
-  assert.deepEqual(findAiReportApplyTarget(data), { moduleIndex: 0, sectionIndex: 1 });
+test("quarterly AI result preserves next-quarter plan and rejects readonly context", () => {
+  const { applyAiReportText, aiReportContextMatches } = aiReportHelpersRuntime();
+  const data = { summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", modules: [
+    { title: "本季目标", sections: [{ title: "内容", items: ["旧目标"] }] },
+    { title: "本季进展", sections: [{ title: "内容", items: ["旧进展"] }] },
+    { title: "下季计划", sections: [{ title: "内容", items: ["人工计划"] }] },
+    { title: "当前风险", sections: [{ title: "内容", items: ["旧风险"] }] },
+  ] };
   assert.equal(applyAiReportText(data, "新内容", { canEdit: false }), false);
-  assert.deepEqual(data.modules[0].sections[1].items, ["旧"]);
+  assert.deepEqual(data.modules[2].sections[0].items, ["人工计划"]);
   const context = { reportId: "r1", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", generation: 3 };
   assert.equal(aiReportContextMatches(context, "r1", data, true), true);
   assert.equal(aiReportContextMatches(context, "r2", data, true), false);
   assert.equal(aiReportContextMatches(context, "r1", { ...data, endDate: "2026/12/31" }, true), false);
   assert.equal(aiReportContextMatches(context, "r1", data, false), false);
+});
+
+test("monthly and quarterly plan sections do not offer task import", () => {
+  assert.match(html, /function reportSectionAllowsTaskImport/);
+  assert.match(html, /reportSectionAllowsTaskImport\(summaryType, section\.title\)/);
 });
 
 test("AI report generation token rejects a deferred result from the moment switching starts", async () => {

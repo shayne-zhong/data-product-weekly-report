@@ -205,6 +205,34 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
     assert.equal(upstreamRequest.url, "https://api.deepseek.com/chat/completions");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-placeholder");
 
+    const monthlyGenerated = await api("/ai/report-summary", {
+      method: "POST",
+      token: defaultToken,
+      body: {
+        sourceText: "8月周报汇总原始内容，包含目标、进展与风险，供月度总结结构化提炼。",
+        summaryType: "monthly",
+        style: "executive",
+      },
+    });
+    assert.equal(monthlyGenerated.statusCode, 200);
+    const monthlyInstruction = JSON.parse(upstreamRequest.options.body).messages[0].content;
+    assert.match(monthlyInstruction, /【本月目标】【本月进展】【当前风险】/);
+    assert.match(monthlyInstruction, /禁止生成【下月计划】/);
+
+    const quarterlyGenerated = await api("/ai/report-summary", {
+      method: "POST",
+      token: defaultToken,
+      body: {
+        sourceText: "第三季度月报汇总原始内容，包含目标、进展与风险，供季度总结结构化提炼。",
+        summaryType: "quarterly",
+        style: "executive",
+      },
+    });
+    assert.equal(quarterlyGenerated.statusCode, 200);
+    const quarterlyInstruction = JSON.parse(upstreamRequest.options.body).messages[0].content;
+    assert.match(quarterlyInstruction, /【本季目标】【本季进展】【当前风险】/);
+    assert.match(quarterlyInstruction, /禁止生成【下季计划】/);
+
     const kimiSettings = await api("/admin/settings", {
       method: "POST",
       headers: { authorization: `Bearer ${adminToken}` },
