@@ -3316,7 +3316,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                     <div class="report-section-tools">
                       ${canFormat ? `<button class="btn small ghost" data-format-report-list="${modIndex}:${sectionIndex}:number" ${reportCanEdit && !isHidden ? "" : "disabled"}>序号</button><button class="btn small ghost" data-format-report-list="${modIndex}:${sectionIndex}:bullet" ${reportCanEdit && !isHidden ? "" : "disabled"}>●</button>` : ""}
                       ${canHide ? `<button class="btn small ghost" data-toggle-report-section="${modIndex}:${sectionIndex}" ${reportCanEdit ? "" : "disabled"}>${isHidden ? "显示" : "隐藏"}</button>` : ""}
-                      <button class="btn small ghost" data-import-report-tasks="${modIndex}:${sectionIndex}" ${reportCanEdit && !isHidden ? "" : "disabled"}>导入待办</button>
+                      ${reportSectionAllowsTaskImport(summaryType, section.title) ? `<button class="btn small ghost" data-import-report-tasks="${modIndex}:${sectionIndex}" ${reportCanEdit && !isHidden ? "" : "disabled"}>导入待办</button>` : ""}
                     </div>
                   </div>
                   ${isHidden ? `<div class="report-section-hidden">当前风险已隐藏，复制文本时将不会输出该小节。</div>` : `<textarea ${reportCanEdit ? "" : "readonly"} data-report-module="${modIndex}" data-report-section="${sectionIndex}">${escapeHtml(reportItemsToText(section.items || []))}</textarea>`}
@@ -3331,14 +3331,20 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderReportSourceStats();
     }
 
+    function reportSectionAllowsTaskImport(summaryType, sectionTitle) {
+      if (summaryType === "monthly" && String(sectionTitle || "").trim() === "下月计划") return false;
+      if (summaryType === "quarterly" && String(sectionTitle || "").trim() === "下季计划") return false;
+      return true;
+    }
+
     function renderReportSourceStats() {
       const summaryType = reportData.summaryType || "weekly";
       if (summaryType !== "weekly") {
         const sources = selectAiReportSources(reports, { id: currentReportId, ...reportData });
-        const sourceLabel = summaryType === "monthly" ? "已归档周报" : "已归档月报";
+        const sourceLabel = summaryType === "monthly" ? "已保存周报" : "已保存月报";
         $("reportSourceStats").innerHTML = sources.length
-          ? sources.map((source) => `<div class="source-card"><b>${escapeHtml(source.title || source.id || "未命名总结")}</b><br><small>${escapeHtml(source.startDate || "-")}—${escapeHtml(source.endDate || "-")} · 已归档</small></div>`).join("")
-          : `<div class="source-card"><b>暂无真实来源</b><br><small>当前周期内没有${sourceLabel}，不会使用草稿或当前任务数代替</small></div>`;
+          ? sources.map((source) => `<div class="source-card"><b>${escapeHtml(source.title || source.id || "未命名总结")}</b><br><small>${escapeHtml(source.startDate || "-")}—${escapeHtml(source.endDate || "-")} · ${source.status === "final" ? "已归档" : "草稿"}</small></div>`).join("")
+          : `<div class="source-card"><b>暂无真实来源</b><br><small>当前周期内没有${sourceLabel}</small></div>`;
         return;
       }
       const matchesLoadedWeek = currentWeek
@@ -5322,7 +5328,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function selectAiReportSources(rows = [], target = {}) {
       const sourceType = target.summaryType === "monthly" ? "weekly" : target.summaryType === "quarterly" ? "monthly" : "";
       if (!sourceType) return [];
-      return rows.filter((row) => row.id !== target.id && row.status === "final" && reportSummaryType(row) === sourceType && reportPeriodsOverlap(row, target))
+      return rows.filter((row) => row.id !== target.id && ["draft", "final"].includes(row.status) && reportSummaryType(row) === sourceType && reportPeriodsOverlap(row, target))
         .sort((left, right) => reportDateTimestamp(left.startDate) - reportDateTimestamp(right.startDate) || String(left.id || "").localeCompare(String(right.id || "")));
     }
 
@@ -5333,33 +5339,48 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           const sections = (module.sections || []).filter((section) => !section.hidden).map((section) => `${section.title || "内容"}：${(section.items || []).map((item) => String(item || "").trim()).filter(Boolean).join("；")}`).filter((line) => !line.endsWith("："));
           return [module.title || "未命名模块", ...sections].join("\n");
         }).filter(Boolean).join("\n");
-        return `来源 ${index + 1}：${data.title || row.title || row.id || "未命名总结"}\n周期：${data.startDate || row.startDate || "-"}—${data.endDate || row.endDate || "-"}\n${body}`.trim();
+        const status = (data.status || row.status) === "final" ? "已归档" : "草稿";
+        return `来源 ${index + 1}：${data.title || row.title || row.id || "未命名总结"}\n周期：${data.startDate || row.startDate || "-"}—${data.endDate || row.endDate || "-"}\n状态：${status}\n${body}`.trim();
       }).join("\n\n---\n\n");
     }
 
-    function findAiReportApplyTarget(data = {}) {
-      const progressTitle = data.summaryType === "monthly" ? "本月进展" : data.summaryType === "quarterly" ? "本季进展" : "";
-      const firstModuleProgress = (data.modules?.[0]?.sections || []).findIndex((section) => !section.hidden && String(section.title || "").trim() === progressTitle);
-      if (firstModuleProgress >= 0) return { moduleIndex: 0, sectionIndex: firstModuleProgress };
-      let moduleIndex = (data.modules || []).findIndex((module) => String(module.title || "").trim() === progressTitle);
-      if (moduleIndex >= 0) {
-        const sectionIndex = (data.modules[moduleIndex].sections || []).findIndex((section) => !section.hidden);
-        if (sectionIndex >= 0) return { moduleIndex, sectionIndex };
-      }
-      for (moduleIndex = 0; moduleIndex < (data.modules || []).length; moduleIndex += 1) {
-        const sectionIndex = (data.modules[moduleIndex].sections || []).findIndex((section) => !section.hidden);
-        if (sectionIndex >= 0) return { moduleIndex, sectionIndex };
-      }
-      return null;
+    function aiReportWritableTitles(summaryType) {
+      if (summaryType === "monthly") return ["本月目标", "本月进展", "当前风险"];
+      if (summaryType === "quarterly") return ["本季目标", "本季进展", "当前风险"];
+      return [];
+    }
+
+    function parseAiReportSections(text, summaryType) {
+      const allowed = aiReportWritableTitles(summaryType);
+      const result = {};
+      let currentTitle = "";
+      String(text || "").split(/\r?\n/).forEach((rawLine) => {
+        const line = rawLine.trim();
+        if (!line) return;
+        const heading = line.match(/^(?:【|\[)?(本月目标|本月进展|本季目标|本季进展|下月计划|下季计划|当前风险)(?:】|\])?[：:]?$/)?.[1] || "";
+        if (heading) {
+          currentTitle = allowed.includes(heading) ? heading : "";
+          if (currentTitle && !result[currentTitle]) result[currentTitle] = [];
+          return;
+        }
+        if (currentTitle) result[currentTitle].push(line);
+      });
+      return Object.fromEntries(Object.entries(result).filter(([, items]) => items.length));
     }
 
     function applyAiReportText(data, text, { canEdit = true } = {}) {
       if (!canEdit) return false;
-      const target = findAiReportApplyTarget(data);
-      const items = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-      if (!target || !items.length) return false;
-      data.modules[target.moduleIndex].sections[target.sectionIndex].items = items;
-      return true;
+      const sections = parseAiReportSections(text, data.summaryType);
+      let applied = false;
+      (data.modules || []).forEach((module) => {
+        const items = sections[String(module.title || "").trim()];
+        if (!items) return;
+        const section = (module.sections || []).find((candidate) => !candidate.hidden);
+        if (!section) return;
+        section.items = items;
+        applied = true;
+      });
+      return applied;
     }
 
     function invalidateAiReportContext() {
@@ -5471,10 +5492,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         $("applyAiReportBtn").disabled = true;
         return setSyncStatus(reportCanEdit ? "AI结果已失效，请重新生成" : reportLockMessage(), "warn");
       }
-      const target = findAiReportApplyTarget(reportData);
-      if (!target) return setSyncStatus("当前总结没有可写入的内容区", "warn");
-      const section = reportData.modules[target.moduleIndex].sections[target.sectionIndex];
-      if (!window.confirm(`将覆盖“${reportData.modules[target.moduleIndex].title} / ${section.title}”现有内容，确认写入吗？`)) return;
+      const writableTitles = aiReportWritableTitles(reportData.summaryType).join("、");
+      if (!writableTitles) return setSyncStatus("当前总结没有可写入的内容区", "warn");
+      if (!window.confirm(`将覆盖“${writableTitles}”现有内容，计划区保持不变，确认写入吗？`)) return;
       if (!applyAiReportText(reportData, $("aiReportText").value, { canEdit: reportCanEdit })) return;
       renderReportEditor();
       renderReportPreview();

@@ -1009,7 +1009,12 @@ function aiSummaryInstruction(style, summaryType, departmentName) {
     complete: "在保留全部有效事实的前提下润色表达、合并重复项并强化层次。",
   };
   const typeLabel = { weekly: "周总结", monthly: "月总结", quarterly: "季度总结" }[summaryType] || "工作总结";
-  return `你是${departmentName}负责人助理，负责把${typeLabel}整理成可直接发送给管理层的中文纯文本。\n\n要求：\n1. 严格基于原文，不得补充、猜测或虚构任何数字、结论、人员和进度。\n2. ${styleRules[style] || styleRules.executive}\n3. 保留原文标题、周期、模块名称，以及进展、风险、计划等必要层级。\n4. 优先呈现量化成果、完成度、业务影响、阻塞原因和需要管理层关注的事项。\n5. 合并同义或重复事项，修正病句和标点；信息不完整时保持原意，不自行推断。\n6. 输出纯文本，不要Markdown代码块，不要写“以下是总结”等前言，不要解释你的处理过程。\n7. 列表统一使用“1、2、3、”格式；没有内容的风险可写“无”。`;
+  const structureRule = summaryType === "monthly"
+    ? "只按【本月目标】【本月进展】【当前风险】三个标题输出，禁止生成【下月计划】。"
+    : summaryType === "quarterly"
+      ? "只按【本季目标】【本季进展】【当前风险】三个标题输出，禁止生成【下季计划】。"
+      : "保留原文标题、周期、模块名称，以及进展、风险、计划等必要层级。";
+  return `你是${departmentName}负责人助理，负责把${typeLabel}整理成可直接发送给管理层的中文纯文本。\n\n要求：\n1. 严格基于原文，不得补充、猜测或虚构任何数字、结论、人员和进度。\n2. ${styleRules[style] || styleRules.executive}\n3. ${structureRule}\n4. 优先呈现量化成果、完成度、业务影响、阻塞原因和需要管理层关注的事项。\n5. 合并同义或重复事项，修正病句和标点；信息不完整时保持原意，不自行推断。\n6. 输出纯文本，不要Markdown代码块，不要写“以下是总结”等前言，不要解释你的处理过程。\n7. 列表统一使用“1、2、3、”格式；没有内容的风险可写“无”。`;
 }
 
 function cleanAiText(value) {
