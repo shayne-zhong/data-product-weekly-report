@@ -2,285 +2,210 @@
 
 ## 背景
 
-数据产品部员工继续在部门工作台维护任务，企微原生待办负责向负责人触达和提醒。企微侧由 WorkBuddy 实现，工作台不直接接入企微待办 CLI，而是提供可靠的增量任务数据、身份映射、OAuth 回调和任务变更通知。
+部门工作台是任务事实源，WorkBuddy 负责把任务同步到企微原生待办中心，并把员工在企微勾选完成的结果回写网站。本期完全按对方给出的四项接口契约实施，不扩展额外同步能力。
 
-当前任务统一经后端 API 创建、修改和删除，任务实体已有稳定的 `id`、`ownerUsername`、`status`、`dueDate` 和 `updatedAt`。现有删除逻辑会物理移除任务，因此必须增加独立的持久化变更日志，才能让 WorkBuddy 感知删除。
+现有任务已包含标题、描述、负责人、状态、截止日期和毫秒级 `updatedAt`。外部完成回写必须复用工作台现有业务规则：任务关联年度指标且贡献数有效后才能完成。
 
 ## 目标与非目标
 
 ### 目标
 
-- 为 WorkBuddy 提供仅限数据产品部的增量任务查询 API。
-- 支持首次按 `updated_since` 拉取、游标分页、连续同步和故障恢复。
-- 将任务创建、更新、状态变化和删除写入不可变变更日志。
-- 维护网站账号与企微 `userid` 的管理员预绑定关系。
-- 支持企微 OAuth 回调，并由 WorkBuddy 解析企微员工身份。
-- 通过签名 Webhook 提醒 WorkBuddy 及时拉取增量。
-- 保证 WorkBuddy、OAuth 或 Webhook 故障不影响工作台任务保存和密码登录。
+1. 提供 `GET /api/open/tasks?updated_since=` 增量任务查询 API。
+2. 提供 `PUT /api/open/tasks/:task_id/status` 完成状态回写 API。
+3. 建立网站账号与企微 `userid` 的一对一映射，支持通讯录初始化及 OAuth 首登自动回填兜底。
+4. 提供精确路径 `/wecom/callback`，接收企微授权 `code` 并建立现有网站会话。
+5. 所有开放能力仅覆盖数据产品部，并保持认证、错误码和数据边界可验证。
 
 ### 非目标
 
-- 不覆盖数据产品部以外的部门。
-- 不把企微待办中的修改或完成状态回写工作台。
-- 不在工作台中直接调用或封装企微待办 CLI。
-- 不移除现有账号密码登录。
-- 不自动按姓名、手机号或邮箱推断账号映射。
-- 不在第一阶段实现变更日志压缩、跨部门令牌或通用集成平台。
+1. 不覆盖数据产品部以外的部门。
+2. 不实现 Webhook、游标分页、任务变更日志、删除墓碑或删除同步。
+3. 除完成状态外，不接受来自企微的任务编辑、转交或删除。
+4. 不按姓名模糊匹配账号，不自动创建网站账号。
+5. 不移除现有账号密码登录，也不在网站内直接调用企微待办接口。
 
-## 总体架构
+## 总体数据流
 
-数据流如下：
+1. 网站任务发生对外可见变化后，在同一次持久化中写入新的 `openUpdatedAt`。
+2. WorkBuddy 持有最近消费的最大 `updated_at`，定期调用增量查询 API，维护企微原生待办。
+3. 员工在企微勾选完成后，WorkBuddy 调用状态回写 API；网站通过现有完成校验后更新任务，并生成新的 `openUpdatedAt`。
+4. 员工从企微进入网站时，回调先校验一次性 `state`，再由 WorkBuddy 解析授权 `code`；网站根据既有映射或精确账号匹配建立会话。
 
-```text
-员工更新工作台任务
-        ↓
-任务状态、变更日志和 Webhook Outbox 同次持久化
-        ↓
-Webhook 通知 WorkBuddy 有新变化
-        ↓
-WorkBuddy 使用服务令牌拉取任务增量
-        ↓
-WorkBuddy 创建、更新、完成或删除企微原生待办
-```
+## 开放 API 认证与部门范围
 
-登录流如下：
+1. 两个任务开放 API 使用同一个部门级 Bearer Token，仅从服务端环境变量读取。
+2. Token 比较使用恒定时间比较；不得接受普通员工会话 Cookie 代替开放 API Token。
+3. OAuth 身份解析使用独立凭证，与任务开放 API Token 分离。
+4. 所有任务查询和回写都在服务端强制限定为配置的数据产品部；不存在、已删除或跨部门任务统一返回 404。
+5. 认证失败返回 401，不在响应或日志中暴露 Token、授权 `code` 或完整请求头。
 
-```text
-员工从企微进入工作台
-        ↓
-网站生成一次性 state 并发起企微 OAuth
-        ↓
-企微回调网站并携带 code 与 state
-        ↓
-网站校验 state，服务端将 code 交给 WorkBuddy 解析
-        ↓
-网站按管理员预绑定关系创建现有工作台会话
-```
+## 秒级严格递增更新时间
 
-工作台是任务事实源。WorkBuddy 是企微待办适配器和企微身份解析方。二者通过明确的服务端契约通信，任一外部调用失败都不能改变已经成功保存的工作台任务。
+### 数据结构
 
-## 数据模型
+- 每个任务增加整数 `openUpdatedAt`，单位为 Unix 秒，仅用于开放接口增量同步。
+- 全局持久化状态增加整数 `openTaskClock`，记录最近分配的开放接口时间戳。
 
-### 员工映射
+### 分配规则
 
-在现有账号设置中增加服务端字段：
+每次需要推进开放接口时间时，在同一持久化事务中计算：
 
 ```text
-wecomUserId       企微员工稳定标识，可为空
-wecomDisplayName  最近一次确认的企微显示名称，可为空
-wecomBoundAt      最近绑定时间
-wecomBoundBy      执行绑定的管理员账号
+next = max(floor(currentTimeMillis / 1000), openTaskClock + 1)
+task.openUpdatedAt = next
+openTaskClock = next
 ```
 
-一个企微员工标识只能绑定一个网站账号；一个网站账号最多绑定一个企微员工标识。后台普通列表仅展示“已绑定/未绑定”和企微员工显示名称，原始标识只在管理员编辑和 WorkBuddy 增量响应中使用。
+该规则保证即使同一自然秒内连续修改多个任务，每次分配的 `updated_at` 仍严格递增。系统时间回拨也不会产生倒退或重复值。
 
-绑定、换绑或解绑后，为该网站账号负责的所有未完成任务追加新的 `upsert` 变更，使 WorkBuddy 能重新判断创建或转交关系。
+### 触发范围
 
-### 任务变更日志
+以下变化推进任务的 `openUpdatedAt`：
 
-状态文档增加单调递增序号和不可变事件列表：
+- 新建任务；
+- 标题、描述、负责人、状态或截止日期变化；
+- 负责人对应的企微 `userid` 发生变化。
 
-```json
-{
-  "eventId": "change_...",
-  "sequence": 123,
-  "departmentId": "configured-data-product-department",
-  "changeType": "upsert",
-  "taskId": "task_...",
-  "updatedAt": 1787968800000,
-  "snapshot": {
-    "task_id": "task_...",
-    "title": "准备月度经营分析",
-    "description": "补齐指标口径说明",
-    "owner": {
-      "username": "zhangsan",
-      "display_name": "张三",
-      "wecom_userid": "internal-value-or-null",
-      "mapped": true
-    },
-    "status": "进行中",
-    "due_date": "2026-09-01",
-    "updated_at": "2026-08-29T10:00:00.000Z",
-    "deleted": false
-  }
-}
-```
+仅内部展示、审计或不属于接口契约的字段变化不推进时间戳。业务保存失败时不得推进时间戳。
 
-删除事件使用 `changeType=delete`，并保留最小墓碑：
-
-```json
-{
-  "event_id": "change_...",
-  "task_id": "task_...",
-  "updated_at": "2026-08-29T10:00:00.000Z",
-  "deleted": true
-}
-```
-
-任务更新与变更事件在同一次 `saveState` 中保存。只有本地持久化成功后，API 才返回任务操作成功。第一阶段不自动删除变更日志或墓碑。
-
-### Webhook Outbox
-
-每次产生任务变更时，同时写入 Outbox 条目：
-
-```text
-eventId, eventType, occurredAt, status,
-attemptCount, nextAttemptAt, lastAttemptAt, lastError
-```
-
-同一个变更事件只对应一个 Outbox 条目。重复投递继续使用同一事件编号。
+上线时为数据产品部现有任务执行一次幂等基线初始化；初始化结果和完成标记均持久化，重复启动不会再次改写已有时间戳。
 
 ## 增量任务查询 API
 
 ### 请求
 
-```text
-GET /api/integrations/workbuddy/tasks
-Authorization: Bearer <部门级服务令牌>
+```http
+GET /api/open/tasks?updated_since=<unix-seconds>
+Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
 ```
 
-首次同步或按时间恢复：
+- `updated_since` 必填，必须是非负安全整数；首次同步传 `0`。
+- 查询条件为 `openUpdatedAt > updated_since`。
+- 仅返回当前仍存在的数据产品部任务，按 `updated_at` 升序排列。
+- 本期不提供分页或游标；WorkBuddy 成功处理一批数据后保存其中最大的 `updated_at`。
 
-```text
-?updated_since=2026-08-29T00:00:00.000Z&limit=100
-```
-
-连续同步或翻页：
-
-```text
-?cursor=<opaque-cursor>&limit=100
-```
-
-请求必须提供 `updated_since` 或 `cursor` 之一，不能同时提供。`updated_since` 必须是有效的 UTC ISO 时间，查询边界为大于等于。`limit` 默认 100，最小 1，最大 500。
-
-### 响应
+### 成功响应
 
 ```json
 {
-  "items": [
+  "tasks": [
     {
-      "event_id": "change_...",
-      "task_id": "task_...",
+      "task_id": "task_123",
       "title": "准备月度经营分析",
       "description": "补齐指标口径说明",
-      "owner": {
-        "username": "zhangsan",
-        "display_name": "张三",
-        "wecom_userid": "internal-value-or-null",
-        "mapped": true
-      },
+      "assignee_userid": "wecom-user-or-null",
       "status": "进行中",
       "due_date": "2026-09-01",
-      "updated_at": "2026-08-29T10:00:00.000Z",
-      "deleted": false
+      "updated_at": 1787968800
     }
-  ],
-  "has_more": false,
-  "next_cursor": null,
-  "checkpoint": {
-    "cursor": "opaque-resume-cursor",
-    "updated_at": "2026-08-29T10:00:00.000Z"
-  }
+  ]
 }
 ```
 
-游标包含已消费序号和本轮查询水位，并由服务端防篡改。首次请求确定水位后，后续分页只读取该水位以内的事件；分页期间新产生的事件留给下一轮，避免一轮同步无限增长。
+字段规则：
 
-WorkBuddy 按响应顺序应用事件并保存 `checkpoint.cursor`。正常情况下后续请求使用游标；游标丢失或不可用时，使用最近成功的 `checkpoint.updated_at` 作为包含边界重新拉取，并按 `event_id` 去重。
+- `task_id`：网站任务稳定 ID。
+- `title`、`description`：字符串；无描述时返回空字符串。
+- `assignee_userid`：企微 `userid`；负责人未绑定时返回 `null`。
+- `status`：沿用网站现有状态值：`待开始`、`进行中`、`阻塞`、`已完成`。
+- `due_date`：`YYYY-MM-DD`；无截止日期时返回 `null`。
+- `updated_at`：严格递增的非负 Unix 秒整数。
 
-### 鉴权与范围
+错误响应：Token 错误返回 401；参数缺失或非法返回 400；开放接口配置缺失返回 503。
 
-- 服务令牌来自运行环境，不写入状态文档、浏览器或日志。
-- 使用恒定时间比较校验令牌。
-- 令牌绑定一个配置的部门标识；第一阶段只能绑定数据产品部。
-- 接口不接受普通员工会话代替服务令牌。
-- 无效或缺失令牌返回 401；令牌有效但集成部门配置无效时返回 503；参数错误返回 400；不可继续使用的游标返回 410。
-
-### 基线迁移
-
-部署后首次运行时，为数据产品部当时存在的每个任务生成一条 `upsert` 事件，并记录基线版本和完成时间。基线标记与事件同次保存；重复启动或补偿运行不得重复生成基线。
-
-## 任务变更写入规则
-
-- 新建任务：追加 `upsert`。
-- 修改标题、描述、负责人、状态或截止日期：追加 `upsert`。
-- 其他同步字段没有变化：不追加事件。
-- 标记已完成：追加状态为“已完成”的 `upsert`，由 WorkBuddy 完成企微待办。
-- 从已完成恢复：追加新状态的 `upsert`，由 WorkBuddy按其能力恢复或重新创建企微待办。
-- 删除任务：先构造并写入 `delete` 墓碑，再物理删除业务任务。
-- 账号绑定变化：为该账号负责的未完成任务追加 `upsert`。
-
-每个事件使用独立编号。相同任务可以在增量流中出现多次，WorkBuddy 不应只按任务编号去重，而应按事件编号去重并按顺序应用。
-
-## Webhook 设计
+## 状态回写 API
 
 ### 请求
 
-Outbox 执行器向配置的 WorkBuddy 地址发送：
+```http
+PUT /api/open/tasks/:task_id/status
+Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
+Content-Type: application/json
+
+{"status":"completed"}
+```
+
+接口文档以 `completed` 为规范值；为兼容现有中文状态，也接受 `已完成`。本期不接受其他目标状态。
+
+### 首次成功
+
+1. 调用现有任务状态变更逻辑，不另建一套完成规则。
+2. 状态更新为 `已完成`，进度设为 100，写入完成时间，且不再参与跨期顺延。
+3. 更新来源记录为 WorkBuddy 集成身份。
+4. 分配新的 `openUpdatedAt`，使本次完成随后能被增量查询读到。
+
+成功返回 200：
 
 ```json
 {
-  "event_id": "change_...",
-  "event_type": "tasks_changed",
-  "occurred_at": "2026-08-29T10:00:00.000Z"
+  "task_id": "task_123",
+  "status": "已完成",
+  "updated_at": 1787968801
 }
 ```
 
-请求头包含事件编号、Unix 时间戳和 HMAC-SHA256 签名。签名输入为 `timestamp + "." + rawBody`。Webhook 不包含标题、负责人、描述等业务详情。
+### 错误与幂等语义
 
-### 投递规则
+- 任务已完成时返回 409，错误码为 `TASK_ALREADY_TERMINAL`；不得重复修改任务、贡献数、完成时间或开放接口时间戳。
+- 请求其他状态时返回 400。
+- 未关联年度指标或贡献数无效等现有完成前置条件不满足时返回 422，错误码为 `TASK_COMPLETION_REQUIREMENTS_NOT_MET`。
+- 任务不存在、已删除或不属于集成部门时返回 404。
 
-- 任务和 Outbox 保存成功后才允许发送。
-- 首次立即尝试；失败后按有限退避再次尝试，总尝试次数最多三次。
-- 2xx 视为成功；网络错误、超时、429 和 5xx 可重试；其他 4xx 直接记为最终失败。
-- 单次请求设置短超时，不阻塞任务 API 响应。
-- Node 服务启动时补偿扫描待发送条目，并按固定短周期调用同一个 Outbox 执行器。
-- 超过重试上限后保留失败条目，不自动无限重试。
+此处的幂等指重复请求不会产生重复状态副作用；按照对方契约，终态重复请求仍明确返回 409。
 
-后台集成状态至少展示启用状态、最近一次成功时间、待发送数量、最终失败数量和最近错误摘要。错误摘要必须截断并清除令牌、签名、OAuth code、请求头和响应正文中的敏感内容。
+## 网站账号与企微 userid 映射
 
-Webhook 是实时性优化，不是数据完整性的唯一保证。即使所有 Webhook 均丢失，WorkBuddy 仍可按固定轮询和游标补齐任务。
+### 存储约束
 
-## OAuth 免登设计
+1. 在现有网站账号目录增加 `wecomUserId` 字段。
+2. 网站账号与企微 `userid` 必须一对一唯一；同一 `userid` 不得绑定多个网站账号。
+3. 普通员工不能查看或修改他人的企微标识。
 
-### 发起入口
+账号目录采用现有可分配任务负责人的账号来源，而不是只依赖已产生登录记录的用户集合，避免未登录员工无法预先绑定。
 
-```text
-GET /api/auth/wecom/start?return_to=<allowed-path>
+### 通讯录初始化
+
+1. 接入部署时由 WorkBuddy 提供数据产品部账号映射批次，作为内部初始化过程处理，不新增本期公开 API。
+2. 只按双方约定的网站账号标识做标准化后的精确匹配，不使用显示姓名、拼音或模糊匹配。
+3. 初始化批次具有持久化批次标识并幂等执行，记录成功、跳过和冲突数量，不记录敏感凭证。
+4. 映射新增或变化后，为该账号当前负责的任务重新分配 `openUpdatedAt`，使 WorkBuddy 能取得新的 `assignee_userid`。
+
+### OAuth 首登回填兜底
+
+1. WorkBuddy 身份解析结果必须同时包含已验证的 `wecom_userid` 和可精确对应网站账号的企业账号标识。
+2. 若已有唯一映射，则直接使用对应网站账号登录。
+3. 若尚未映射，仅在数据产品部存在唯一、有效且已注册的网站账号时自动回填并登录。
+4. 若网站账号或企微 `userid` 已绑定其他对象、账号不存在、标识不唯一、账号未注册或部门不一致，则拒绝回填和登录。
+5. 系统不得根据 OAuth 结果自动创建网站账号。
+
+## OAuth 免登回调
+
+### 路由
+
+```http
+GET /wecom/callback?code=<authorization-code>&state=<one-time-state>
 ```
 
-服务端生成高熵一次性 `state`，记录创建时间、允许的站内回跳路径和已使用状态，五分钟后过期。企微授权 URL 使用公开的企业和应用标识构造，应用密钥不进入工作台。
+Node、本地服务、Vercel 和 Netlify 入口都必须把该精确路径转发到统一后端处理器，不能要求调用方改用 `/api/...` 路径。
 
-### 回调入口
+### 处理顺序
 
-```text
-GET /api/auth/wecom/callback?code=<one-time-code>&state=<one-time-state>
-```
+1. 校验 `code` 和 `state` 均存在。
+2. 校验 `state` 由本站签发、五分钟内有效、回跳地址在白名单内且尚未使用；随后将其标记为已使用。
+3. 服务端使用独立 OAuth 解析凭证，把一次性 `code` 发送给 WorkBuddy 身份解析接口。
+4. 校验返回的企业身份、`wecom_userid` 和网站账号标识完整且属于配置的企业与数据产品部。
+5. 按既有映射或 OAuth 首登回填规则解析网站账号。
+6. 确认网站账号有效、已注册且属于数据产品部后，复用现有会话机制创建登录会话并安全跳转。
 
-处理顺序：
+授权 `code` 不写入浏览器存储、业务数据或日志。WorkBuddy 身份解析不可用时返回明确失败页，但不得影响账号密码登录。
 
-1. 校验 `state` 存在、未过期、未使用且回跳路径合法。
-2. 原子标记 `state` 已使用，防止并发重复兑换。
-3. 通过独立服务端凭证调用 WorkBuddy 身份解析接口并传递一次性 `code`。
-4. 校验 WorkBuddy 返回成功、员工身份有效且属于当前企业。
-5. 按企微员工标识查找唯一的网站账号映射。
-6. 校验账号有效且属于数据产品部。
-7. 创建现有工作台会话并跳回已验证的站内路径。
+## 配置边界
 
-找不到映射时返回稳定提示“企微账号尚未绑定，请联系数据产品部管理员”，不回显内部标识，不创建临时账号，也不尝试按姓名自动匹配。
-
-OAuth code、WorkBuddy 身份解析凭证和完整身份响应不得写入业务日志。WorkBuddy 不可用或解析失败时返回可读错误，用户仍可使用原账号密码登录。
-
-## 配置与密钥边界
-
-运行环境至少提供：
+服务端新增或使用以下配置：
 
 ```text
-WORKBUDDY_ENABLED
+WORKBUDDY_OPEN_API_TOKEN
 WORKBUDDY_DEPARTMENT_ID
-WORKBUDDY_TASK_API_TOKEN
-WORKBUDDY_WEBHOOK_URL
-WORKBUDDY_WEBHOOK_SECRET
 WORKBUDDY_OAUTH_RESOLVER_URL
 WORKBUDDY_OAUTH_RESOLVER_TOKEN
 WECOM_OAUTH_CORP_ID
@@ -288,89 +213,54 @@ WECOM_OAUTH_AGENT_ID
 WECOM_OAUTH_REDIRECT_URI
 ```
 
-增量 API 令牌、Webhook 签名密钥和 OAuth 身份解析凭证必须独立。设置查询只返回是否已配置，不返回密钥明文。
+任务开放 API Token 与 OAuth 身份解析 Token 必须分离。任何密钥都不得进入前端代码、持久化业务状态、普通错误响应或日志。
 
-## 错误处理与恢复
+## 错误处理与兼容性
 
-- 任务保存失败：任务、变更日志和 Outbox 均不得部分成功。
-- 变更事件生成失败：任务写入整体失败，避免出现无法同步的已保存任务。
-- Webhook 失败：任务保存保持成功，Outbox 记录失败并有限重试。
-- WorkBuddy 拉取重复事件：按事件编号忽略重复，仍推进已确认的安全游标。
-- 负责人未绑定：返回 `mapped=false`，WorkBuddy 暂停该任务的企微操作；绑定后工作台重新发出任务事件。
-- OAuth state 或 code 无效：拒绝登录，不回退为名称匹配。
-- OAuth 解析服务不可用：不创建会话，提示使用密码登录。
-- 服务重启：重新读取持久化变更日志、OAuth state 和 Outbox，不依赖内存恢复。
-
-## 权限与隐私
-
-- WorkBuddy 服务令牌只能读取配置部门的同步字段，不返回任务附件、目标贡献、每日记录、创建人或更新人等额外内容。
-- OAuth 建立会话后完全复用现有 `taskVisibleToActor`、创建、编辑、删除和附件权限，不增加旁路权限。
-- 只有数据产品部负责人或更高权限管理员可以维护本部门员工映射和查看集成状态。
-- 无权限访问时保持现有 404/403 边界，不泄露其他部门任务、映射或集成是否存在。
-- 所有令牌、签名密钥、OAuth code 和企微应用密钥均不得出现在前端、状态响应或错误摘要中。
-
-## 管理界面
-
-后台账号管理为数据产品部账号增加企微绑定状态和绑定/解绑操作。保存时检查一对一唯一性，冲突时明确提示，不覆盖另一账号已有绑定。
-
-后台增加精简的 WorkBuddy 集成状态：
-
-- 是否启用和配置是否完整；
-- 最近成功的增量拉取时间；
-- 最近成功的 Webhook 时间；
-- 待发送和最终失败数量；
-- 最近一次经过脱敏和截断的错误摘要。
-
-第一阶段不提供在后台修改服务令牌、签名密钥或外部地址的输入框，密钥和地址由部署配置维护。
+1. 任务业务字段和 `openUpdatedAt` 必须在同一次持久化中成功；保存失败不得形成虚假增量。
+2. 账号映射冲突时不修改任一现有映射，也不推进任务时间戳。
+3. OAuth 身份解析失败不影响账号密码登录和现有任务功能。
+4. 现有任务 API、后端权限、跨期顺延、年度指标贡献和附件能力保持原行为。
+5. 本期不发送 Webhook；WorkBuddy 继续通过轮询增量 API 获得变化。
+6. 本期不返回已删除任务；删除同步不属于验收范围。
 
 ## 测试与验收
 
-### 领域测试
+### 增量查询
 
-1. 新建、同步字段修改、状态变化和删除分别产生正确事件。
-2. 删除业务任务后墓碑仍可查询。
-3. 同一毫秒内多个事件按序号稳定排序，不遗漏。
-4. 基线迁移重复执行不重复生成事件。
-5. 账号换绑仅重新发出该账号负责的未完成任务。
+- 首次传 `0` 能取得现有数据产品部任务。
+- 边界严格使用 `updated_at > updated_since`，保存最大值后下一轮不重复上一批。
+- 同一秒连续变化以及系统时间回拨时，`updated_at` 仍严格递增。
+- 约定业务字段变化会推进时间戳，非约定内部字段变化不会推进。
+- 未绑定负责人返回 `null`，补齐映射后相关任务重新进入增量结果。
+- 参数、Token、配置和跨部门边界返回约定错误。
 
-### API 测试
+### 状态回写
 
-1. `updated_since` 使用包含边界并返回规定字段。
-2. 游标分页在查询期间出现新事件时保持固定水位。
-3. 重复游标请求结果稳定，保存的 checkpoint 能继续拉取。
-4. 缺失或错误令牌返回 401，不能读取其他部门。
-5. 参数错误和不可继续使用的游标分别返回 400 和 410。
+- 首次完成成功并在后续增量查询中出现。
+- 重复完成返回 409，任务、完成时间、贡献数和 `updated_at` 均不再变化。
+- 不满足现有完成条件返回 422 且任务保持原状。
+- 不支持的状态返回 400；不存在、已删除和跨部门任务返回 404。
 
-### OAuth 测试
+### 映射与 OAuth
 
-1. 已绑定员工成功建立现有账号会话并沿用任务权限。
-2. 未绑定、非数据产品部或停用账号不能免登。
-3. 过期、伪造和重复使用的 state 均被拒绝。
-4. WorkBuddy 解析失败时不创建会话，密码登录保持可用。
-5. 日志和错误响应不包含 code、令牌或内部员工标识。
+- 通讯录初始化只做精确唯一匹配，重复执行不重复写入。
+- OAuth 已有映射可登录；唯一未绑定账号可自动回填并登录。
+- 映射冲突、账号歧义、未注册、失效或跨部门时均拒绝登录。
+- `state` 过期、伪造或重复使用时均拒绝；授权 `code` 和密钥不进入日志。
+- WorkBuddy 身份解析不可用时，账号密码登录仍可使用。
 
-### Webhook 测试
-
-1. 任务保存成功后产生 Outbox，保存失败不产生孤立通知。
-2. 签名内容、时间戳和事件编号稳定可校验。
-3. 重复投递沿用事件编号，最多尝试三次。
-4. Webhook 超时或失败不改变任务 API 的成功结果。
-5. 服务重启后继续处理待发送条目，最终失败可在后台观察。
-
-### 端到端验收
-
-使用 WorkBuddy 测试环境执行：首次基线同步、新建、编辑、负责人转交、完成、删除、Webhook 重复、WorkBuddy 离线恢复、员工免登和密码备用登录。每一步分别核对工作台持久化状态、增量响应与企微原生待办结果，不能只以生成端返回成功作为验收依据。
+最终使用 WorkBuddy 测试环境进行一次独立端到端验收：网站修改任务后企微待办更新，企微勾选完成后网站状态回写，并验证重复回写的 409 行为。
 
 ## 预计修改范围
 
-- `PRD.MD`：记录确认后的产品规则与验收标准。
-- `PROJECT_ARCHITECTURE.md`：增加集成路由、变更日志、OAuth 和 Outbox 数据流。
-- `api/[...path].mjs`：接入增量查询、OAuth、映射管理和集成状态路由，并在任务写入点调用领域模块。
-- `lib/task-change-log.mjs`：生成基线、增量事件、墓碑、游标和查询水位。
-- `lib/workbuddy-integration.mjs`：服务令牌校验、OAuth 身份解析与响应投影。
-- `lib/webhook-outbox.mjs`：Webhook 签名、有限重试、状态摘要和补偿执行。
-- `lib/runtime-config.mjs`：读取并校验 WorkBuddy 与企微 OAuth 运行配置。
-- `lib/state-store.mjs`：兼容新增的变更日志、映射、OAuth state 和 Outbox 状态。
-- `server.mjs`：启动补偿和短周期 Outbox 调度。
-- `public/index.html`：企微免登入口、账号绑定管理与集成状态展示。
-- `test/`：新增领域、API、OAuth、Webhook、权限和最小 UI 回归测试。
+- `PRD.MD`：记录本期唯一范围和验收标准。
+- `PROJECT_ARCHITECTURE.md`：补充开放 API、账号映射和 OAuth 路由边界。
+- `api/[...path].mjs`：新增两个开放任务 API 和 OAuth 回调处理。
+- `lib/open-task-sync.mjs`：封装时间戳分配、增量投影和基线初始化。
+- `lib/workbuddy-auth.mjs`：封装 Bearer Token 校验、OAuth state 和身份解析。
+- `lib/runtime-config.mjs`：读取 WorkBuddy 与企微服务端配置。
+- `lib/state-store.mjs`：持久化开放时间钟、任务时间戳、账号映射和 OAuth state。
+- `server.mjs` 及部署路由配置：支持精确路径 `/wecom/callback`。
+- `public/index.html`：增加企微免登入口及失败提示。
+- 对应测试文件：覆盖增量、回写、映射、OAuth 和多运行时路由。
