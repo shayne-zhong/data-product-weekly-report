@@ -11,7 +11,7 @@
 ## 运行与构建入口
 
 - `public/index.html`：单页应用入口，包含结构、样式、状态和交互。
-- `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api`、托管静态资源，并在直接运行时提供周结转启动补偿与本地定时兜底。
+- `server.mjs`：内网 Node 生产入口，提供 `/healthz`、转发 `/api` 和精确路径 `/wecom/callback`、托管静态资源，并在直接运行时提供周结转启动补偿与本地定时兜底。
 - `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
 - `netlify/functions/api.mjs`：Netlify 到统一 API 的运行时适配层。
 - `cloudfunctions/weekly-task-rollover/`：CloudBase Event Function，每周触发一次受保护的任务结转入口。
@@ -34,6 +34,7 @@
 ## 主要模块映射
 
 - 任务与指标贡献：`lib/task-core.mjs`、`lib/workbench-utils.mjs` 及对应任务测试；指标当前值由已完成待办的 `goalLinks` 贡献数汇总。
+- WorkBuddy 企微待办：`lib/open-task-sync.mjs` 负责秒级严格递增时间戳、增量投影和映射变化对账；`lib/workbuddy-auth.mjs` 负责 Bearer Token、通讯录映射、OAuth state 和身份解析；统一 API 负责部门过滤、完成规则复用和会话创建。
 - 周任务结转：`lib/weekly-rollover.mjs` 负责北京时间周窗口、按部门持久化防重和任务复制；CloudBase 事件函数为云端主调度，`server.mjs` 提供启动补偿和本地定时兜底，浏览器加载周数据不触发结转。
 - 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
@@ -49,11 +50,13 @@
 4. `lib/state-store.mjs` 依次按环境选择 CloudBase、Netlify Blobs、Vercel Blob；非生产环境可使用临时目录 JSON。
 5. API 返回 JSON，浏览器更新页面状态和视图。
 
+WorkBuddy 仅通过内网 Node 服务访问 `GET /api/open/tasks?updated_since=`、`PUT /api/open/tasks/:task_id/status` 和 `/wecom/callback`。两个任务接口使用同一部门级 Bearer Token，OAuth 使用独立解析凭证；普通员工会话不能替代开放接口 Token。任务的 `openUpdatedAt`、全局 `openTaskClock`、账号 `wecomUserId`、通讯录批次及已消费 OAuth state 均随现有 JSON 状态持久化。当前不为 Vercel 或 Netlify 增加企微根路径适配。
+
 周任务结转由 CloudBase 定时触发器调用 `cloudfunctions/weekly-task-rollover/`，函数携带共享密钥请求 `/api/internal/weekly-rollover`；直接运行的 Node 服务也会在启动时补偿并按相同周计划兜底。两条路径最终调用同一 API 执行器，并以“部门 + 源周 + 目标周”记录持久化结果。
 
 报告自动归档由 `cloudfunctions/report-auto-archive/` 固定频率调用 `/api/internal/report-auto-archive`，服务端按北京时间和后台的周/月/季配置判断到期报告；直接运行的 Node 服务每五分钟检查并在启动时补偿漏跑。
 
-顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`、`internal`；`internal` 仅接受服务端共享密钥。
+顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`、`internal`、`open`、`wecom`；`internal` 仅接受服务端共享密钥，`open` 仅接受 WorkBuddy Bearer Token，`wecom/callback` 仅处理内网企微 OAuth 回调。
 
 ## 定向读取指南
 
@@ -62,6 +65,7 @@
 - 部门目标：目标 UI → `lib/task-core.mjs` 的贡献汇总 → 目标与任务 API 测试。
 - 周报：周报 UI → 报告 API → `test/report-api.test.mjs`。
 - 登录管理：鉴权 UI → 鉴权 API → 管理员和安全模块。
+- WorkBuddy 企微集成：`lib/open-task-sync.mjs`、`lib/workbuddy-auth.mjs` → `api/[...path].mjs` 的 `open`/`wecom` 路由 → `server.mjs` 内网回调转发 → 对应 WorkBuddy 测试。
 - 部署持久化：运行入口和平台适配 → `lib/state-store.mjs` → 生产测试。
 - 构建：`scripts/build.mjs` → `package.json` → `test/production-build.test.mjs`。
 

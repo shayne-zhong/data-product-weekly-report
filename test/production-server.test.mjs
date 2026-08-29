@@ -8,6 +8,10 @@ process.env.ADMIN_USERNAME = "admin-test";
 process.env.ADMIN_PASSWORD = "admin-password-test";
 process.env.ADMIN_SESSION_SECRET = "production-server-admin-session-secret-32-bytes";
 process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 4).toString("base64");
+process.env.WORKBUDDY_DEPARTMENT_ID = "data-product";
+process.env.WORKBUDDY_OAUTH_RESOLVER_URL = "https://workbuddy.internal/oauth/resolve";
+process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN = "production-server-workbuddy-oauth-secret";
+process.env.WECOM_OAUTH_CORP_ID = "corp-data-product";
 
 function listen(server) {
   return new Promise((resolve, reject) => {
@@ -79,6 +83,21 @@ test("production server serves health, UI, and protected API", async () => {
 
     const protectedResponse = await fetch(`${origin}/api/weeks`);
     assert.equal(protectedResponse.status, 401);
+  } finally {
+    await close(server);
+  }
+});
+
+test("intranet server forwards the exact WeCom callback path to the backend", async () => {
+  const server = createProductionServer({ deploymentVersion: "test-version" });
+  await listen(server);
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    const response = await fetch(`${origin}/wecom/callback?code=missing-state`);
+    assert.equal(response.status, 400);
+    assert.match(response.headers.get("content-type"), /application\/json/);
+    assert.deepEqual(await response.json(), { error: "code and state are required" });
   } finally {
     await close(server);
   }
