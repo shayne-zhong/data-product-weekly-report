@@ -14,7 +14,13 @@ import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
 import { projectOpenTask, reconcileOpenTasks } from "../lib/open-task-sync.mjs";
-import { applyDirectoryMappings, workbuddyTokenValid } from "../lib/workbuddy-auth.mjs";
+import {
+  applyDirectoryMappings,
+  bindWecomUserId,
+  consumeOAuthState,
+  resolveWorkbuddyIdentity,
+  workbuddyTokenValid,
+} from "../lib/workbuddy-auth.mjs";
 import {
   applyWeeklyRollover,
   completeWeeklyRolloverExecution,
@@ -479,8 +485,17 @@ function lockForActor(report, actor, now) {
   return report.editLock;
 }
 
+function requestCookie(req, name) {
+  const prefix = `${name}=`;
+  const row = String(req.headers?.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  return row ? row.slice(prefix.length) : "";
+}
+
 function currentSession(req, state, now = Date.now()) {
-  const token = req.headers["x-user-token"];
+  const token = req.headers["x-user-token"] || requestCookie(req, "workbench_session");
   const session = token ? state.sessions[token] : null;
   if (!session) return null;
   if (!session.expiresAt || session.expiresAt <= now) return null;
@@ -1523,12 +1538,106 @@ async function handleOpenTasks(req, res, state, parts, now) {
   return methodNotAllowed(res);
 }
 
+function oauthConfigured() {
+  return Boolean(
+    workbuddyDepartmentId()
+    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_URL || "").trim()
+    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN || "").trim()
+    && String(process.env.WECOM_OAUTH_CORP_ID || "").trim(),
+  );
+}
+
+function oauthSessionCookie(token, expiresAt, now, req) {
+  const maxAge = Math.max(0, Math.floor((expiresAt - now) / 1000));
+  const forwardedProto = String(req.headers?.["x-forwarded-proto"] || "").toLowerCase();
+  const secure = forwardedProto === "https" || process.env.NODE_ENV === "production";
+  return [
+    `workbench_session=${token}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAge}`,
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
+}
+
+async function handleWecomCallback(req, res, state, now) {
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!oauthConfigured()) return json(res, { error: "WorkBuddy OAuth is not configured" }, 503);
+  const code = String(req.query.code || "").trim();
+  const stateToken = String(req.query.state || "").trim();
+  if (!code || !stateToken) return json(res, { error: "code and state are required" }, 400);
+
+  let oauthState;
+  try {
+    oauthState = consumeOAuthState(state, stateToken, {
+      secret: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN,
+      now,
+    });
+  } catch (error) {
+    return json(res, { error: error.message }, 400);
+  }
+  await saveState(state);
+
+  let identity;
+  try {
+    identity = await resolveWorkbuddyIdentity(code, {
+      url: process.env.WORKBUDDY_OAUTH_RESOLVER_URL,
+      token: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN,
+    });
+  } catch (error) {
+    return json(res, { error: error.message }, 502);
+  }
+
+  const departmentId = workbuddyDepartmentId();
+  if (String(identity.corp_id || "").trim() !== String(process.env.WECOM_OAUTH_CORP_ID || "").trim()
+    || String(identity.department_id || "").trim() !== departmentId) {
+    return json(res, { error: "WeCom identity is outside the configured enterprise or department" }, 403);
+  }
+
+  const settings = getSettings(state);
+  const mapped = settings.accounts.find((account) => account.wecomUserId === identity.wecom_userid);
+  const exact = settings.accounts.find((account) =>
+    account.departmentId === departmentId && account.username === identity.username);
+  if (mapped && mapped.username !== identity.username) {
+    return json(res, { code: "WECOM_MAPPING_CONFLICT", error: "WeCom userid is already mapped" }, 409);
+  }
+  const account = mapped || exact;
+  const department = settings.departments.find((item) => item.id === departmentId);
+  const user = account ? state.users[account.username] : null;
+  if (!account || account.departmentId !== departmentId || account.enabled === false || !department?.enabled || !user) {
+    return json(res, { error: "No active registered website account matches this identity" }, 403);
+  }
+
+  try {
+    bindWecomUserId(state.settings.accounts, account.username, identity.wecom_userid);
+  } catch (error) {
+    return json(res, { code: "WECOM_MAPPING_CONFLICT", error: error.message }, 409);
+  }
+  user.departmentId = departmentId;
+  user.displayName = account.name || user.displayName;
+  user.updatedAt = now;
+  reconcileOpenTasks(state, { departmentId, now });
+
+  const token = randomId("session");
+  const expiresAt = now + settings.sessionDurationMinutes * 60_000;
+  state.sessions[token] = { username: account.username, departmentId, createdAt: now, expiresAt };
+  await saveState(state);
+
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Location", oauthState.returnTo);
+  res.setHeader("Set-Cookie", oauthSessionCookie(token, expiresAt, now, req));
+  res.status(302);
+  return typeof res.end === "function" ? res.end() : res.json({ redirect: oauthState.returnTo });
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
   const parts = routePath.split("/").filter(Boolean);
   const openTaskRequest = parts[0] === "open" && parts[1] === "tasks";
-  const mutating = !["GET", "HEAD"].includes(req.method) || openTaskRequest;
+  const wecomCallbackRequest = parts[0] === "wecom" && parts[1] === "callback";
+  const mutating = !["GET", "HEAD"].includes(req.method) || openTaskRequest || wecomCallbackRequest;
   const release = mutating ? await mutationLock.acquire() : () => {};
   try {
     const state = await loadState();
@@ -1558,6 +1667,7 @@ export default async function handler(req, res) {
     }
     const actor = currentUser(req, state, now);
     if (openTaskRequest) return await handleOpenTasks(req, res, state, parts, now);
+    if (wecomCallbackRequest) return await handleWecomCallback(req, res, state, now);
     if (parts[0] === "auth") return await handleAuth(req, res, state, parts[1], now);
     if (parts[0] === "admin") return await handleAdmin(req, res, state, parts, now, release);
     if (parts[0] === "settings") return await handleSettings(req, res, state, now);

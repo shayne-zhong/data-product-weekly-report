@@ -103,6 +103,11 @@ export function createProductionServer({
     try {
       const url = new URL(req.url || "/", "http://localhost");
       if (url.pathname === "/healthz") return sendJson(res, { status: "ok", version: deploymentVersion });
+      if (url.pathname === "/wecom/callback") {
+        req.query = { path: ["wecom", "callback"] };
+        for (const [key, value] of url.searchParams) req.query[key] = value;
+        return await apiHandler(req, adaptApiResponse(res));
+      }
       if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
         req.query = apiQueryFromUrl(url);
         return await apiHandler(req, adaptApiResponse(res));

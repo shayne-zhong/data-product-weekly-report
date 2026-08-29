@@ -28,6 +28,7 @@ test("binding uses an exact account and enforces one-to-one userid mapping", () 
   assert.equal(bindWecomUserId(accounts, "LISI", "wx-lisi").wecomUserId, "wx-lisi");
   assert.throws(() => bindWecomUserId(accounts, "missing", "wx-missing"), /not found/);
   assert.throws(() => bindWecomUserId(accounts, "lisi", "wx-zhangsan"), /already bound/);
+  assert.throws(() => bindWecomUserId(accounts, "zhangsan", "wx-replacement"), /already bound/);
   assert.throws(() => bindWecomUserId(accounts, "lisi", ""), /required/);
 });
 
