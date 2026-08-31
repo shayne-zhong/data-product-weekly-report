@@ -13,7 +13,9 @@ import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
-import { validateAdminSettingsTransition } from "../lib/admin-access.mjs";
+import { adminScope, validateAdminSettingsTransition } from "../lib/admin-access.mjs";
+import { buildAdminDashboard } from "../lib/admin-dashboard.mjs";
+import { appendAdminAudit, listAdminAudit } from "../lib/admin-audit.mjs";
 import {
   applyWeeklyRollover,
   completeWeeklyRolloverExecution,
@@ -370,12 +372,13 @@ async function saveState(state) {
   stateBaseSnapshots.set(state, structuredClone(state));
 }
 
-async function executeWeeklyRollover(state, { triggeredAt = Date.now(), trigger = "scheduled" } = {}) {
+async function executeWeeklyRollover(state, { triggeredAt = Date.now(), trigger = "scheduled", auditRecord = null } = {}) {
   startWeeklyRolloverExecution(state, { now: triggeredAt, trigger });
   await saveState(state);
   try {
     const result = applyWeeklyRollover(state, { now: triggeredAt });
     completeWeeklyRolloverExecution(state, result, { now: Date.now() });
+    if (auditRecord) appendAdminAudit(state, auditRecord, { now: triggeredAt });
     await saveState(state);
     return result;
   } catch (error) {
@@ -409,12 +412,13 @@ export async function runReportAutoArchiveFromServer({ triggeredAt = Date.now(),
   }
 }
 
-async function executeReportAutoArchive(state, { triggeredAt = Date.now(), trigger = "scheduled" } = {}) {
+async function executeReportAutoArchive(state, { triggeredAt = Date.now(), trigger = "scheduled", auditRecord = null } = {}) {
   startReportArchiveExecution(state, { now: triggeredAt, trigger });
   await saveState(state);
   try {
     const result = archiveDueReports(state, { triggeredAt, trigger });
     completeReportArchiveExecution(state, { now: Date.now(), result });
+    if (auditRecord) appendAdminAudit(state, auditRecord, { now: triggeredAt });
     await saveState(state);
     return result;
   } catch (error) {
@@ -1115,7 +1119,47 @@ async function handleAi(req, res, state, parts, actor, release = () => {}) {
   }
 }
 
-async function handleSettings(req, res, state, now, { adminAuthorized = false } = {}) {
+function auditRecord(actor, departmentId, action, targetType, targetId, summary) {
+  return {
+    actorUsername: actor?.username || "admin",
+    actorRole: actor?.role || "admin",
+    departmentId,
+    action,
+    targetType,
+    targetId,
+    result: "success",
+    summary,
+  };
+}
+
+function appendSettingsAudit(state, current, next, actor, now) {
+  for (const department of next.departments) {
+    const previous = current.departments.find((item) => item.id === department.id);
+    if ((previous?.leaderUsername || "") !== (department.leaderUsername || "")) {
+      appendAdminAudit(state, auditRecord(actor, department.id, "department.leader.changed", "department", department.id, "部门负责人已更换"), { now });
+    }
+  }
+  for (const account of next.accounts) {
+    const previous = current.accounts.find((item) => item.username === account.username);
+    if (previous && previous.enabled !== account.enabled) {
+      appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.enabled.changed", "account", account.username, `账号已${account.enabled === false ? "停用" : "启用"}`), { now });
+    }
+    if (previous && (previous.role !== account.role || JSON.stringify(previous.managedModules || []) !== JSON.stringify(account.managedModules || []))) {
+      appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.role-scope.changed", "account", account.username, "账号角色或管理范围已变更"), { now });
+    }
+  }
+  if (current.sessionDurationMinutes !== next.sessionDurationMinutes) {
+    appendAdminAudit(state, auditRecord(actor, "", "login-policy.changed", "settings", "login-policy", "登录策略已变更"), { now });
+  }
+  if (JSON.stringify(current.reportArchive) !== JSON.stringify(next.reportArchive)) {
+    appendAdminAudit(state, auditRecord(actor, "", "report-archive-policy.changed", "settings", "report-archive", "报告归档规则已变更"), { now });
+  }
+  if (JSON.stringify(current.ai) !== JSON.stringify(next.ai)) {
+    appendAdminAudit(state, auditRecord(actor, "", "ai-configuration.changed", "settings", "ai", "AI 配置已变更"), { now });
+  }
+}
+
+async function handleSettings(req, res, state, now, { adminAuthorized = false, actor = null } = {}) {
   if (req.method === "GET") {
     const session = currentSession(req, state, now);
     return json(res, {
@@ -1185,6 +1229,7 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   if (!next.accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
   validateAdminSettingsTransition(current, next);
   state.settings = { ...next, updatedAt: now };
+  appendSettingsAudit(state, current, next, actor, now);
   await saveState(state);
   return json(res, { settings: publicSettings(state, { admin: true }) });
 }
@@ -1221,7 +1266,7 @@ function resolveLeaderDepartment(state, username) {
   return settings.departments.find((department) => department.leaderUsername === username) || null;
 }
 
-async function resetUserPassword(req, res, state, username, now, actor = { role: "admin" }) {
+async function resetUserPassword(req, res, state, username, now, actor = { role: "admin", username: "admin" }) {
   if (req.method !== "POST") return methodNotAllowed(res);
   const normalizedUsername = String(username || "").trim().toLowerCase();
   if (actor.role === "leader") {
@@ -1243,6 +1288,8 @@ async function resetUserPassword(req, res, state, username, now, actor = { role:
   for (const [token, session] of Object.entries(state.sessions || {})) {
     if (session.username === normalizedUsername) delete state.sessions[token];
   }
+  const account = getSettings(state).accounts.find((item) => item.username === normalizedUsername);
+  appendAdminAudit(state, auditRecord(actor, account?.departmentId || "", "account.password-reset", "account", normalizedUsername, "账号密码已重置"), { now });
   await saveState(state);
   return json(res, { ok: true, username: normalizedUsername });
 }
@@ -1251,6 +1298,7 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
   if (parts[1] === "users" && parts[3] === "reset-password") {
     return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now, {
       role: "leader",
+      username: leader.username,
       departmentId: leader.department.id,
     });
   }
@@ -1286,6 +1334,7 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
       ? { ...account, role, managedModules }
       : account);
     state.settings = { ...settings, accounts, updatedAt: now };
+    appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "account.role-scope.changed", "account", targetUsername, "账号角色或管理范围已变更"), { now });
     await saveState(state);
     return json(res, { account: { username: targetUsername, role, managedModules } });
   }
@@ -1311,6 +1360,7 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
         if (session.username === targetUsername) delete state.sessions[token];
       }
     }
+    appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "account.enabled.changed", "account", targetUsername, `账号已${nextEnabled ? "启用" : "停用"}`), { now });
     await saveState(state);
     return json(res, { ok: true, username: targetUsername, enabled: nextEnabled });
   }
@@ -1332,6 +1382,23 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
     return methodNotAllowed(res);
   }
   return json(res, { error: "Not found" }, 404);
+}
+
+function handleAdminReadModel(req, res, state, action, actor, now) {
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (action === "audit") return json(res, { audit: listAdminAudit(state, actor, { now }).slice(0, 200) });
+  const settings = getSettings(state);
+  const scope = adminScope(actor, settings.departments, String(req.query?.departmentId || ""));
+  const periodType = String(req.query?.periodType || "week");
+  const anchorDate = String(req.query?.anchorDate || new Date(now + 8 * 60 * 60 * 1000).toISOString().slice(0, 10));
+  return json(res, {
+    dashboard: buildAdminDashboard(state, {
+      departmentIds: scope.departmentIds,
+      periodType,
+      anchorDate,
+      now,
+    }),
+  });
 }
 
 async function handleAdmin(req, res, state, parts, now, release = () => {}) {
@@ -1377,19 +1444,32 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
+    const actor = { role: "leader", username: decoded.username, departmentId: department.id };
+    if (action === "dashboard" || action === "audit") return handleAdminReadModel(req, res, state, action, actor, now);
     if (action === "scheduled-tasks") return json(res, { error: "仅全局管理员可管理定时任务" }, 403);
     return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
   }
 
+  const actor = { role: "admin", username: decoded.username, departmentId: "" };
+  if (action === "dashboard" || action === "audit") return handleAdminReadModel(req, res, state, action, actor, now);
+
   if (action === "scheduled-tasks") {
     if (parts[2] === "weekly-task-rollover" && parts[3] === "run") {
       if (req.method !== "POST") return methodNotAllowed(res);
-      const result = await executeWeeklyRollover(state, { triggeredAt: now, trigger: `manual:${decoded.username}` });
+      const result = await executeWeeklyRollover(state, {
+        triggeredAt: now,
+        trigger: `manual:${decoded.username}`,
+        auditRecord: auditRecord(actor, "", "weekly-rollover.manual-run", "scheduled-task", "weekly-task-rollover", "周任务手动补跑成功"),
+      });
       return json(res, { task: weeklyRolloverTaskSummary(state, { now }), result });
     }
     if (parts[2] === "report-auto-archive" && parts[3] === "run") {
       if (req.method !== "POST") return methodNotAllowed(res);
-      const result = await executeReportAutoArchive(state, { triggeredAt: now, trigger: `manual:${decoded.username}` });
+      const result = await executeReportAutoArchive(state, {
+        triggeredAt: now,
+        trigger: `manual:${decoded.username}`,
+        auditRecord: auditRecord(actor, "", "report-archive.manual-run", "scheduled-task", "report-auto-archive", "报告归档手动补跑成功"),
+      });
       return json(res, { task: reportArchiveTaskSummary(state, { now: Date.now() }), result });
     }
     if (parts.length === 2) {
@@ -1397,9 +1477,9 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
       return json(res, { tasks: [weeklyRolloverTaskSummary(state, { now }), reportArchiveTaskSummary(state, { now })] });
     }
   }
-  if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
+  if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true, actor });
   if (action === "users" && parts[3] === "reset-password") {
-    return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now);
+    return resetUserPassword(req, res, state, decodeURIComponent(parts[2] || ""), now, actor);
   }
   if (action === "ai" && parts[2] === "test" && req.method === "POST") {
     release();

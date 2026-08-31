@@ -30,7 +30,7 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {} } = {}) {
+async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {}, query = {} } = {}) {
   const resolvedAdminToken = adminToken || (admin ? await adminSessionToken() : "");
   const resolvedPath = admin && path === "/settings" ? "/admin/settings" : path;
   const req = {
@@ -41,7 +41,7 @@ async function api(path, { method = "GET", body, token = "", admin = false, admi
       ...(resolvedAdminToken ? { authorization: `Bearer ${resolvedAdminToken}` } : {}),
       ...headers,
     },
-    query: { path: resolvedPath.split("/").filter(Boolean) },
+    query: { ...query, path: resolvedPath.split("/").filter(Boolean) },
     body,
   };
   const res = mockRes();
@@ -580,4 +580,79 @@ test("reassigning the same username's leadership to a different department inval
 
   const staleCheck = await api("/admin/leader/accounts", { adminToken: token, includeSyncKey: false });
   assert.equal(staleCheck.statusCode, 401);
+});
+
+test("admin dashboard enforces leader department scope and validates global admin scope", async () => {
+  const leaderA = await setupLeader("dash-a");
+  const leaderB = await setupLeader("dash-b");
+  const tokenA = await leaderToken(leaderA.username, leaderA.password);
+
+  const scoped = await api("/admin/dashboard", {
+    adminToken: tokenA,
+    includeSyncKey: false,
+    query: { departmentId: leaderB.departmentId, periodType: "week", anchorDate: "2026-08-31" },
+  });
+  assert.equal(scoped.statusCode, 200);
+  assert.match(JSON.stringify(scoped.body.dashboard), new RegExp(leaderA.departmentId));
+  assert.doesNotMatch(JSON.stringify(scoped.body.dashboard), new RegExp(leaderB.departmentId));
+
+  const adminToken = await adminSessionToken();
+  const selected = await api("/admin/dashboard", {
+    adminToken,
+    includeSyncKey: false,
+    query: { departmentId: leaderB.departmentId, periodType: "week", anchorDate: "2026-08-31" },
+  });
+  assert.equal(selected.statusCode, 200);
+  assert.match(JSON.stringify(selected.body.dashboard), new RegExp(leaderB.departmentId));
+
+  const all = await api("/admin/dashboard", { adminToken, includeSyncKey: false });
+  assert.equal(all.statusCode, 200);
+  const invalid = await api("/admin/dashboard", {
+    adminToken,
+    includeSyncKey: false,
+    query: { departmentId: "missing-department" },
+  });
+  assert.equal(invalid.statusCode, 400);
+});
+
+test("successful high-risk mutations persist scoped and sanitized audit records", async () => {
+  const leader = await setupLeader("audit-a");
+  const other = await setupLeader("audit-b");
+  const memberUsername = uniqueUsername("audit-member");
+  const current = await api("/settings", { admin: true });
+  await saveSettings({
+    departments: current.body.settings.departments,
+    accounts: [...current.body.settings.accounts, { name: "审计成员", username: memberUsername, departmentId: leader.departmentId }],
+    sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
+  });
+  const token = await leaderToken(leader.username, leader.password);
+  const changed = await api(`/admin/leader/accounts/${memberUsername}/enabled`, {
+    method: "POST",
+    adminToken: token,
+    includeSyncKey: false,
+    body: { enabled: false, token: "must-not-leak", secret: "must-not-leak", authorization: "Bearer must-not-leak" },
+  });
+  assert.equal(changed.statusCode, 200);
+
+  const leaderAudit = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  assert.equal(leaderAudit.statusCode, 200);
+  assert.ok(leaderAudit.body.audit.length <= 200);
+  assert.ok(leaderAudit.body.audit.every((entry) => entry.departmentId === leader.departmentId));
+  const record = leaderAudit.body.audit.find((entry) => entry.targetId === memberUsername);
+  assert.ok(record);
+  assert.equal(record.actorUsername, leader.username);
+  assert.match(record.action, /account|enabled/i);
+  assert.doesNotMatch(JSON.stringify(record), /must-not-leak|Bearer/i);
+  for (let index = 1; index < leaderAudit.body.audit.length; index += 1) {
+    assert.ok(leaderAudit.body.audit[index - 1].createdAt >= leaderAudit.body.audit[index].createdAt);
+  }
+
+  const otherToken = await leaderToken(other.username, other.password);
+  const otherAudit = await api("/admin/audit", { adminToken: otherToken, includeSyncKey: false });
+  assert.equal(otherAudit.statusCode, 200);
+  assert.equal(otherAudit.body.audit.some((entry) => entry.targetId === memberUsername), false);
+
+  const adminAudit = await api("/admin/audit", { admin: true, includeSyncKey: false });
+  assert.equal(adminAudit.statusCode, 200);
+  assert.ok(adminAudit.body.audit.some((entry) => entry.targetId === memberUsername));
 });
