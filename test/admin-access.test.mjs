@@ -36,6 +36,13 @@ test("leader is restricted to their own department despite the requested departm
   });
 });
 
+test("leader with a stale department cannot access an admin scope", () => {
+  assert.throws(
+    () => adminScope({ role: "leader", departmentId: "deleted" }, departments),
+    (error) => error.statusCode === 403 && error.message === "无权访问后台管理范围"
+  );
+});
+
 test("unrecognized actor cannot access an admin scope", () => {
   assert.throws(
     () => adminScope({ role: "member", departmentId: "data" }, departments),

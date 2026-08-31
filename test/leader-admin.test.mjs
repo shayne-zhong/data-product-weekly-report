@@ -236,6 +236,71 @@ test("disabling an account invalidates its session and blocks future login", asy
   assert.equal(blockedLogin.body.error, "账号已被停用");
 });
 
+test("settings rejects disabling an assigned leader without persisting the change", async () => {
+  const username = uniqueUsername("assigned");
+  const current = await api("/settings", { admin: true });
+  const departmentId = current.body.settings.departments[0].id;
+  const assigned = await saveSettings({
+    departments: current.body.settings.departments.map((department) =>
+      department.id === departmentId ? { ...department, leaderUsername: username } : department
+    ),
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "现任负责人", username, departmentId, enabled: true },
+    ],
+    sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(assigned.statusCode, 200);
+
+  const rejected = await saveSettings({
+    departments: assigned.body.settings.departments,
+    accounts: assigned.body.settings.accounts.map((account) =>
+      account.username === username ? { ...account, enabled: false } : account
+    ),
+    sessionDurationMinutes: assigned.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(rejected.body.error, "请先更换部门负责人，再停用该成员账号");
+
+  const persisted = await api("/settings", { admin: true });
+  assert.equal(persisted.body.settings.accounts.find((account) => account.username === username).enabled, true);
+  assert.equal(persisted.body.settings.departments.find((department) => department.id === departmentId).leaderUsername, username);
+});
+
+test("settings persists replacing a leader while disabling the former leader", async () => {
+  const formerUsername = uniqueUsername("former");
+  const replacementUsername = uniqueUsername("replacement");
+  const current = await api("/settings", { admin: true });
+  const departmentId = current.body.settings.departments[0].id;
+  const assigned = await saveSettings({
+    departments: current.body.settings.departments.map((department) =>
+      department.id === departmentId ? { ...department, leaderUsername: formerUsername } : department
+    ),
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "原负责人", username: formerUsername, departmentId, enabled: true },
+      { name: "新负责人", username: replacementUsername, departmentId, enabled: true },
+    ],
+    sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(assigned.statusCode, 200);
+
+  const replaced = await saveSettings({
+    departments: assigned.body.settings.departments.map((department) =>
+      department.id === departmentId ? { ...department, leaderUsername: replacementUsername } : department
+    ),
+    accounts: assigned.body.settings.accounts.map((account) =>
+      account.username === formerUsername ? { ...account, enabled: false } : account
+    ),
+    sessionDurationMinutes: assigned.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(replaced.statusCode, 200);
+
+  const persisted = await api("/settings", { admin: true });
+  assert.equal(persisted.body.settings.accounts.find((account) => account.username === formerUsername).enabled, false);
+  assert.equal(persisted.body.settings.departments.find((department) => department.id === departmentId).leaderUsername, replacementUsername);
+});
+
 test("a department leader logs in through /admin/login with their member credentials", async () => {
   const leader = await setupLeader("loginok");
   const loggedIn = await api("/admin/login", {
