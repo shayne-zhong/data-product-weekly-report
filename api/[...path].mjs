@@ -1158,6 +1158,9 @@ function appendSettingsAudit(state, current, next, actor, now) {
     if (previous && JSON.stringify(previous.modules || []) !== JSON.stringify(department.modules || [])) {
       appendAdminAudit(state, auditRecord(actor, department.id, "department.modules.changed", "department", department.id, "部门模块范围已变更"), { now });
     }
+    if (previous && previous.name !== department.name) {
+      appendAdminAudit(state, auditRecord(actor, department.id, "department.name.changed", "department", department.id, "部门名称已变更"), { now });
+    }
   }
   for (const department of current.departments) {
     if (!next.departments.some((item) => item.id === department.id)) {
@@ -1171,6 +1174,9 @@ function appendSettingsAudit(state, current, next, actor, now) {
     }
     if (previous && previous.departmentId !== account.departmentId) {
       appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.department.changed", "account", account.username, "账号所属部门已变更"), { now });
+    }
+    if (previous && previous.name !== account.name) {
+      appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.name.changed", "account", account.username, "账号名称已变更"), { now });
     }
     if (previous && previous.enabled !== account.enabled) {
       appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.enabled.changed", "account", account.username, `账号已${account.enabled === false ? "停用" : "启用"}`), { now });
@@ -1366,11 +1372,15 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
       return json(res, { error: "模块负责人至少负责一个模块" }, 400);
     }
     const managedModules = role === "module_leader" ? requestedModules : [];
+    const roleChanged = targetAccount.role !== role
+      || JSON.stringify(targetAccount.managedModules || []) !== JSON.stringify(managedModules);
     const accounts = settings.accounts.map((account) => account.username === targetUsername
       ? { ...account, role, managedModules }
       : account);
     state.settings = { ...settings, accounts, updatedAt: now };
-    appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "account.role-scope.changed", "account", targetUsername, "账号角色或管理范围已变更"), { now });
+    if (roleChanged) {
+      appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "account.role-scope.changed", "account", targetUsername, "账号角色或管理范围已变更"), { now });
+    }
     await saveState(state);
     return json(res, { account: { username: targetUsername, role, managedModules } });
   }
@@ -1396,7 +1406,9 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
         if (session.username === targetUsername) delete state.sessions[token];
       }
     }
-    appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "account.enabled.changed", "account", targetUsername, `账号已${nextEnabled ? "启用" : "停用"}`), { now });
+    if ((targetAccount.enabled !== false) !== nextEnabled) {
+      appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "account.enabled.changed", "account", targetUsername, `账号已${nextEnabled ? "启用" : "停用"}`), { now });
+    }
     await saveState(state);
     return json(res, { ok: true, username: targetUsername, enabled: nextEnabled });
   }

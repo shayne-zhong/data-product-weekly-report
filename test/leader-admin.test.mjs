@@ -606,6 +606,40 @@ test("scheduled success audit is removed when its persistence fails", async () =
   assert.deepEqual(state.adminAudit, []);
 });
 
+test("leader account role-scope and enabled no-op submissions do not duplicate audit", async () => {
+  const leader = await setupLeader("audit-idempotent");
+  const username = uniqueUsername("audit-idempotent-member");
+  const current = await api("/settings", { admin: true });
+  await saveSettings({
+    departments: current.body.settings.departments,
+    accounts: [...current.body.settings.accounts, { name: "幂等审计成员", username, departmentId: leader.departmentId }],
+    sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
+  });
+  const token = await leaderToken(leader.username, leader.password);
+  const moduleName = current.body.settings.departments.find((department) => department.id === leader.departmentId).modules[0];
+
+  const roleBody = { role: "module_leader", managedModules: [moduleName] };
+  const roleChanged = await api(`/admin/leader/accounts/${username}/role`, { method: "POST", adminToken: token, includeSyncKey: false, body: roleBody });
+  assert.equal(roleChanged.statusCode, 200);
+  const afterRoleChange = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  const roleCount = afterRoleChange.body.audit.filter((entry) => entry.action === "account.role-scope.changed" && entry.targetId === username).length;
+  assert.equal(roleCount, 1);
+  const roleNoop = await api(`/admin/leader/accounts/${username}/role`, { method: "POST", adminToken: token, includeSyncKey: false, body: roleBody });
+  assert.equal(roleNoop.statusCode, 200);
+  const afterRoleNoop = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  assert.equal(afterRoleNoop.body.audit.filter((entry) => entry.action === "account.role-scope.changed" && entry.targetId === username).length, roleCount);
+
+  const disabled = await api(`/admin/leader/accounts/${username}/enabled`, { method: "POST", adminToken: token, includeSyncKey: false, body: { enabled: false } });
+  assert.equal(disabled.statusCode, 200);
+  const afterEnabledChange = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  const enabledCount = afterEnabledChange.body.audit.filter((entry) => entry.action === "account.enabled.changed" && entry.targetId === username).length;
+  assert.equal(enabledCount, 1);
+  const enabledNoop = await api(`/admin/leader/accounts/${username}/enabled`, { method: "POST", adminToken: token, includeSyncKey: false, body: { enabled: false } });
+  assert.equal(enabledNoop.statusCode, 200);
+  const afterEnabledNoop = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  assert.equal(afterEnabledNoop.body.audit.filter((entry) => entry.action === "account.enabled.changed" && entry.targetId === username).length, enabledCount);
+});
+
 test("settings audit identifies department and account lifecycle changes", async () => {
   const departmentId = `audit-settings-${randomUUID().slice(0, 8)}`;
   const username = uniqueUsername("audit-lifecycle");
@@ -620,10 +654,10 @@ test("settings audit identifies department and account lifecycle changes", async
   const destinationId = current.body.settings.departments[0].id;
   const changed = await saveSettings({
     departments: created.body.settings.departments.map((department) => department.id === departmentId
-      ? { ...department, enabled: false, modules: ["模块B"] }
+      ? { ...department, name: "审计配置部门新名称", enabled: false, modules: ["模块B"] }
       : department),
     accounts: created.body.settings.accounts.map((account) => account.username === username
-      ? { ...account, departmentId: destinationId }
+      ? { ...account, name: "审计配置成员新名称", departmentId: destinationId }
       : account),
     sessionDurationMinutes: created.body.settings.sessionDurationMinutes,
   });
@@ -640,8 +674,10 @@ test("settings audit identifies department and account lifecycle changes", async
   assert.ok(actions.includes("department.created"));
   assert.ok(actions.includes("department.enabled.changed"));
   assert.ok(actions.includes("department.modules.changed"));
+  assert.ok(actions.includes("department.name.changed"));
   assert.ok(actions.includes("account.created"));
   assert.ok(actions.includes("account.department.changed"));
+  assert.ok(actions.includes("account.name.changed"));
   assert.ok(actions.includes("account.deleted"));
 });
 
