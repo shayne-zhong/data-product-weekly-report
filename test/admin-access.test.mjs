@@ -94,7 +94,7 @@ test("module leader must manage at least one module", () => {
   });
   assert.throws(
     () => validateAdminSettingsTransition(current, next),
-    (error) => error.statusCode === 400 && error.message === "模块负责人至少负责一个工作模块，且工作模块必须属于本部门"
+    (error) => error.statusCode === 400 && error.message === "模块负责人至少负责一个模块，且该模块必须属于本部门"
   );
 });
 
@@ -107,7 +107,7 @@ test("module leader cannot manage a module outside their department", () => {
   });
   assert.throws(
     () => validateAdminSettingsTransition(current, next),
-    (error) => error.statusCode === 400 && error.message === "模块负责人至少负责一个工作模块，且工作模块必须属于本部门"
+    (error) => error.statusCode === 400 && error.message === "模块负责人至少负责一个模块，且该模块必须属于本部门"
   );
 });
 
