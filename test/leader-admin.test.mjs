@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 
-import handler from "../api/[...path].mjs";
+import handler, * as apiModule from "../api/[...path].mjs";
 
 const syncKey = "DP-WEEKLY-2026-7K4M";
 process.env.REPORT_SYNC_KEY = syncKey;
@@ -478,6 +478,10 @@ test("a leader can view and edit their own department's module list", async () =
   });
   assert.equal(updated.statusCode, 200);
   assert.deepEqual(updated.body.modules, ["新项目类型A", "新项目类型B"]);
+  const audit = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  assert.ok(audit.body.audit.some((entry) =>
+    entry.action === "department.modules.changed" && entry.targetId === leader.departmentId
+  ));
 
   const rejected = await api("/admin/leader/modules", {
     method: "POST",
@@ -580,6 +584,65 @@ test("reassigning the same username's leadership to a different department inval
 
   const staleCheck = await api("/admin/leader/accounts", { adminToken: token, includeSyncKey: false });
   assert.equal(staleCheck.statusCode, 401);
+});
+
+test("scheduled success audit is removed when its persistence fails", async () => {
+  assert.equal(typeof apiModule.persistScheduledSuccessAudit, "function");
+  const state = { adminAudit: [] };
+  const record = {
+    actorUsername: "Admin",
+    actorRole: "admin",
+    departmentId: "",
+    action: "weekly-rollover.manual-run",
+    targetType: "scheduled-task",
+    targetId: "weekly-task-rollover",
+    result: "success",
+    summary: "周任务手动补跑成功",
+  };
+  await assert.rejects(
+    apiModule.persistScheduledSuccessAudit(state, record, async () => { throw new Error("save failed"); }, 1_777_777_777_000),
+    /save failed/
+  );
+  assert.deepEqual(state.adminAudit, []);
+});
+
+test("settings audit identifies department and account lifecycle changes", async () => {
+  const departmentId = `audit-settings-${randomUUID().slice(0, 8)}`;
+  const username = uniqueUsername("audit-lifecycle");
+  const current = await api("/settings", { admin: true });
+  const created = await saveSettings({
+    departments: [...current.body.settings.departments, { id: departmentId, name: "审计配置部门", enabled: true, modules: ["模块A"] }],
+    accounts: [...current.body.settings.accounts, { name: "审计配置成员", username, departmentId }],
+    sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(created.statusCode, 200);
+
+  const destinationId = current.body.settings.departments[0].id;
+  const changed = await saveSettings({
+    departments: created.body.settings.departments.map((department) => department.id === departmentId
+      ? { ...department, enabled: false, modules: ["模块B"] }
+      : department),
+    accounts: created.body.settings.accounts.map((account) => account.username === username
+      ? { ...account, departmentId: destinationId }
+      : account),
+    sessionDurationMinutes: created.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(changed.statusCode, 200);
+  const removed = await saveSettings({
+    departments: changed.body.settings.departments,
+    accounts: changed.body.settings.accounts.filter((account) => account.username !== username),
+    sessionDurationMinutes: changed.body.settings.sessionDurationMinutes,
+  });
+  assert.equal(removed.statusCode, 200);
+
+  const audit = await api("/admin/audit", { admin: true, includeSyncKey: false });
+  const actions = audit.body.audit.filter((entry) => entry.targetId === departmentId || entry.targetId === username).map((entry) => entry.action);
+  assert.ok(actions.includes("department.created"));
+  assert.ok(actions.includes("department.enabled.changed"));
+  assert.ok(actions.includes("department.modules.changed"));
+  assert.ok(actions.includes("account.created"));
+  assert.ok(actions.includes("account.department.changed"));
+  assert.ok(actions.includes("account.deleted"));
 });
 
 test("admin dashboard enforces leader department scope and validates global admin scope", async () => {

@@ -372,14 +372,25 @@ async function saveState(state) {
   stateBaseSnapshots.set(state, structuredClone(state));
 }
 
+export async function persistScheduledSuccessAudit(state, record, persist = saveState, now = Date.now()) {
+  const previousAudit = state.adminAudit;
+  appendAdminAudit(state, record, { now });
+  try {
+    await persist(state);
+  } catch (error) {
+    state.adminAudit = previousAudit;
+    throw error;
+  }
+}
+
 async function executeWeeklyRollover(state, { triggeredAt = Date.now(), trigger = "scheduled", auditRecord = null } = {}) {
   startWeeklyRolloverExecution(state, { now: triggeredAt, trigger });
   await saveState(state);
   try {
     const result = applyWeeklyRollover(state, { now: triggeredAt });
     completeWeeklyRolloverExecution(state, result, { now: Date.now() });
-    if (auditRecord) appendAdminAudit(state, auditRecord, { now: triggeredAt });
-    await saveState(state);
+    if (auditRecord) await persistScheduledSuccessAudit(state, auditRecord, saveState, triggeredAt);
+    else await saveState(state);
     return result;
   } catch (error) {
     failWeeklyRolloverExecution(state, error, { now: Date.now() });
@@ -418,8 +429,8 @@ async function executeReportAutoArchive(state, { triggeredAt = Date.now(), trigg
   try {
     const result = archiveDueReports(state, { triggeredAt, trigger });
     completeReportArchiveExecution(state, { now: Date.now(), result });
-    if (auditRecord) appendAdminAudit(state, auditRecord, { now: triggeredAt });
-    await saveState(state);
+    if (auditRecord) await persistScheduledSuccessAudit(state, auditRecord, saveState, triggeredAt);
+    else await saveState(state);
     return result;
   } catch (error) {
     failReportArchiveExecution(state, { now: Date.now(), error });
@@ -1135,17 +1146,42 @@ function auditRecord(actor, departmentId, action, targetType, targetId, summary)
 function appendSettingsAudit(state, current, next, actor, now) {
   for (const department of next.departments) {
     const previous = current.departments.find((item) => item.id === department.id);
+    if (!previous) {
+      appendAdminAudit(state, auditRecord(actor, department.id, "department.created", "department", department.id, "部门已新增"), { now });
+    }
     if ((previous?.leaderUsername || "") !== (department.leaderUsername || "")) {
       appendAdminAudit(state, auditRecord(actor, department.id, "department.leader.changed", "department", department.id, "部门负责人已更换"), { now });
+    }
+    if (previous && previous.enabled !== department.enabled) {
+      appendAdminAudit(state, auditRecord(actor, department.id, "department.enabled.changed", "department", department.id, `部门已${department.enabled === false ? "停用" : "启用"}`), { now });
+    }
+    if (previous && JSON.stringify(previous.modules || []) !== JSON.stringify(department.modules || [])) {
+      appendAdminAudit(state, auditRecord(actor, department.id, "department.modules.changed", "department", department.id, "部门模块范围已变更"), { now });
+    }
+  }
+  for (const department of current.departments) {
+    if (!next.departments.some((item) => item.id === department.id)) {
+      appendAdminAudit(state, auditRecord(actor, department.id, "department.deleted", "department", department.id, "部门已删除"), { now });
     }
   }
   for (const account of next.accounts) {
     const previous = current.accounts.find((item) => item.username === account.username);
+    if (!previous) {
+      appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.created", "account", account.username, "账号已新增"), { now });
+    }
+    if (previous && previous.departmentId !== account.departmentId) {
+      appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.department.changed", "account", account.username, "账号所属部门已变更"), { now });
+    }
     if (previous && previous.enabled !== account.enabled) {
       appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.enabled.changed", "account", account.username, `账号已${account.enabled === false ? "停用" : "启用"}`), { now });
     }
     if (previous && (previous.role !== account.role || JSON.stringify(previous.managedModules || []) !== JSON.stringify(account.managedModules || []))) {
       appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.role-scope.changed", "account", account.username, "账号角色或管理范围已变更"), { now });
+    }
+  }
+  for (const account of current.accounts) {
+    if (!next.accounts.some((item) => item.username === account.username)) {
+      appendAdminAudit(state, auditRecord(actor, account.departmentId, "account.deleted", "account", account.username, "账号已删除"), { now });
     }
   }
   if (current.sessionDurationMinutes !== next.sessionDurationMinutes) {
@@ -1376,6 +1412,9 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
         item.id === leader.department.id ? { ...item, modules } : item
       );
       state.settings = { ...settings, departments: nextDepartments, updatedAt: now };
+      if (JSON.stringify(department.modules) !== JSON.stringify(modules)) {
+        appendAdminAudit(state, auditRecord({ role: "leader", username: leader.username }, leader.department.id, "department.modules.changed", "department", leader.department.id, "部门模块范围已变更"), { now });
+      }
       await saveState(state);
       return json(res, { modules });
     }
