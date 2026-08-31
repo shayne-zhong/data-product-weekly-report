@@ -562,9 +562,19 @@ test("report import shows all permitted department tasks with a this-week/all sc
 });
 
 test("admin uses categorized settings and safe AI key controls", () => {
-  for (const section of ["departments", "modules", "accounts", "ai", "session"]) {
+  for (const section of ["overview", "departments", "members", "roles", "modules", "business", "security", "audit", "operations"]) {
     assert.match(html, new RegExp(`data-admin-section="${section}"`));
   }
+  for (const retiredSection of ["accounts", "leader-accounts", "leader-modules"]) {
+    assert.doesNotMatch(html, new RegExp(`data-admin-section="${retiredSection}"`));
+  }
+  assert.match(html, /id="adminManagePanel" class="admin-center-v2"/);
+  assert.match(html, /class="admin-center-v2__aside"/);
+  assert.match(html, /class="admin-center-v2__scope"/);
+  assert.match(html, /class="admin-center-v2__workspace"/);
+  assert.match(html, /class="admin-center-v2__header"/);
+  assert.match(html, /工作模块/);
+  assert.doesNotMatch(html, /项目类型/);
   assert.match(html, /id="adminAiApiKey"/);
   assert.match(html, /id="adminAiTestBtn"/);
   assert.match(html, /id="adminAiClearBtn"/);
@@ -598,9 +608,21 @@ test("a department leader gets a cut-down admin panel scoped to their own depart
   assert.match(html, /async function loadLeaderWorkspace\(\)/);
   assert.match(html, /\/api\/admin\/leader\/accounts/);
   assert.match(html, /\/api\/admin\/leader\/modules/);
-  assert.match(html, /data-admin-section="leader-accounts"/);
-  assert.match(html, /data-admin-section="leader-modules"/);
+  assert.match(html, /const leaderAdminSections = new Set\(\["overview", "members", "roles", "modules", "audit"\]\)/);
+  assert.match(html, /function adminSectionAllowedForRole\(section, role = adminRole\)/);
+  assert.match(html, /function setAdminSection\(section\)/);
+  assert.match(html, /adminSectionAllowedForRole\(section\) \? section : "overview"/);
+  assert.match(html, /button\.hidden = !adminSectionAllowedForRole\(button\.dataset\.adminSection\)/);
   assert.match(html, /data-leader-account-enabled=/);
+});
+
+test("admin center styles stay rooted and define the responsive enterprise shell", () => {
+  const adminCenterStyles = html.slice(html.indexOf(".admin-center-v2{"), html.indexOf("</style>"));
+  assert.match(html, /\.admin-center-v2\{[^}]*grid-template-columns:224px minmax\(0,1fr\)/);
+  assert.match(html, /\.admin-center-v2 \.admin-center-v2__header\{[^}]*min-height:84px/);
+  assert.match(html, /@media\(max-width:1440px\)[^{]*\{[\s\S]*?\.admin-center-v2/);
+  assert.match(html, /@media\(max-width:1280px\)[^{]*\{[\s\S]*?\.admin-center-v2/);
+  assert.doesNotMatch(adminCenterStyles, /(?:^|[},])\s*\.(?:nav|panel|data-table)\s*\{/m);
 });
 
 test("department tasks default to a remembered quadrant view", () => {
