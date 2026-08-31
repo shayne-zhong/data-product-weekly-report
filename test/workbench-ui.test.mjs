@@ -1091,3 +1091,17 @@ test("high-risk confirmation dialog exposes pending and keyboard-safe controls",
   assert.match(html, /closeAdminHighRisk\(false\)/);
   assert.match(html, /adminHighRiskPending/);
 });
+
+test("leader audit renders the shared scoped audit state", () => {
+  assert.match(html, /function renderLeaderAdmin\(\) \{[\s\S]{0,320}if \(adminActiveSection === "audit"\) renderAdminAudit\(\);/);
+  assert.match(html, /if \(adminActiveSection === "audit"\) await loadAdminAudit\(\);/);
+  assert.match(html, /adminRole === "leader" && !adminAudit\.length/);
+  assert.match(html, /adminAuditState === "no-permission"/);
+});
+
+test("high-risk actions stay in the dialog until their request succeeds", () => {
+  assert.match(html, /await adminHighRiskAction\?\.\(\);[\s\S]{0,180}closeAdminHighRisk\(true\)/);
+  assert.match(html, /执行失败：\$\{error\.message \|\| "高风险操作失败"\}/);
+  assert.match(html, /await confirmAdminHighRisk\(message, "确认运行补跑", async \(\) =>/);
+  assert.match(html, /await confirmAdminHighRisk\("确认清除当前 AI API 密钥？清除后 AI 功能将停用。", "确认清除密钥", async \(\) =>/);
+});

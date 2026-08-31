@@ -897,6 +897,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let adminAuditError = "";
     let adminAuditFilters = { action: "", actor: "", result: "", departmentId: "", date: "" };
     let adminHighRiskResolver = null;
+    let adminHighRiskAction = null;
     let adminHighRiskPending = false;
     let adminPageDirty = false;
     let adminPendingSection = "";
@@ -4269,6 +4270,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderAdminNavigation();
       consumeAdminInheritedFilters(adminActiveSection);
       if (adminActiveSection === "overview") renderAdminOverview();
+      if (adminActiveSection === "audit") renderAdminAudit();
       $("leaderModulesList").innerHTML = leaderModules.map((moduleName, index) => `
         <div class="admin-row" data-leader-module-row="${index}">
           <input data-leader-module="${index}" value="${escapeHtml(moduleName)}" placeholder="例如 AI+X项目" />
@@ -4301,9 +4303,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       adminOverlayTrigger?.focus?.();
     }
 
-    function confirmAdminHighRisk(message, title = "确认高风险操作") {
+    function confirmAdminHighRisk(message, title = "确认高风险操作", action = async () => {}) {
       adminOverlayTrigger = document.activeElement;
       adminHighRiskPending = false;
+      adminHighRiskAction = action;
       $("adminHighRiskTitle").textContent = title;
       $("adminHighRiskMessage").textContent = message;
       $("adminHighRiskPending").textContent = "";
@@ -4320,6 +4323,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("adminHighRiskModal").hidden = true;
       const resolve = adminHighRiskResolver;
       adminHighRiskResolver = null;
+      adminHighRiskAction = null;
       adminOverlayTrigger?.focus?.();
       resolve?.(confirmed);
     }
@@ -4395,14 +4399,16 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     async function saveAdminSecurityPage() {
       const apiKey = $("adminAiApiKey").value.trim();
-      if (apiKey && !await confirmAdminHighRisk("确认设置新的 AI API 密钥？密钥只会提交到服务端加密保存。", "确认设置密钥")) return false;
       const sessionDurationMinutes = Number($("adminSessionDurationMinutes").value);
       if (!Number.isInteger(sessionDurationMinutes) || sessionDurationMinutes < 5 || sessionDurationMinutes > 43200) throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
       const ai = { enabled: adminDraftSettings.ai?.enabled === true, provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek", model: String(adminDraftSettings.ai?.model || "").trim() };
-      const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ sessionDurationMinutes: sessionDurationMinutes, ai: ai }) });
-      applySettings(result.settings || { sessionDurationMinutes, ai });
-      if (apiKey) await saveAdminAiKey(apiKey);
-      return finishAdminPageSave();
+      const save = async () => {
+        const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ sessionDurationMinutes: sessionDurationMinutes, ai: ai }) });
+        applySettings(result.settings || { sessionDurationMinutes, ai });
+        if (apiKey) await saveAdminAiKey(apiKey);
+        return finishAdminPageSave();
+      };
+      return apiKey ? confirmAdminHighRisk("确认设置新的 AI API 密钥？密钥只会提交到服务端加密保存。", "确认设置密钥", save) : save();
     }
 
     async function saveAdminAiKey(apiKey) {
@@ -5157,13 +5163,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (event.target.id === "adminResetPasswordModal") closeAdminPasswordReset();
     });
     $("cancelAdminHighRiskBtn").addEventListener("click", () => closeAdminHighRisk(false));
-    $("confirmAdminHighRiskBtn").addEventListener("click", () => {
+    $("confirmAdminHighRiskBtn").addEventListener("click", async () => {
       if (adminHighRiskPending) return;
       adminHighRiskPending = true;
-      $("adminHighRiskPending").textContent = "正在确认…";
+      $("adminHighRiskPending").textContent = "正在执行，请稍候…";
       $("confirmAdminHighRiskBtn").disabled = true;
       $("cancelAdminHighRiskBtn").disabled = true;
-      closeAdminHighRisk(true);
+      try {
+        await adminHighRiskAction?.();
+        closeAdminHighRisk(true);
+      } catch (error) {
+        adminHighRiskPending = false;
+        $("adminHighRiskPending").textContent = `执行失败：${error.message || "高风险操作失败"}。请检查后重试。`;
+        $("confirmAdminHighRiskBtn").disabled = false;
+        $("cancelAdminHighRiskBtn").disabled = false;
+        $("confirmAdminHighRiskBtn").focus();
+      }
     });
     $("adminHighRiskModal").addEventListener("click", (event) => {
       if (event.target === $("adminHighRiskModal")) closeAdminHighRisk(false);
@@ -5410,9 +5425,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!enabledButton) return;
       const username = enabledButton.dataset.adminAccountEnabled;
       const enabled = enabledButton.dataset.nextEnabled === "true";
-      if (!enabled && !await confirmAdminHighRisk(`确认停用账号 ${username}？该账号将无法继续登录。`, "确认停用成员")) return;
-      enabledButton.disabled = true;
-      try {
+      const updateEnabled = async () => {
+        enabledButton.disabled = true;
         if (adminRole === "leader") {
           await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(username)}/enabled`, { method: "POST", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ enabled }) });
           await loadLeaderWorkspace();
@@ -5423,6 +5437,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         }
         closeAdminMemberDrawer();
         renderAdmin();
+      };
+      try {
+        const updated = enabled ? (await updateEnabled(), true) : await confirmAdminHighRisk(`确认停用账号 ${username}？该账号将无法继续登录。`, "确认停用成员", updateEnabled);
+        if (!updated) enabledButton.disabled = false;
       } catch (error) { setSyncStatus(error.message || "账号状态更新失败", "warn"); enabledButton.disabled = false; }
     });
     $("adminMemberDrawer").addEventListener("change", async (event) => {
@@ -5531,11 +5549,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const message = isReportArchive
         ? "确认检查并补跑报告归档？只处理已经到期但尚未完成的报告，只会归档已经到期的报告，不会提前归档仍在编辑的报告。"
         : "确认检查并补跑周任务？已成功结转的部门不会重复创建任务。";
-      if (!await confirmAdminHighRisk(message, "确认运行补跑")) return;
-      adminRunPending = true;
-      scheduledTaskRunning = true;
-      renderScheduledTasks();
-      try {
+      await confirmAdminHighRisk(message, "确认运行补跑", async () => {
+        adminRunPending = true;
+        scheduledTaskRunning = true;
+        renderScheduledTasks();
         const result = await apiJson(`/api/admin/scheduled-tasks/${encodeURIComponent(button.dataset.runScheduledTask)}/run`, {
           method: "POST",
           headers: adminRequestHeaders(),
@@ -5544,15 +5561,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         setSyncStatus(isReportArchive
           ? `补跑完成，归档 ${Number(result.result?.archivedCount || 0)} 份`
           : `定时任务执行完成，结转 ${Number(result.result?.rolledTaskCount || 0)} 项`, "ok");
-      } catch (error) {
-        setSyncStatus(`${error.message || "定时任务启动失败"}，请检查后重试`, "warn");
-        await loadScheduledTasks().catch(() => {});
-      } finally {
+      }).finally(async () => {
         scheduledTaskRunning = false;
         adminRunPending = false;
         await Promise.all([loadScheduledTasks(), loadAdminDashboard()]).catch(() => {});
         renderScheduledTasks();
-      }
+      });
     });
     document.querySelectorAll("[data-admin-audit-filter]").forEach((control) => control.addEventListener("change", (event) => {
       const key = event.target.dataset.adminAuditFilter;
@@ -5584,9 +5598,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
     });
     $("adminAiClearBtn").addEventListener("click", async () => {
-      if (!await confirmAdminHighRisk("确认清除当前 AI API 密钥？清除后 AI 功能将停用。", "确认清除密钥")) return;
-      $("adminAiClearBtn").disabled = true;
-      try {
+      await confirmAdminHighRisk("确认清除当前 AI API 密钥？清除后 AI 功能将停用。", "确认清除密钥", async () => {
+        $("adminAiClearBtn").disabled = true;
         const result = await apiJson("/api/admin/settings", {
           method: "PATCH",
           headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
@@ -5597,11 +5610,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         $("adminAiApiKey").value = "";
         renderAdmin();
         setSyncStatus("AI 密钥已清除", "ok");
-      } catch (error) {
-        setSyncStatus(error.message || "清除失败", "warn");
-      } finally {
+      }).finally(() => {
         $("adminAiClearBtn").disabled = false;
-      }
+      });
     });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
