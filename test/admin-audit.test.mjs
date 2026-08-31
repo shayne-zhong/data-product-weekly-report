@@ -21,7 +21,7 @@ function record(overrides = {}) {
 test("appendAdminAudit redacts sensitive summary values and truncates to 500 characters", () => {
   const state = { adminAudit: [] };
   const item = appendAdminAudit(state, record({
-    summary: `password:open API_KEY=abc token:xyz Secret=q authorization:Bearer ${"x".repeat(600)}`,
+    summary: `password:open API_KEY=abc token:xyz Secret=q authorization:Bearer credential; note=${"x".repeat(600)}`,
   }), { now: new Date("2026-08-31T00:00:00.000Z") });
 
   assert.match(item.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
@@ -32,6 +32,16 @@ test("appendAdminAudit redacts sensitive summary values and truncates to 500 cha
   assert.doesNotMatch(item.summary, /open|abc|xyz|Bearer/);
 });
 
+test("appendAdminAudit redacts an entire bearer authorization credential", () => {
+  const state = { adminAudit: [] };
+  const item = appendAdminAudit(state, record({
+    summary: "request failed Authorization: Bearer real-access-token-123, retrying",
+  }), { now: new Date("2026-08-31T00:00:00.000Z") });
+
+  assert.doesNotMatch(item.summary, /real-access-token-123/);
+  assert.match(item.summary, /Authorization=\[REDACTED\]/);
+});
+
 test("listAdminAudit limits leaders to their department and lets admins see all", () => {
   const state = { adminAudit: [
     record({ id: "new-sales", createdAt: "2026-08-31T02:00:00.000Z" }),
@@ -39,8 +49,21 @@ test("listAdminAudit limits leaders to their department and lets admins see all"
     record({ id: "old-sales", createdAt: "2026-08-31T00:00:00.000Z" }),
   ] };
 
-  assert.deepEqual(listAdminAudit(state, { role: "leader", departmentId: "sales" }).map((item) => item.id), ["new-sales", "old-sales"]);
-  assert.deepEqual(listAdminAudit(state, { role: "admin" }).map((item) => item.id), ["new-sales", "hr", "old-sales"]);
+  const options = { now: new Date("2026-08-31T03:00:00.000Z") };
+  assert.deepEqual(listAdminAudit(state, { role: "leader", departmentId: "sales" }, options).map((item) => item.id), ["new-sales", "old-sales"]);
+  assert.deepEqual(listAdminAudit(state, { role: "admin" }, options).map((item) => item.id), ["new-sales", "hr", "old-sales"]);
+});
+
+test("listAdminAudit hides records older than 180 days for admins and leaders", () => {
+  const now = new Date("2026-08-31T00:00:00.000Z");
+  const cutoff = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+  const state = { adminAudit: [
+    record({ id: "cutoff", createdAt: cutoff.toISOString() }),
+    record({ id: "expired", createdAt: new Date(cutoff.getTime() - 1).toISOString() }),
+  ] };
+
+  assert.deepEqual(listAdminAudit(state, { role: "admin" }, { now }).map((item) => item.id), ["cutoff"]);
+  assert.deepEqual(listAdminAudit(state, { role: "leader", departmentId: "sales" }, { now }).map((item) => item.id), ["cutoff"]);
 });
 
 test("appendAdminAudit retains 180 days, caps at 5000, and orders newest first", () => {
