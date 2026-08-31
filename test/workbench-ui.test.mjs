@@ -616,6 +616,12 @@ test("a department leader gets a cut-down admin panel scoped to their own depart
   assert.match(html, /data-leader-account-enabled=/);
 });
 
+test("admin section selection falls back from unknown and leader-forbidden sections", () => {
+  assert.match(html, /const adminSections = new Set\(\["overview", "departments", "members", "roles", "modules", "business", "security", "audit", "operations"\]\)/);
+  assert.match(html, /adminSections\.has\(section\) && \(role !== "leader" \|\| leaderAdminSections\.has\(section\)\)/);
+  assert.match(html, /adminSectionAllowedForRole\(section\) \? section : "overview"/);
+});
+
 test("admin center styles stay rooted and define the responsive enterprise shell", () => {
   const adminCenterStyles = html.slice(html.indexOf(".admin-center-v2{"), html.indexOf("</style>"));
   assert.match(html, /\.admin-center-v2\{[^}]*grid-template-columns:224px minmax\(0,1fr\)/);

@@ -870,6 +870,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let adminSessionToken = adminSession.token || "";
     let adminAuthed = Boolean(adminSessionToken && Number(adminSession.expiresAt) > Date.now());
     let adminRole = adminSession.role === "leader" ? "leader" : "admin";
+    const adminSections = new Set(["overview", "departments", "members", "roles", "modules", "business", "security", "audit", "operations"]);
     const leaderAdminSections = new Set(["overview", "members", "roles", "modules", "audit"]);
     const adminSectionTitles = { overview: "管理概览", departments: "部门管理", members: "成员管理", roles: "角色与负责范围", modules: "工作模块", business: "业务配置", security: "系统与安全", audit: "操作审计", operations: "运行中心" };
     let adminActiveSection = "overview";
@@ -3947,7 +3948,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function adminSectionAllowedForRole(section, role = adminRole) {
-      return role !== "leader" || leaderAdminSections.has(section);
+      return adminSections.has(section) && (role !== "leader" || leaderAdminSections.has(section));
     }
 
     function setAdminSection(section) {
