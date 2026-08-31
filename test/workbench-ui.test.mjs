@@ -622,6 +622,58 @@ test("admin section selection falls back from unknown and leader-forbidden secti
   assert.match(html, /adminSectionAllowedForRole\(section\) \? section : "overview"/);
 });
 
+test("admin overview loads scoped period metrics without placeholder numbers", () => {
+  assert.match(html, /let adminDashboard = null/);
+  assert.match(html, /let adminDashboardState = "idle"/);
+  assert.match(html, /let adminPeriodType = "week"/);
+  assert.match(html, /let adminAnchorDate = todayIso\(\)/);
+  assert.match(html, /async function loadAdminDashboard\(\)/);
+  assert.match(html, /\/api\/admin\/dashboard\?\$\{query\.toString\(\)\}/);
+  assert.match(html, /query\.set\("periodType", adminPeriodType\)/);
+  assert.match(html, /query\.set\("anchorDate", adminAnchorDate\)/);
+  assert.match(html, /adminRole === "admin" && adminDashboardDepartmentId/);
+  assert.match(html, /headers: adminRequestHeaders\(\)/);
+  assert.doesNotMatch(html, /模拟数据|示例数据/);
+});
+
+test("admin overview renders safe loading empty error and null metric states", () => {
+  assert.match(html, /id="adminOverviewContent"/);
+  assert.match(html, /adminDashboardState === "loading"/);
+  assert.match(html, /admin-overview-skeleton/);
+  assert.match(html, /adminDashboardState === "error"/);
+  assert.match(html, /data-retry-admin-dashboard/);
+  assert.match(html, /data-reset-admin-dashboard/);
+  assert.match(html, /completionRate == null \? "—"/);
+  assert.match(html, /function formatAdminGeneratedAt/);
+  assert.match(html, /更新时间/);
+});
+
+test("admin overview filters and drilldowns preserve role-safe inherited filters", () => {
+  assert.match(html, /id="adminDashboardPeriodType"/);
+  assert.match(html, /<option value="week">周<\/option>/);
+  assert.match(html, /<option value="month">月<\/option>/);
+  assert.match(html, /<option value="quarter">季度<\/option>/);
+  assert.match(html, /id="adminDashboardAnchorDate"/);
+  assert.match(html, /id="adminDashboardDepartment"/);
+  assert.match(html, /let adminInheritedFilters = null/);
+  assert.match(html, /function openAdminDrilldown\(section, filters = \{\}\)/);
+  assert.match(html, /data-admin-drilldown/);
+  assert.match(html, /"module-scope-missing": "members"/);
+  assert.match(html, /"leader-missing": "departments"/);
+  assert.match(html, /"report-archive-due": "business"/);
+  assert.match(html, /"operations"/);
+  assert.match(html, /adminRole === "leader"[\s\S]{0,300}adminDashboardDepartment/);
+});
+
+test("admin overview hides global health from leaders and navigation marks only the current page", () => {
+  assert.match(html, /adminRole === "leader" \? ""/);
+  assert.match(html, /系统与 AI/);
+  assert.match(html, /运行健康/);
+  assert.match(html, /button\.setAttribute\("aria-current", "page"\)/);
+  assert.match(html, /button\.removeAttribute\("aria-current"\)/);
+  assert.match(html, /admin-center-v2__nav button:focus-visible/);
+});
+
 test("admin center styles stay rooted and define the responsive enterprise shell", () => {
   const adminCenterStyles = html.slice(html.indexOf(".admin-center-v2{"), html.indexOf("</style>"));
   assert.match(html, /\.admin-center-v2\{[^}]*grid-template-columns:224px minmax\(0,1fr\)/);
