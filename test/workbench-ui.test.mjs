@@ -676,14 +676,16 @@ test("admin overview hides global health from leaders and navigation marks only 
 
 test("admin management uses page-scoped dirty navigation and no legacy global savebar", () => {
   assert.doesNotMatch(html, /class="admin-savebar panel"/);
+  assert.doesNotMatch(html, /admin-page-actions/);
+  assert.doesNotMatch(html, /id="adminSaveBtn"/);
+  assert.doesNotMatch(html, /saveCurrentAdminPage/);
   assert.match(html, /let adminPageDirty = false/);
   assert.match(html, /let adminPendingSection = ""/);
-  assert.match(html, /id="adminDirtyIndicator"/);
   assert.match(html, /async function confirmAdminNavigation\(nextSection\)/);
   assert.match(html, /保存并离开/);
   assert.match(html, /放弃更改/);
   assert.match(html, /继续编辑/);
-  assert.match(html, /await saveCurrentAdminPage\(\)/);
+  assert.match(html, /await saveAdminSectionForNavigation\(adminActiveSection\)/);
 });
 
 test("member and role pages share filters and the semantic member drawer", () => {
@@ -703,7 +705,16 @@ test("admin saves are page scoped and sensitive AI key changes stay isolated", (
   assert.match(html, /body: JSON\.stringify\(\{ reportArchive:/);
   assert.match(html, /body: JSON\.stringify\(\{ sessionDurationMinutes:/);
   assert.match(html, /body: JSON\.stringify\(\{ ai:/);
-  assert.match(html, /async function saveCurrentAdminPage\(\)/);
+  assert.match(html, /id="saveAdminDepartmentsBtn"/);
+  assert.match(html, /id="saveAdminMembersBtn"/);
+  assert.match(html, /id="saveAdminRolesBtn"/);
+  assert.match(html, /id="saveAdminModulesBtn"/);
+  assert.match(html, /id="saveAdminBusinessBtn"/);
+  assert.match(html, /id="saveAdminSecurityBtn"/);
+  assert.doesNotMatch(html, /id="saveLeaderModulesBtn"/);
+  assert.doesNotMatch(html, /saveLeaderModulesBtn/);
+  assert.match(html, /async function saveAdminModulesPage\(\)/);
+  assert.match(html, /adminPageDirty = false/);
 });
 
 test("admin center styles stay rooted and define the responsive enterprise shell", () => {

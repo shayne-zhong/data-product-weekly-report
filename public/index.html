@@ -128,7 +128,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 .admin-list{display:grid;gap:10px}.admin-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.admin-row.two{grid-template-columns:1fr 1fr auto}.admin-row.three{grid-template-columns:1fr 1fr 150px auto}.admin-row.four{grid-template-columns:1fr 1fr 130px 110px auto}.admin-row.role{grid-template-columns:1fr 1fr 130px 160px 110px auto}.admin-row input,.admin-row select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;background:#fff}.admin-row input:focus,.admin-row select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(49,94,251,.1)}
 .admin-ai-card{grid-column:1/-1}.admin-ai-grid{display:grid;grid-template-columns:180px minmax(220px,1fr) 180px;gap:12px}.admin-ai-grid label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.admin-ai-grid select,.admin-ai-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;outline:none}.ai-ready{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fbfcff}.ai-ready.ok{color:var(--green);border-color:rgba(22,163,106,.25);background:var(--green-soft)}.ai-ready.warn{color:var(--orange);border-color:rgba(229,138,0,.28);background:var(--orange-soft)}
 .ai-modal{width:min(860px,calc(100% - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column}.ai-modal .modal-body{overflow:auto;min-height:0}.ai-toolbar{display:grid;grid-template-columns:180px 1fr;gap:12px;align-items:end;margin-bottom:12px}.ai-toolbar label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:6px}.ai-toolbar select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.ai-result{width:100%;min-height:380px;max-height:calc(100vh - 330px);overflow:auto;border:1px solid var(--line);border-radius:10px;padding:12px;resize:vertical;line-height:1.75;white-space:pre-wrap;outline:none;background:#fbfcff}.ai-status{min-height:42px;display:flex;align-items:center;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fafbfc;color:var(--muted)}.ai-status.loading{color:var(--primary);background:var(--primary-soft);border-color:#dfe4ff}.ai-status.error{color:var(--red);background:var(--red-soft);border-color:#ffd5d7}
-.admin-page-actions{position:sticky;bottom:12px;margin:0 20px 20px;padding:12px 14px;border:1px solid #f2c94c;border-radius:12px;background:#fff9e8;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:5}.admin-member-filters{display:grid;grid-template-columns:minmax(220px,1fr) 180px 160px;gap:10px;margin-bottom:14px}.admin-member-filters input,.admin-member-filters select{border:1px solid var(--line);border-radius:10px;padding:9px 11px}.admin-member-summary{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}.admin-member-summary:hover{background:#f8faff}.admin-member-summary.highlight{outline:2px solid var(--primary);outline-offset:-2px}.admin-member-drawer-grid{display:grid;gap:12px}.admin-member-drawer-grid dt{color:var(--muted);font-size:12px}.admin-member-drawer-grid dd{margin:3px 0 0;font-weight:650}
+.admin-member-filters{display:grid;grid-template-columns:minmax(220px,1fr) 180px 160px;gap:10px;margin-bottom:14px}.admin-member-filters input,.admin-member-filters select{border:1px solid var(--line);border-radius:10px;padding:9px 11px}.admin-member-summary{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr auto;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}.admin-member-summary:hover{background:#f8faff}.admin-member-summary.highlight{outline:2px solid var(--primary);outline-offset:-2px}.admin-member-drawer-grid{display:grid;gap:12px}.admin-member-drawer-grid dt{color:var(--muted);font-size:12px}.admin-member-drawer-grid dd{margin:3px 0 0;font-weight:650}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}}
 .admin-center-v2{display:grid;grid-template-columns:224px minmax(0,1fr);min-height:680px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 8px 24px rgba(16,24,40,.06)}
 .admin-center-v2 .admin-center-v2__aside{display:flex;flex-direction:column;min-height:100%;padding:18px 12px;background:#17243a;color:#d7dfeb}
@@ -427,7 +427,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             </section>
             <section class="panel admin-section" data-admin-panel="departments" hidden>
               <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门名称与启用状态；已有部门请停用，不直接删除。</p></div><button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
-              <div id="adminDepartmentsList" class="admin-list"></div>
+              <div id="adminDepartmentsList" class="admin-list"></div><div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminDepartmentsBtn">保存部门</button></div>
             </section>
             <section class="panel admin-section" data-admin-panel="members" hidden>
               <div class="admin-member-filters"><input id="adminMemberSearch" placeholder="搜索姓名或账号" /><select id="adminMemberRoleFilter"><option value="all">全部角色</option><option value="member">普通用户</option><option value="module_leader">模块负责人</option><option value="leader">部门负责人</option></select><select id="adminMemberEnabledFilter"><option value="all">全部状态</option><option value="true">已启用</option><option value="false">已停用</option></select></div>
@@ -439,19 +439,20 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
               <div class="admin-section-head"><div><h3>账号管理</h3><p>维护可注册成员及其所属部门。</p></div><button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button></div>
               <div id="adminAccountsList" class="admin-list"></div>
               </div>
+              <div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminMembersBtn">保存成员</button></div>
             </section>
-            <section class="panel admin-section" data-admin-panel="roles" hidden><div class="admin-section-head"><div><h3>角色与负责范围</h3><p>从角色与负责范围视角查看同一份成员数据。</p></div></div><div id="adminRolesList" class="admin-list"></div></section>
+            <section class="panel admin-section" data-admin-panel="roles" hidden><div class="admin-section-head"><div><h3>角色与负责范围</h3><p>从角色与负责范围视角查看同一份成员数据。</p></div></div><div id="adminRolesList" class="admin-list"></div><div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminRolesBtn">保存角色</button></div></section>
             <section class="panel admin-section" data-admin-panel="modules" hidden>
               <div id="leaderModuleControls" hidden>
               <div class="admin-section-head"><div><h3>工作模块</h3><p>维护本部门的工作模块列表。</p></div><button class="ghost-btn" id="addLeaderModuleBtn">+ 新增模块</button></div>
               <div id="leaderModulesList" class="admin-list"></div>
-              <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="primary-btn" id="saveLeaderModulesBtn">保存修改</button></div>
               </div>
               <div id="adminModuleControls">
               <div class="admin-section-head"><div><h3>工作模块配置</h3><p>用于任务筛选、周报模块和导入待办归类。</p></div><button class="ghost-btn" id="addAdminModuleBtn">+ 新增模块</button></div>
               <div style="margin-bottom:14px;"><label class="subtitle" for="adminDepartmentModulesSelect">所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
               <div id="adminModulesList" class="admin-list"></div>
               </div>
+              <div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminModulesBtn">保存工作模块</button></div>
             </section>
             <section class="panel admin-section" data-admin-panel="business" hidden>
               <div class="admin-section-head"><div><h3>总结自动归档</h3><p>北京时间到点后，归档对应周期已有的最后保存版本。</p></div></div>
@@ -460,6 +461,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 <div><label for="adminMonthlyArchiveTime">月报（每月最后一天）</label><input id="adminMonthlyArchiveTime" type="time" /></div>
                 <div><label for="adminQuarterlyArchiveTime">季报（每季度最后一天）</label><input id="adminQuarterlyArchiveTime" type="time" /></div>
               </div>
+              <div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminBusinessBtn">保存归档配置</button></div>
             </section>
             <section class="panel admin-section" data-admin-panel="security" hidden>
               <div class="admin-section-head"><div><h3>登录策略与 AI 服务</h3><p>设置登录状态、模型及 API 密钥；完整密钥不会再次显示。</p></div></div>
@@ -473,16 +475,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
               <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API 密钥...</div>
               <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="ghost-btn" id="adminAiTestBtn">测试连接</button><button class="danger-btn" id="adminAiClearBtn">清除密钥</button></div>
               <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;">密钥将由服务端加密保存。</div>
+              <div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminSecurityBtn">保存安全配置</button></div>
             </section>
             <section class="panel admin-section" data-admin-panel="audit" hidden><div class="admin-section-head"><div><h3>操作审计</h3><p>审计数据将在后续页面能力中接入。</p></div></div></section>
           </div>
-        <div class="admin-page-actions" hidden>
-          <span id="adminDirtyIndicator" role="status">存在未保存修改</span><span id="adminSaveHint" hidden></span>
-          <div class="actions">
-            <button class="ghost-btn" id="adminReloadBtn">重新加载</button>
-            <button class="primary-btn" id="adminSaveBtn">保存本页</button>
-          </div>
-        </div>
         </div>
       </div>
     </section>
@@ -4129,7 +4125,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!adminAuthed) return;
       if (adminRole === "leader") return renderLeaderAdmin();
       renderAdminNavigation();
-      document.querySelector(".admin-page-actions").hidden = !adminPageDirty;
       if (adminActiveSection === "operations") renderScheduledTasks();
       if (adminActiveSection === "overview") renderAdminOverview();
       const draftDepartments = adminDraftSettings.departments || [];
@@ -4194,7 +4189,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function renderLeaderAdmin() {
       renderAdminNavigation();
       if (adminActiveSection === "overview") renderAdminOverview();
-      document.querySelector(".admin-page-actions").hidden = !adminPageDirty;
       $("leaderAccountsList").innerHTML = leaderAccounts.map((account) => {
         const isSelf = account.username === currentUser?.username;
         const role = account.role === "module_leader" ? "module_leader" : "member";
@@ -4229,8 +4223,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function markAdminDirty(message = "存在未保存修改") {
       adminDirty = true;
       adminPageDirty = true;
-      $("adminDirtyIndicator").textContent = message;
-      document.querySelector(".admin-page-actions").hidden = false;
+      setSyncStatus(message, "warn");
     }
 
     function openAdminPasswordReset(username) {
@@ -4270,72 +4263,78 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       return apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify(payload) });
     }
 
+    function finishAdminPageSave() {
+      adminDirty = false;
+      adminPageDirty = false;
+      renderAdmin();
+      setSyncStatus("本页配置已保存", "ok");
+      return true;
+    }
+
     async function saveAdminMembersPage() {
       if (adminRole === "leader") {
         for (const account of leaderAccounts.filter((item) => item.username !== currentUser?.username)) {
           await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(account.username)}/role`, { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ role: account.role === "module_leader" ? "module_leader" : "member", managedModules: account.managedModules || [] }) });
         }
         await loadLeaderWorkspace();
-        return;
+        return finishAdminPageSave();
       }
       const accounts = normalizeAccountsList(adminDraftSettings.accounts);
       const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ accounts: accounts }) });
       applySettings(result.settings || { accounts });
+      return finishAdminPageSave();
     }
 
     async function saveAdminDepartmentsPage() {
       const departments = normalizeDepartmentsList(adminDraftSettings.departments);
       const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ departments: departments }) });
       applySettings(result.settings || { departments });
+      return finishAdminPageSave();
     }
 
     async function saveAdminModulesPage() {
       if (adminRole === "leader") {
         const result = await apiJson("/api/admin/leader/modules", { method: "POST", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ modules: leaderModules }) });
         leaderModules = result.modules || leaderModules;
-        return;
+        return finishAdminPageSave();
       }
       const departments = normalizeDepartmentsList(adminDraftSettings.departments);
       const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ departments: departments }) });
       applySettings(result.settings || { departments });
+      return finishAdminPageSave();
     }
 
     async function saveAdminBusinessPage() {
       const reportArchive = { timezone: "Asia/Shanghai", weeklyTime: $("adminWeeklyArchiveTime").value || "20:00", monthlyTime: $("adminMonthlyArchiveTime").value || "20:00", quarterlyTime: $("adminQuarterlyArchiveTime").value || "20:00" };
       const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ reportArchive: reportArchive }) });
       applySettings(result.settings || { reportArchive });
+      return finishAdminPageSave();
     }
 
     async function saveAdminSecurityPage() {
+      const apiKey = $("adminAiApiKey").value.trim();
+      if (apiKey && !confirm("确认设置新的 AI API 密钥？密钥只会提交到服务端加密保存。")) return false;
       const sessionDurationMinutes = Number($("adminSessionDurationMinutes").value);
       if (!Number.isInteger(sessionDurationMinutes) || sessionDurationMinutes < 5 || sessionDurationMinutes > 43200) throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
       const ai = { enabled: adminDraftSettings.ai?.enabled === true, provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek", model: String(adminDraftSettings.ai?.model || "").trim() };
       const result = await apiJson("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ sessionDurationMinutes: sessionDurationMinutes, ai: ai }) });
       applySettings(result.settings || { sessionDurationMinutes, ai });
+      if (apiKey) await saveAdminAiKey(apiKey);
+      return finishAdminPageSave();
     }
 
-    async function saveAdminAiKey() {
-      const apiKey = $("adminAiApiKey").value.trim();
-      if (!apiKey || !confirm("确认设置新的 AI API 密钥？密钥只会提交到服务端加密保存。")) return false;
+    async function saveAdminAiKey(apiKey) {
       const result = await patchAdminSettings({ ai: { apiKey: apiKey } });
       $("adminAiApiKey").value = "";
       applySettings(result.settings || {});
-      return true;
     }
 
-    async function saveCurrentAdminPage() {
-      const saveBySection = { departments: saveAdminDepartmentsPage, members: saveAdminMembersPage, roles: saveAdminMembersPage, modules: saveAdminModulesPage, business: saveAdminBusinessPage, security: saveAdminSecurityPage };
-      const save = saveBySection[adminActiveSection];
-      if (!save) return true;
-      await save();
-      if (adminActiveSection === "security" && $("adminAiApiKey").value.trim()) {
-        const keySaved = await saveAdminAiKey();
-        if (!keySaved) return false;
-      }
-      adminDirty = false;
-      adminPageDirty = false;
-      renderAdmin();
-      setSyncStatus("本页配置已保存", "ok");
+    async function saveAdminSectionForNavigation(section) {
+      if (section === "departments") return saveAdminDepartmentsPage();
+      if (section === "members" || section === "roles") return saveAdminMembersPage();
+      if (section === "modules") return saveAdminModulesPage();
+      if (section === "business") return saveAdminBusinessPage();
+      if (section === "security") return saveAdminSecurityPage();
       return true;
     }
 
@@ -5182,11 +5181,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       markAdminDirty();
       renderAdmin();
     });
-    $("adminReloadBtn").addEventListener("click", () => loadSettings({ admin: true }).then(() => { adminDirty = false; adminPageDirty = false; renderAdmin(); }).catch(() => setSyncStatus("配置读取失败", "warn")));
-    $("adminSaveBtn").addEventListener("click", () => saveCurrentAdminPage().catch((error) => {
-      $("adminDirtyIndicator").textContent = error.message || "保存失败，请继续编辑后重试";
-      setSyncStatus("后台配置保存失败", "warn");
-    }));
+    $("saveAdminDepartmentsBtn").addEventListener("click", () => saveAdminDepartmentsPage().catch((error) => setSyncStatus(error.message || "部门保存失败", "warn")));
+    $("saveAdminMembersBtn").addEventListener("click", () => saveAdminMembersPage().catch((error) => setSyncStatus(error.message || "成员保存失败", "warn")));
+    $("saveAdminRolesBtn").addEventListener("click", () => saveAdminMembersPage().catch((error) => setSyncStatus(error.message || "角色保存失败", "warn")));
+    $("saveAdminModulesBtn").addEventListener("click", () => saveAdminModulesPage().catch((error) => setSyncStatus(error.message || "工作模块保存失败", "warn")));
+    $("saveAdminBusinessBtn").addEventListener("click", () => saveAdminBusinessPage().catch((error) => setSyncStatus(error.message || "归档配置保存失败", "warn")));
+    $("saveAdminSecurityBtn").addEventListener("click", () => saveAdminSecurityPage().catch((error) => setSyncStatus(error.message || "安全配置保存失败", "warn")));
     $("adminContinueEditingBtn").addEventListener("click", () => { adminPendingSection = ""; $("adminUnsavedModal").hidden = true; });
     $("adminDiscardChangesBtn").addEventListener("click", async () => {
       const nextSection = adminPendingSection;
@@ -5201,7 +5201,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("adminSaveAndLeaveBtn").addEventListener("click", async () => {
       try {
-        const saved = await saveCurrentAdminPage();
+        const saved = await saveAdminSectionForNavigation(adminActiveSection);
         if (!saved) return;
         const nextSection = adminPendingSection;
         adminPendingSection = "";
@@ -5378,20 +5378,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       leaderModules.splice(Number(index), 1);
       markAdminDirty();
       renderAdmin();
-    });
-    $("saveLeaderModulesBtn").addEventListener("click", async () => {
-      try {
-        const result = await apiJson("/api/admin/leader/modules", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
-          body: JSON.stringify({ modules: leaderModules }),
-        });
-        leaderModules = result.modules || leaderModules;
-        renderAdmin();
-        setSyncStatus("工作模块已保存", "ok");
-      } catch (error) {
-        setSyncStatus(error.message || "保存失败", "warn");
-      }
     });
     $("adminAiProvider").addEventListener("change", (event) => {
       const provider = event.target.value === "kimi" ? "kimi" : "deepseek";
