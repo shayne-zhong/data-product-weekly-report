@@ -7,9 +7,27 @@ import {
   defaultReportArchiveSchedule,
   failReportArchiveExecution,
   normalizeReportArchiveSchedule,
+  reportsDueForArchive,
   reportArchiveTaskSummary,
   startReportArchiveExecution,
 } from "../lib/report-auto-archive.mjs";
+
+test("queries due reports by department without mutating state", () => {
+  const state = {
+    reports: {
+      included: { id: "included", departmentId: "d1", summaryType: "weekly", status: "draft", data: { endDate: "2026-08-23" } },
+      outside: { id: "outside", departmentId: "d2", summaryType: "weekly", status: "draft", data: { endDate: "2026-08-23" } },
+      final: { id: "final", departmentId: "d1", summaryType: "weekly", status: "final", data: { endDate: "2026-08-23" } },
+    },
+    settings: { reportArchive: defaultReportArchiveSchedule() },
+  };
+  const before = structuredClone(state);
+  const due = reportsDueForArchive(state, {
+    triggeredAt: Date.parse("2026-08-23T12:00:00Z"), departmentIds: ["d1"],
+  });
+  assert.deepEqual(due.map((report) => report.id), ["included"]);
+  assert.deepEqual(state, before);
+});
 
 test("report archive schedule defaults to 20:00 Asia/Shanghai", () => {
   assert.deepEqual(defaultReportArchiveSchedule(), {
