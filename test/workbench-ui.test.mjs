@@ -578,7 +578,7 @@ test("admin uses categorized settings and safe AI key controls", () => {
   assert.match(html, /id="adminAiApiKey"/);
   assert.match(html, /id="adminAiTestBtn"/);
   assert.match(html, /id="adminAiClearBtn"/);
-  assert.match(html, /adminDirty/);
+  assert.match(html, /adminPageDirty/);
 });
 
 test("department rows expose a leader picker and account rows expose an enable toggle", () => {
@@ -591,8 +591,8 @@ test("department rows expose a leader picker and account rows expose an enable t
 test("account management exposes task roles and multi-module responsibility", () => {
   assert.match(html, /data-admin-account-role="\$\{index\}"/);
   assert.match(html, /data-admin-account-managed-modules="\$\{index\}"/);
-  assert.match(html, /data-leader-account-role=/);
-  assert.match(html, /\/api\/admin\/leader\/accounts\/\$\{encodeURIComponent\(roleUsername\)\}\/role/);
+  assert.match(html, /data-admin-member-role/);
+  assert.match(html, /\/api\/admin\/leader\/accounts\/\$\{encodeURIComponent\(username\)\}\/role/);
 });
 
 test("task editing uses the signed-in role to limit assignees and modules", () => {
@@ -613,7 +613,7 @@ test("a department leader gets a cut-down admin panel scoped to their own depart
   assert.match(html, /function setAdminSection\(section\)/);
   assert.match(html, /adminSectionAllowedForRole\(section\) \? section : "overview"/);
   assert.match(html, /button\.hidden = !adminSectionAllowedForRole\(button\.dataset\.adminSection\)/);
-  assert.match(html, /data-leader-account-enabled=/);
+  assert.match(html, /data-admin-account-enabled/);
 });
 
 test("admin section selection falls back from unknown and leader-forbidden sections", () => {
@@ -663,6 +663,8 @@ test("admin overview filters and drilldowns preserve role-safe inherited filters
   assert.match(html, /"report-archive-due": "business"/);
   assert.match(html, /"operations"/);
   assert.match(html, /adminRole === "leader"[\s\S]{0,300}adminDashboardDepartment/);
+  assert.match(html, /departmentId: filters\.departmentId \|\| \(adminRole === "admin" \? adminDashboardDepartmentId : ""\)/);
+  assert.match(html, /adminMemberFilters\.departmentId = String\(adminInheritedFilters\.departmentId \|\| ""\)/);
 });
 
 test("admin overview hides global health from leaders and navigation marks only the current page", () => {
@@ -697,6 +699,19 @@ test("member and role pages share filters and the semantic member drawer", () =>
   assert.match(html, /data-admin-account-enabled/);
   assert.match(html, /data-admin-reset-password/);
   assert.match(html, /function consumeAdminInheritedFilters/);
+  assert.match(html, /data-admin-member-managed-modules/);
+  assert.match(html, /role === "module_leader" && !managedModules\.length/);
+  assert.match(html, /body: JSON\.stringify\(\{ role, managedModules \}\)/);
+});
+
+test("admin dirty protection covers top navigation and accessible overlays", () => {
+  assert.match(html, /async function confirmAdminViewNavigation\(nextView\)/);
+  assert.match(html, /await confirmAdminViewNavigation\(viewBtn\.dataset\.view\)/);
+  assert.match(html, /adminPendingView/);
+  assert.match(html, /adminOverlayTrigger = document\.activeElement/);
+  assert.match(html, /\$\("closeAdminMemberDrawer"\)\.focus\(\)/);
+  assert.match(html, /\$\("adminContinueEditingBtn"\)\.focus\(\)/);
+  assert.match(html, /event\.key !== "Escape"/);
 });
 
 test("admin saves are page scoped and sensitive AI key changes stay isolated", () => {

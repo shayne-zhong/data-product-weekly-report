@@ -431,10 +431,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             </section>
             <section class="panel admin-section" data-admin-panel="members" hidden>
               <div class="admin-member-filters"><input id="adminMemberSearch" placeholder="搜索姓名或账号" /><select id="adminMemberRoleFilter"><option value="all">全部角色</option><option value="member">普通用户</option><option value="module_leader">模块负责人</option><option value="leader">部门负责人</option></select><select id="adminMemberEnabledFilter"><option value="all">全部状态</option><option value="true">已启用</option><option value="false">已停用</option></select></div>
-              <div id="leaderMembersControls" hidden>
-              <div class="admin-section-head"><div><h3>部门成员</h3><p>查看本部门成员，重置密码或启用/停用账号。</p></div></div>
-              <div id="leaderAccountsList" class="admin-list"></div>
-              </div>
               <div id="adminMembersControls">
               <div class="admin-section-head"><div><h3>账号管理</h3><p>维护可注册成员及其所属部门。</p></div><button class="ghost-btn" id="addAdminAccountBtn">+ 新增账号</button></div>
               <div id="adminAccountsList" class="admin-list"></div>
@@ -887,11 +883,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let leaderModules = [];
     let scheduledTasks = [];
     let scheduledTaskRunning = false;
-    let adminDirty = false;
     let adminPageDirty = false;
     let adminPendingSection = "";
+    let adminPendingView = "";
+    let adminOverlayTrigger = null;
     let adminMemberFilters = { search: "", role: "all", enabled: "all", departmentId: "", targetId: "" };
-    let adminSelectedMemberUsername = "";
     let adminResetUsername = "";
     let goalsSaveTimer = null;
     let taskSearchQuery = "";
@@ -3990,7 +3986,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function openAdminDrilldown(section, filters = {}) {
-      adminInheritedFilters = { ...filters, periodType: adminPeriodType, anchorDate: adminAnchorDate };
+      adminInheritedFilters = { ...filters, departmentId: filters.departmentId || (adminRole === "admin" ? adminDashboardDepartmentId : ""), periodType: adminPeriodType, anchorDate: adminAnchorDate };
       setAdminSection(section);
       renderAdmin();
     }
@@ -4090,13 +4086,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function openAdminMemberDrawer(username) {
       const account = currentAdminAccounts().find((item) => item.username === username);
       if (!account) return;
-      adminSelectedMemberUsername = username;
       const department = (adminDraftSettings.departments || []).find((item) => item.id === account.departmentId);
       const isLeader = department?.leaderUsername === username || (adminRole === "leader" && username === currentUser?.username);
       const leaderLocked = adminRole === "leader" && isLeader;
       const roleControl = !isLeader ? `<div><dt>角色与负责范围</dt><dd><select data-admin-member-role="${escapeHtml(username)}"><option value="member" ${account.role !== "module_leader" ? "selected" : ""}>普通用户</option><option value="module_leader" ${account.role === "module_leader" ? "selected" : ""}>模块负责人</option></select></dd></div>` : "";
-      $("adminMemberDrawerBody").innerHTML = `<dl class="admin-member-drawer-grid"><div><dt>账号</dt><dd>${escapeHtml(account.username)}</dd></div><div><dt>部门</dt><dd>${escapeHtml(department?.name || account.departmentId || "本部门")}</dd></div><div><dt>当前角色</dt><dd>${isLeader ? "部门负责人" : account.role === "module_leader" ? "模块负责人" : "普通用户"}</dd></div>${roleControl}<div><dt>负责范围</dt><dd>${escapeHtml((account.managedModules || []).join("、") || "无")}</dd></div><div><dt>账号状态</dt><dd>${account.enabled === false ? "已停用" : "已启用"}</dd></div></dl><div class="actions" style="justify-content:flex-start;margin-top:20px">${account.registered && !leaderLocked ? `<button class="ghost-btn" data-admin-reset-password="${escapeHtml(username)}">重置密码</button>` : ""}${!leaderLocked ? `<button class="${account.enabled === false ? "ghost-btn" : "danger-btn"}" data-admin-account-enabled="${escapeHtml(username)}" data-next-enabled="${account.enabled === false}">${account.enabled === false ? "启用账号" : "停用账号"}</button>` : `<span class="subtitle">负责人账号由全局管理员维护</span>`}</div>`;
+      const departmentModules = department?.modules || leaderModules;
+      const allowedModules = adminRole === "leader" ? departmentModules.filter((module) => leaderModules.includes(module)) : departmentModules;
+      const managedModulesControl = !isLeader ? `<div><dt>负责模块</dt><dd><select multiple data-admin-member-managed-modules="${escapeHtml(username)}" ${account.role === "module_leader" ? "" : "disabled"}>${allowedModules.map((module) => `<option value="${escapeHtml(module)}" ${(account.managedModules || []).includes(module) ? "selected" : ""}>${escapeHtml(module)}</option>`).join("")}</select><div class="subtitle">模块负责人至少选择一个本部门模块。</div></dd></div>` : "";
+      $("adminMemberDrawerBody").innerHTML = `<dl class="admin-member-drawer-grid"><div><dt>账号</dt><dd>${escapeHtml(account.username)}</dd></div><div><dt>部门</dt><dd>${escapeHtml(department?.name || account.departmentId || "本部门")}</dd></div><div><dt>当前角色</dt><dd>${isLeader ? "部门负责人" : account.role === "module_leader" ? "模块负责人" : "普通用户"}</dd></div>${roleControl}${managedModulesControl}<div><dt>账号状态</dt><dd>${account.enabled === false ? "已停用" : "已启用"}</dd></div></dl><div class="actions" style="justify-content:flex-start;margin-top:20px">${account.registered && !leaderLocked ? `<button class="ghost-btn" data-admin-reset-password="${escapeHtml(username)}">重置密码</button>` : ""}${!leaderLocked ? `<button class="${account.enabled === false ? "ghost-btn" : "danger-btn"}" data-admin-account-enabled="${escapeHtml(username)}" data-next-enabled="${account.enabled === false}">${account.enabled === false ? "启用账号" : "停用账号"}</button>` : `<span class="subtitle">负责人账号由全局管理员维护</span>`}</div>`;
+      adminOverlayTrigger = document.activeElement;
       $("adminMemberDrawer").hidden = false;
+      requestAnimationFrame(() => $("closeAdminMemberDrawer").focus());
     }
 
     function renderAdminNavigation() {
@@ -4110,7 +4110,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== adminActiveSection; });
       $("adminWorkspaceTitle").textContent = adminSectionTitles[adminActiveSection] || adminSectionTitles.overview;
       $("adminScopeLabel").textContent = adminRole === "leader" ? "本部门" : "全局组织";
-      $("leaderMembersControls").hidden = true;
       $("adminMembersControls").hidden = false;
       $("addAdminAccountBtn").hidden = adminRole === "leader";
       $("leaderModuleControls").hidden = adminRole !== "leader";
@@ -4189,26 +4188,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function renderLeaderAdmin() {
       renderAdminNavigation();
       if (adminActiveSection === "overview") renderAdminOverview();
-      $("leaderAccountsList").innerHTML = leaderAccounts.map((account) => {
-        const isSelf = account.username === currentUser?.username;
-        const role = account.role === "module_leader" ? "module_leader" : "member";
-        const managedModules = account.managedModules || [];
-        return `
-        <div class="admin-row role">
-          <span>${escapeHtml(account.name)}</span>
-          <span>${escapeHtml(account.username)}</span>
-          ${isSelf ? `<span class="account-badge">部门负责人</span>` : `<select data-leader-account-role="${escapeHtml(account.username)}"><option value="member" ${role === "member" ? "selected" : ""}>普通用户</option><option value="module_leader" ${role === "module_leader" ? "selected" : ""}>模块负责人</option></select>`}
-          ${isSelf ? `<span class="subtitle">由管理员维护</span>` : `<select multiple size="2" data-leader-account-managed-modules="${escapeHtml(account.username)}" ${role !== "module_leader" ? "disabled" : ""}>${leaderModules.map((moduleName) => `<option value="${escapeHtml(moduleName)}" ${managedModules.includes(moduleName) ? "selected" : ""}>${escapeHtml(moduleName)}</option>`).join("")}</select>`}
-          <select data-leader-account-enabled="${escapeHtml(account.username)}" ${account.registered ? "" : "disabled"}>
-            <option value="true" ${account.enabled !== false ? "selected" : ""}>启用</option>
-            <option value="false" ${account.enabled === false ? "selected" : ""}>停用</option>
-          </select>
-          <div class="row-actions">
-            ${account.registered ? `<button class="btn small ghost" data-admin-reset-password="${escapeHtml(account.username)}">重置密码</button>` : `<span class="subtitle">未注册</span>`}
-          </div>
-        </div>
-      `;
-      }).join("") || `<div class="subtitle">本部门暂无成员</div>`;
       $("leaderModulesList").innerHTML = leaderModules.map((moduleName, index) => `
         <div class="admin-row" data-leader-module-row="${index}">
           <input data-leader-module="${index}" value="${escapeHtml(moduleName)}" placeholder="例如 AI+X项目" />
@@ -4221,7 +4200,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function markAdminDirty(message = "存在未保存修改") {
-      adminDirty = true;
       adminPageDirty = true;
       setSyncStatus(message, "warn");
     }
@@ -4264,7 +4242,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function finishAdminPageSave() {
-      adminDirty = false;
       adminPageDirty = false;
       renderAdmin();
       setSyncStatus("本页配置已保存", "ok");
@@ -4346,7 +4323,20 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
       adminPendingSection = safeSection;
       $("adminNavigationError").textContent = "";
+      adminOverlayTrigger = document.activeElement;
       $("adminUnsavedModal").hidden = false;
+      requestAnimationFrame(() => $("adminContinueEditingBtn").focus());
+      return false;
+    }
+
+    async function confirmAdminViewNavigation(nextView) {
+      if ($("adminView").hidden || !adminPageDirty) return true;
+      adminPendingView = nextView;
+      adminPendingSection = "";
+      $("adminNavigationError").textContent = "";
+      adminOverlayTrigger = document.activeElement;
+      $("adminUnsavedModal").hidden = false;
+      requestAnimationFrame(() => $("adminContinueEditingBtn").focus());
       return false;
     }
 
@@ -4423,7 +4413,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     document.addEventListener("click", async (event) => {
       const viewBtn = event.target.closest("[data-view]");
-      if (viewBtn) setView(viewBtn.dataset.view);
+      if (viewBtn) {
+        if (await confirmAdminViewNavigation(viewBtn.dataset.view)) setView(viewBtn.dataset.view);
+        return;
+      }
 
       const taskViewButton = event.target.closest("[data-task-view-mode]");
       if (taskViewButton) {
@@ -5187,16 +5180,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("saveAdminModulesBtn").addEventListener("click", () => saveAdminModulesPage().catch((error) => setSyncStatus(error.message || "工作模块保存失败", "warn")));
     $("saveAdminBusinessBtn").addEventListener("click", () => saveAdminBusinessPage().catch((error) => setSyncStatus(error.message || "归档配置保存失败", "warn")));
     $("saveAdminSecurityBtn").addEventListener("click", () => saveAdminSecurityPage().catch((error) => setSyncStatus(error.message || "安全配置保存失败", "warn")));
-    $("adminContinueEditingBtn").addEventListener("click", () => { adminPendingSection = ""; $("adminUnsavedModal").hidden = true; });
+    $("adminContinueEditingBtn").addEventListener("click", () => {
+      adminPendingSection = "";
+      adminPendingView = "";
+      $("adminUnsavedModal").hidden = true;
+      adminOverlayTrigger?.focus?.();
+    });
     $("adminDiscardChangesBtn").addEventListener("click", async () => {
       const nextSection = adminPendingSection;
+      const nextView = adminPendingView;
       adminPendingSection = "";
+      adminPendingView = "";
       $("adminUnsavedModal").hidden = true;
       try {
         if (adminRole === "leader") await loadLeaderWorkspace(); else await loadSettings({ admin: true });
-        adminDirty = false;
         adminPageDirty = false;
-        await leaveAdminPage(nextSection);
+        if (nextView) setView(nextView); else await leaveAdminPage(nextSection);
       } catch (error) { setSyncStatus(error.message || "配置读取失败", "warn"); }
     });
     $("adminSaveAndLeaveBtn").addEventListener("click", async () => {
@@ -5204,9 +5203,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         const saved = await saveAdminSectionForNavigation(adminActiveSection);
         if (!saved) return;
         const nextSection = adminPendingSection;
+        const nextView = adminPendingView;
         adminPendingSection = "";
+        adminPendingView = "";
         $("adminUnsavedModal").hidden = true;
-        await leaveAdminPage(nextSection);
+        if (nextView) setView(nextView); else await leaveAdminPage(nextSection);
       } catch (error) {
         $("adminNavigationError").textContent = error.message || "保存失败，请继续编辑后重试";
         setSyncStatus("后台配置保存失败", "warn");
@@ -5278,9 +5279,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (id === "adminMemberEnabledFilter") adminMemberFilters.enabled = event.target.value;
       renderAdmin();
     }));
-    $("closeAdminMemberDrawer").addEventListener("click", () => { $("adminMemberDrawer").hidden = true; });
+    function closeAdminMemberDrawer() {
+      $("adminMemberDrawer").hidden = true;
+      adminOverlayTrigger?.focus?.();
+    }
+    $("closeAdminMemberDrawer").addEventListener("click", closeAdminMemberDrawer);
     $("adminMemberDrawer").addEventListener("click", async (event) => {
-      if (event.target === $("adminMemberDrawer")) { $("adminMemberDrawer").hidden = true; return; }
+      if (event.target === $("adminMemberDrawer")) { closeAdminMemberDrawer(); return; }
       const resetUsername = event.target.closest("[data-admin-reset-password]")?.dataset.adminResetPassword;
       if (resetUsername) return openAdminPasswordReset(resetUsername);
       const enabledButton = event.target.closest("[data-admin-account-enabled]");
@@ -5296,70 +5301,34 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           if (account) account.enabled = enabled;
           markAdminDirty();
         }
-        $("adminMemberDrawer").hidden = true;
+        closeAdminMemberDrawer();
         renderAdmin();
       } catch (error) { setSyncStatus(error.message || "账号状态更新失败", "warn"); }
     });
     $("adminMemberDrawer").addEventListener("change", async (event) => {
-      const username = event.target.dataset.adminMemberRole;
+      const username = event.target.dataset.adminMemberRole || event.target.dataset.adminMemberManagedModules;
       if (!username) return;
-      const role = event.target.value === "module_leader" ? "module_leader" : "member";
-      try {
-        if (adminRole === "leader") {
-          await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(username)}/role`, { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ role, managedModules: role === "module_leader" ? (leaderAccounts.find((item) => item.username === username)?.managedModules || []) : [] }) });
-          await loadLeaderWorkspace();
-        } else {
-          const account = adminDraftSettings.accounts.find((item) => item.username === username);
-          if (account) { account.role = role; if (role === "member") account.managedModules = []; }
-          markAdminDirty();
-        }
-        $("adminMemberDrawer").hidden = true;
-        renderAdmin();
-      } catch (error) { setSyncStatus(error.message || "角色更新失败", "warn"); }
-    });
-    $("leaderAccountsList").addEventListener("click", (event) => {
-      const resetUsername = event.target.closest("[data-admin-reset-password]")?.dataset.adminResetPassword;
-      if (resetUsername) openAdminPasswordReset(resetUsername);
-    });
-    $("leaderAccountsList").addEventListener("change", async (event) => {
-      const roleUsername = event.target.dataset.leaderAccountRole || event.target.dataset.leaderAccountManagedModules;
-      if (roleUsername) {
-        const row = event.target.closest(".admin-row");
-        const role = row.querySelector("[data-leader-account-role]")?.value || "member";
-        const managedModules = [...(row.querySelector("[data-leader-account-managed-modules]")?.selectedOptions || [])].map((option) => option.value);
-        if (event.target.dataset.leaderAccountRole && role === "module_leader" && !managedModules.length) {
-          row.querySelector("[data-leader-account-managed-modules]").disabled = false;
-          return;
-        }
-        try {
-          await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(roleUsername)}/role`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
-            body: JSON.stringify({ role, managedModules }),
-          });
-          setSyncStatus("人员权限已更新", "ok");
-        } catch (error) {
-          setSyncStatus(error.message || "权限更新失败", "warn");
-        }
-        await loadLeaderWorkspace();
-        renderAdmin();
+      const roleSelect = $("adminMemberDrawerBody").querySelector("[data-admin-member-role]");
+      const managedSelect = $("adminMemberDrawerBody").querySelector("[data-admin-member-managed-modules]");
+      const role = roleSelect?.value === "module_leader" ? "module_leader" : "member";
+      const managedModules = role === "module_leader" ? [...(managedSelect?.selectedOptions || [])].map((option) => option.value) : [];
+      if (role === "module_leader" && !managedModules.length) {
+        setSyncStatus("模块负责人至少选择一个本部门模块", "warn");
+        if (managedSelect) managedSelect.disabled = false;
         return;
       }
-      const username = event.target.dataset.leaderAccountEnabled;
-      if (!username) return;
-      const enabled = event.target.value === "true";
       try {
-        await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(username)}/enabled`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
-          body: JSON.stringify({ enabled }),
-        });
-        setSyncStatus(enabled ? "已启用账号" : "已停用账号", "ok");
-      } catch (error) {
-        setSyncStatus(error.message || "操作失败", "warn");
-      }
-      await loadLeaderWorkspace();
-      renderAdmin();
+        if (adminRole === "leader") {
+          await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(username)}/role`, { method: "PATCH", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ role, managedModules }) });
+          await loadLeaderWorkspace();
+        } else {
+          const draftAccount = adminDraftSettings.accounts.find((item) => item.username === username);
+          if (draftAccount) { draftAccount.role = role; draftAccount.managedModules = managedModules; }
+          markAdminDirty();
+        }
+        closeAdminMemberDrawer();
+        renderAdmin();
+      } catch (error) { setSyncStatus(error.message || "角色更新失败", "warn"); }
     });
     $("addLeaderModuleBtn").addEventListener("click", () => {
       leaderModules.push("");
@@ -5494,12 +5463,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           body: JSON.stringify({ ai: { clearApiKey: true } }),
         });
         applySettings(result.settings || {});
-        adminDirty = false;
+        adminPageDirty = false;
         $("adminAiApiKey").value = "";
         renderAdmin();
         setSyncStatus("AI 密钥已清除", "ok");
       } catch (error) {
         setSyncStatus(error.message || "清除失败", "warn");
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!$("adminMemberDrawer").hidden) {
+        event.preventDefault();
+        closeAdminMemberDrawer();
+      } else if (!$("adminUnsavedModal").hidden) {
+        event.preventDefault();
+        $("adminContinueEditingBtn").click();
       }
     });
     window.addEventListener("beforeunload", (event) => {
