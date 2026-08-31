@@ -708,7 +708,7 @@ test("admin dirty protection covers top navigation and accessible overlays", () 
   assert.match(html, /async function confirmAdminViewNavigation\(nextView\)/);
   assert.match(html, /await confirmAdminViewNavigation\(viewBtn\.dataset\.view\)/);
   assert.match(html, /adminPendingView/);
-  assert.match(html, /adminOverlayTrigger = document\.activeElement/);
+  assert.match(html, /function openAdminOverlay\(id, initialFocusId\)/);
   assert.match(html, /openAdminOverlay\("adminMemberDrawer", "closeAdminMemberDrawer"\)/);
   assert.match(html, /openAdminOverlay\("adminUnsavedModal", "adminContinueEditingBtn"\)/);
   assert.match(html, /event\.key !== "Escape"/);
@@ -1135,6 +1135,14 @@ test("admin overlay focus cycles and pending actions reject duplicate submits be
   assert.equal(failed.success, false);
   assert.equal((await runner.run(async () => { calls += 1; })).success, true);
   assert.equal(calls, 3);
+});
+
+test("password reset joins the nested admin overlay focus stack", () => {
+  const source = html.match(/ {4}function openAdminPasswordReset\(username\) \{[\s\S]*?(?=\r?\n\r?\n {4}function closeAdminPasswordReset)/)?.[0] || "";
+  const closeSource = html.match(/ {4}function closeAdminPasswordReset\(\) \{[\s\S]*?\r?\n {4}\}/)?.[0] || "";
+  assert.match(source, /openAdminOverlay\("adminResetPasswordModal", "adminResetPassword"\)/);
+  assert.match(closeSource, /closeAdminOverlay\("adminResetPasswordModal"\)/);
+  assert.match(html, /if \(trapAdminOverlayFocus\(event\)\) return;/);
 });
 
 test("audit filter uses the same Asia Shanghai date as its display", () => {

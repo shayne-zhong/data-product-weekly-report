@@ -4348,20 +4348,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function openAdminPasswordReset(username) {
-      adminOverlayTrigger = document.activeElement;
       adminResetUsername = String(username || "").trim().toLowerCase();
       $("adminResetPasswordAccount").textContent = `为账号 ${adminResetUsername} 设置新密码。重置后，该账号现有登录会立即失效。`;
       $("adminResetPassword").value = "";
       $("adminResetPasswordConfirm").value = "";
       $("adminResetPasswordMessage").textContent = "";
-      $("adminResetPasswordModal").hidden = false;
-      setTimeout(() => $("adminResetPassword").focus(), 0);
+      openAdminOverlay("adminResetPasswordModal", "adminResetPassword");
     }
 
     function closeAdminPasswordReset() {
-      $("adminResetPasswordModal").hidden = true;
       adminResetUsername = "";
-      adminOverlayTrigger?.focus?.();
+      closeAdminOverlay("adminResetPasswordModal");
     }
 
     function confirmAdminHighRisk(message, title = "确认高风险操作", action = async () => {}) {
