@@ -397,6 +397,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <div class="actions" style="justify-content:flex-start;margin-top:12px;">
           <button class="primary-btn" id="adminLoginBtn">登录后台</button>
         </div>
+        <p id="adminLoginMessage" class="hint" role="alert"></p>
       </div>
       <div id="adminManagePanel" class="admin-center-v2" hidden>
         <aside class="admin-center-v2__aside">
@@ -5291,7 +5292,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const username = $("adminUsername").value.trim();
       const password = $("adminPassword").value;
       if (!username || !password) {
-        $("adminSaveHint").textContent = "请输入后台账号和密码";
+        $("adminLoginMessage").textContent = "请输入后台账号和密码";
         return setSyncStatus("后台登录失败", "warn");
       }
       try {
@@ -5315,10 +5316,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         adminAuthed = false;
         adminRole = "admin";
         sessionStorage.removeItem(adminSessionStorageKey);
-        $("adminSaveHint").textContent = error.message || "后台账号或密码不正确";
+        $("adminLoginMessage").textContent = error.message || "后台账号或密码不正确";
         return setSyncStatus("后台登录失败", "warn");
       }
       $("adminPassword").value = "";
+      $("adminLoginMessage").textContent = "";
       renderAdmin();
       setSyncStatus("后台登录成功", "ok");
     });

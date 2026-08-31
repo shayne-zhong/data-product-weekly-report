@@ -4,6 +4,56 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
+function adminLoginRuntime(apiJson) {
+  const source = html.match(/    \$\("adminLoginBtn"\)\.addEventListener\("click", async \(\) => \{[\s\S]*?\r?\n    \}\);(?=\r?\n    \$\("addAdminDepartmentBtn"\))/)?.[0];
+  assert.ok(source, "missing admin login handler");
+  const elements = {
+    adminLoginBtn: { addEventListener(_event, handler) { this.handler = handler; } },
+    adminUsername: { value: "" },
+    adminPassword: { value: "" },
+    adminLoginMessage: { textContent: "" },
+  };
+  const statuses = [];
+  const handler = new Function("$", "apiJson", "setSyncStatus", `
+    let adminSession = null;
+    let adminSessionToken = "";
+    let adminAuthed = false;
+    let adminRole = "admin";
+    let adminActiveSection = "overview";
+    const adminSessionStorageKey = "admin";
+    const sessionStorage = { removeItem() {}, setItem() {} };
+    const setAdminSection = () => {};
+    const loadSettings = async () => {};
+    const loadAdminDashboard = async () => {};
+    const renderAdmin = () => {};
+    ${source}
+    return $("adminLoginBtn").handler;
+  `)((id) => elements[id], apiJson, (...args) => statuses.push(args));
+  return { elements, handler, statuses };
+}
+
+test("admin login failures render a message without throwing", async () => {
+  const runtime = adminLoginRuntime(async () => { throw new Error("后台账号或密码不正确"); });
+  await assert.doesNotReject(runtime.handler());
+  assert.equal(runtime.elements.adminLoginMessage.textContent, "请输入后台账号和密码");
+
+  runtime.elements.adminUsername.value = "wrong-admin";
+  runtime.elements.adminPassword.value = "wrong-password";
+  await assert.doesNotReject(runtime.handler());
+  assert.equal(runtime.elements.adminLoginMessage.textContent, "后台账号或密码不正确");
+});
+
+test("successful admin login clears its previous error message", async () => {
+  const runtime = adminLoginRuntime(async () => ({ token: "session", role: "admin" }));
+  runtime.elements.adminUsername.value = "admin";
+  runtime.elements.adminPassword.value = "password";
+  runtime.elements.adminLoginMessage.textContent = "后台账号或密码不正确";
+
+  await runtime.handler();
+
+  assert.equal(runtime.elements.adminLoginMessage.textContent, "");
+});
+
 test("loading a week only fetches its tasks and never triggers rollover", () => {
   const source = html.match(/ {4}async function loadWeek\(weekId\) \{[\s\S]*?\r?\n {4}\}/)?.[0] || "";
   assert.ok(source, "missing loadWeek");
