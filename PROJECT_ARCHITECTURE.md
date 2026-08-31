@@ -38,6 +38,7 @@
 - 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
+- 后台管理中心：`lib/admin-access.mjs`、`lib/admin-dashboard.mjs`、`lib/admin-audit.mjs` 分别负责管理范围与设置变更校验、范围化概览、审计记录与查询；由 `test/admin-access.test.mjs`、`test/admin-dashboard.test.mjs`、`test/admin-audit.test.mjs`、`test/leader-admin.test.mjs` 覆盖全局管理员与部门负责人边界。
 - 待办产物：`lib/task-artifact-service.mjs`、`lib/artifact-core.mjs`、`lib/artifact-store.mjs`、`lib/artifact-preview.mjs`、`lib/multipart-file.mjs`。
 - 迁移校验：`lib/legacy-netlify-state.mjs`、`lib/vercel-state-source.mjs`、`lib/state-fingerprint.mjs` 及相关脚本。
 
