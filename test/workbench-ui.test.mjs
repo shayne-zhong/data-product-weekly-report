@@ -1053,3 +1053,41 @@ test("failed overdue migration releases its barrier for a later explicit complet
   assert.equal(writes[1].blocker, "");
   assert.deepEqual(tasks[0], writes[1]);
 });
+
+test("admin operations states the safe catch-up boundary and prevents duplicate runs", () => {
+  assert.match(html, /检查并补跑/);
+  assert.match(html, /只处理已经到期但尚未完成/);
+  assert.match(html, /不会重复创建/);
+  assert.match(html, /来源/);
+  assert.match(html, /执行状态/);
+  assert.match(html, /let adminRunPending = false/);
+  assert.match(html, /if \(!button \|\| adminRunPending\) return/);
+  assert.match(html, /await Promise\.all\(\[loadScheduledTasks\(\), loadAdminDashboard\(\)\]\)/);
+});
+
+test("admin audit view filters safely without export and keeps operations outside leader navigation", () => {
+  assert.match(html, /id="adminAuditList"/);
+  assert.match(html, /data-admin-audit-filter="action"/);
+  assert.match(html, /data-admin-audit-filter="actor"/);
+  assert.match(html, /data-admin-audit-filter="result"/);
+  assert.match(html, /data-admin-audit-filter="departmentId"/);
+  assert.match(html, /data-admin-audit-filter="date"/);
+  assert.match(html, /async function loadAdminAudit\(\)/);
+  assert.match(html, /\/api\/admin\/audit/);
+  assert.match(html, /escapeHtml\(entry\.action/);
+  assert.match(html, /function isSafeAuditDate/);
+  assert.match(html, /adminAuditState === "no-permission"/);
+  assert.match(html, /error\.status === 403/);
+  assert.match(html, /entry\.actorUsername === adminAuditFilters\.actor/);
+  assert.doesNotMatch(html, /导出审计/);
+  assert.doesNotMatch(html, /const leaderAdminSections = new Set\(\[[^\]]*"operations"/);
+});
+
+test("high-risk confirmation dialog exposes pending and keyboard-safe controls", () => {
+  assert.match(html, /id="adminHighRiskModal"/);
+  assert.match(html, /aria-modal="true"/);
+  assert.match(html, /requestAnimationFrame\(\(\) => \$\("cancelAdminHighRiskBtn"\)\.focus\(\)\)/);
+  assert.match(html, /adminOverlayTrigger\?\.focus\?\.\(\)/);
+  assert.match(html, /closeAdminHighRisk\(false\)/);
+  assert.match(html, /adminHighRiskPending/);
+});

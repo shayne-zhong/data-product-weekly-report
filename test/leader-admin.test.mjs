@@ -686,6 +686,11 @@ test("admin dashboard enforces leader department scope and validates global admi
   const leaderB = await setupLeader("dash-b");
   const tokenA = await leaderToken(leaderA.username, leaderA.password);
 
+  const scheduledTasks = await api("/admin/scheduled-tasks", { adminToken: tokenA, includeSyncKey: false });
+  assert.equal(scheduledTasks.statusCode, 403);
+  const scheduledRun = await api("/admin/scheduled-tasks/weekly-task-rollover/run", { method: "POST", adminToken: tokenA, includeSyncKey: false });
+  assert.equal(scheduledRun.statusCode, 403);
+
   const scoped = await api("/admin/dashboard", {
     adminToken: tokenA,
     includeSyncKey: false,

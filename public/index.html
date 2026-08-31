@@ -422,7 +422,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
               <div id="adminOverviewContent" class="admin-overview" aria-live="polite"></div>
             </section>
             <section class="panel admin-section" data-admin-panel="operations" hidden>
-              <div class="admin-section-head"><div><h3>定时任务</h3><p>查看自动执行状态和失败原因；人工重新启动仍受防重机制保护。</p></div><button class="ghost-btn" id="reloadScheduledTasksBtn">刷新状态</button></div>
+              <div class="admin-section-head"><div><h3>运行中心</h3><p>检查并补跑：只处理已经到期但尚未完成的事项，不会重复创建。</p></div><button class="ghost-btn" id="reloadScheduledTasksBtn">刷新状态</button></div>
               <div id="scheduledTaskList" class="scheduled-task-list"></div>
             </section>
             <section class="panel admin-section" data-admin-panel="departments" hidden>
@@ -473,7 +473,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
               <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;">密钥将由服务端加密保存。</div>
               <div class="actions" style="justify-content:flex-end;margin-top:16px;"><button class="primary-btn" id="saveAdminSecurityBtn">保存安全配置</button></div>
             </section>
-            <section class="panel admin-section" data-admin-panel="audit" hidden><div class="admin-section-head"><div><h3>操作审计</h3><p>审计数据将在后续页面能力中接入。</p></div></div></section>
+            <section class="panel admin-section" data-admin-panel="audit" hidden><div class="admin-section-head"><div><h3>操作审计</h3><p>最多显示最近 200 条已授权范围内的记录。</p></div></div><div class="admin-member-filters" data-admin-audit-filters><select data-admin-audit-filter="action"><option value="">全部操作</option></select><select data-admin-audit-filter="actor"><option value="">全部操作人</option></select><select data-admin-audit-filter="result"><option value="">全部结果</option><option value="success">成功</option><option value="failed">失败</option></select><select data-admin-audit-filter="departmentId"><option value="">全部部门</option></select><input type="date" data-admin-audit-filter="date" aria-label="审计日期" /></div><div id="adminAuditList" class="scheduled-task-list" aria-live="polite"></div></section>
           </div>
         </div>
       </div>
@@ -643,6 +643,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <button class="ghost-btn" id="cancelAdminResetPasswordBtn" type="button">取消</button>
         <button class="primary-btn" id="confirmAdminResetPasswordBtn" type="button">确认重置</button>
       </div>
+    </section>
+  </div>
+
+  <div class="modal-mask" id="adminHighRiskModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="adminHighRiskTitle">
+      <div class="modal-head"><strong id="adminHighRiskTitle">确认高风险操作</strong></div>
+      <div class="modal-body"><p class="subtitle" id="adminHighRiskMessage"></p></div>
+      <div class="modal-foot"><span id="adminHighRiskPending" role="status" aria-live="polite"></span><button class="ghost-btn" id="cancelAdminHighRiskBtn" type="button">取消</button><button class="danger-btn" id="confirmAdminHighRiskBtn" type="button">确认执行</button></div>
     </section>
   </div>
 
@@ -883,6 +891,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let leaderModules = [];
     let scheduledTasks = [];
     let scheduledTaskRunning = false;
+    let adminRunPending = false;
+    let adminAudit = [];
+    let adminAuditState = "idle";
+    let adminAuditError = "";
+    let adminAuditFilters = { action: "", actor: "", result: "", departmentId: "", date: "" };
+    let adminHighRiskResolver = null;
+    let adminHighRiskPending = false;
     let adminPageDirty = false;
     let adminPendingSection = "";
     let adminPendingView = "";
@@ -1603,7 +1618,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     async function apiJson(url, options = {}) {
       const response = await authedFetch(url, options);
       if (!response.ok) {
-        throw new Error(await responseErrorMessage(response));
+        const error = new Error(await responseErrorMessage(response));
+        error.status = response.status;
+        throw error;
       }
       return response.json();
     }
@@ -1753,6 +1770,22 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     async function loadScheduledTasks() {
       const result = await apiJson("/api/admin/scheduled-tasks", { headers: adminRequestHeaders() });
       scheduledTasks = result.tasks || [];
+    }
+
+    async function loadAdminAudit() {
+      if (!adminAuthed) return;
+      adminAuditState = "loading";
+      adminAuditError = "";
+      renderAdminAudit();
+      try {
+        const result = await apiJson("/api/admin/audit", { headers: adminRequestHeaders() });
+        adminAudit = Array.isArray(result.audit) ? result.audit.slice(0, 200) : [];
+        adminAuditState = "success";
+      } catch (error) {
+        adminAuditState = error.status === 403 ? "no-permission" : "error";
+        adminAuditError = error.message || "审计记录读取失败";
+      }
+      renderAdminAudit();
     }
 
     function renderModuleFilterOptions() {
@@ -3942,18 +3975,55 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <div class="subtitle">${escapeHtml(task.schedule || "-")}</div>
           </div>
           <div class="scheduled-task-meta">
+            <div><span>执行状态</span><strong>${escapeHtml(statusLabels[task.status] || "未知")}</strong></div>
             <div><span>计划执行</span><strong>${escapeHtml(scheduledTaskTime(task.scheduledAt))}</strong></div>
             <div><span>最近完成</span><strong>${escapeHtml(scheduledTaskTime(task.finishedAt))}</strong></div>
+            <div><span>来源</span><strong>${escapeHtml(task.trigger?.startsWith("manual:") ? "管理员补跑" : "系统调度")}</strong></div>
             ${task.kind === "report-auto-archive" ? "" : `<div><span>结转周次</span><strong>${escapeHtml(`${task.sourceWeekId || "-"} → ${task.targetWeekId || "-"}`)}</strong></div>`}
+            <div><span>检查范围</span><strong>${escapeHtml(task.kind === "report-auto-archive" ? "已到期且尚未归档的报告" : "当前待结转部门与任务")}</strong></div>
             <div><span>执行结果</span><strong>${escapeHtml(taskResult(task))}</strong></div>
-            ${task.error ? `<div class="scheduled-task-error">${escapeHtml(task.error)}</div>` : ""}
+            <div><span>成功 / 跳过 / 失败</span><strong>${Number(task.completedDepartmentCount || task.archivedCount || 0)} / ${Number(task.skippedCount || 0)} / ${Number(task.failedCount || 0)}</strong></div>
+            ${task.error ? `<div class="scheduled-task-error">安全错误摘要：${escapeHtml(task.error)}</div>` : ""}
           </div>
           <div class="scheduled-task-action">
-            <button class="primary-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning ? "启动中..." : task.kind === "report-auto-archive" ? "立即补跑" : "重新启动"}</button>
+            <button class="primary-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || adminRunPending || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning || adminRunPending ? "启动中..." : "检查并补跑"}</button>
             <small>${task.trigger?.startsWith("manual:") ? "最近由管理员启动" : "最近由系统调度"}</small>
           </div>
         </article>
       `).join("") || `<div class="empty">暂无定时任务</div>`;
+    }
+
+    function isSafeAuditDate(value) {
+      return /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+    }
+
+    function auditDateForEntry(value) {
+      const date = new Date(typeof value === "number" ? value : String(value || ""));
+      return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+    }
+
+    function renderAdminAudit() {
+      const root = $("adminAuditList");
+      if (!root) return;
+      if (adminAuditState === "loading") return void (root.innerHTML = `<div class="empty">正在加载审计记录…</div>`);
+      if (adminAuditState === "no-permission") return void (root.innerHTML = `<div class="empty">当前账号无权查看此范围的审计记录。</div>`);
+      if (adminAuditState === "error") return void (root.innerHTML = `<div class="empty">审计记录加载失败：${escapeHtml(adminAuditError)}。请重试。</div>`);
+      if (adminRole === "leader" && !adminAudit.length) return void (root.innerHTML = `<div class="empty">当前部门暂无可查看的审计记录。</div>`);
+      if (!adminAudit.length) return void (root.innerHTML = `<div class="empty">暂无审计记录。</div>`);
+      const actionOptions = [...new Set(adminAudit.map((entry) => String(entry.action || "")).filter(Boolean))];
+      const actorOptions = [...new Set(adminAudit.map((entry) => String(entry.actorUsername || "")).filter(Boolean))];
+      const departmentOptions = [...new Set(adminAudit.map((entry) => String(entry.departmentId || "")).filter(Boolean))];
+      document.querySelector('[data-admin-audit-filter="action"]').innerHTML = `<option value="">全部操作</option>${actionOptions.map((value) => `<option value="${escapeHtml(value)}" ${adminAuditFilters.action === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
+      document.querySelector('[data-admin-audit-filter="actor"]').innerHTML = `<option value="">全部操作人</option>${actorOptions.map((value) => `<option value="${escapeHtml(value)}" ${adminAuditFilters.actor === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
+      document.querySelector('[data-admin-audit-filter="departmentId"]').innerHTML = `<option value="">全部部门</option>${departmentOptions.map((value) => `<option value="${escapeHtml(value)}" ${adminAuditFilters.departmentId === value ? "selected" : ""}>${escapeHtml(value)}</option>`).join("")}`;
+      const selectedDate = isSafeAuditDate(adminAuditFilters.date) ? adminAuditFilters.date : "";
+      document.querySelector('[data-admin-audit-filter="date"]').value = selectedDate;
+      const entries = adminAudit.filter((entry) => (!adminAuditFilters.action || entry.action === adminAuditFilters.action)
+        && (!adminAuditFilters.actor || entry.actorUsername === adminAuditFilters.actor)
+        && (!adminAuditFilters.result || String(entry.result || "success") === adminAuditFilters.result)
+        && (!adminAuditFilters.departmentId || entry.departmentId === adminAuditFilters.departmentId)
+        && (!selectedDate || auditDateForEntry(entry.createdAt) === selectedDate));
+      root.innerHTML = entries.map((entry) => `<article class="scheduled-task-card"><div><div class="scheduled-task-title"><h4>${escapeHtml(entry.action || "未知操作")}</h4><span class="status-pill ${entry.result === "failed" ? "status-risk" : "status-normal"}">${escapeHtml(entry.result || "success")}</span></div><div class="subtitle">${escapeHtml(entry.actorUsername || "系统")} · ${escapeHtml(formatAdminGeneratedAt(entry.createdAt))}</div></div><div class="scheduled-task-meta"><div><span>部门</span><strong>${escapeHtml(entry.departmentId || "全局")}</strong></div><div><span>对象</span><strong>${escapeHtml(entry.targetId || "—")}</strong></div><div><span>说明</span><strong>${escapeHtml(entry.message || "—")}</strong></div></div></article>`).join("") || `<div class="empty">没有符合筛选条件的审计记录。</div>`;
     }
 
     function formatAdminGeneratedAt(value) {
@@ -4052,6 +4122,15 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         adminMemberFilters.targetId = String(adminInheritedFilters.targetId || "");
         if (adminInheritedFilters.alertType === "module-scope-missing") adminMemberFilters.role = "module_leader";
       }
+      if (section === "audit") {
+        adminAuditFilters.action = String(adminInheritedFilters.action || "");
+        adminAuditFilters.actor = String(adminInheritedFilters.actor || "");
+        adminAuditFilters.result = String(adminInheritedFilters.result || "");
+        adminAuditFilters.departmentId = String(adminInheritedFilters.departmentId || "");
+      }
+      if (section === "operations" && /scheduled-task-failed|runtime-failed/.test(String(adminInheritedFilters.alertType || ""))) {
+        setSyncStatus("已定位到运行相关告警，可检查后补跑", "warn");
+      }
       adminInheritedFilters = null;
     }
 
@@ -4124,7 +4203,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!adminAuthed) return;
       if (adminRole === "leader") return renderLeaderAdmin();
       renderAdminNavigation();
+      consumeAdminInheritedFilters(adminActiveSection);
       if (adminActiveSection === "operations") renderScheduledTasks();
+      if (adminActiveSection === "audit") renderAdminAudit();
       if (adminActiveSection === "overview") renderAdminOverview();
       const draftDepartments = adminDraftSettings.departments || [];
       if (!draftDepartments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = draftDepartments[0]?.id || "";
@@ -4180,13 +4261,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥已配置${ai.apiKeyMask ? ` · ${ai.apiKeyMask}` : ""}`
         : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥未配置`;
       $("adminAiEnvHint").textContent = "新密钥只在本次输入时可见，保存后由服务端加密存储。";
-      consumeAdminInheritedFilters(adminActiveSection);
       if (adminActiveSection === "members") renderUnifiedAdminMembers($("adminAccountsList"));
       if (adminActiveSection === "roles") renderUnifiedAdminMembers($("adminRolesList"));
     }
 
     function renderLeaderAdmin() {
       renderAdminNavigation();
+      consumeAdminInheritedFilters(adminActiveSection);
       if (adminActiveSection === "overview") renderAdminOverview();
       $("leaderModulesList").innerHTML = leaderModules.map((moduleName, index) => `
         <div class="admin-row" data-leader-module-row="${index}">
@@ -4194,7 +4275,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <button class="btn small danger" data-remove-leader-module="${index}" ${leaderModules.length <= 1 ? "disabled" : ""}>删除</button>
         </div>
       `).join("");
-      consumeAdminInheritedFilters(adminActiveSection);
       if (adminActiveSection === "members") renderUnifiedAdminMembers($("adminAccountsList"));
       if (adminActiveSection === "roles") renderUnifiedAdminMembers($("adminRolesList"));
     }
@@ -4205,6 +4285,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function openAdminPasswordReset(username) {
+      adminOverlayTrigger = document.activeElement;
       adminResetUsername = String(username || "").trim().toLowerCase();
       $("adminResetPasswordAccount").textContent = `为账号 ${adminResetUsername} 设置新密码。重置后，该账号现有登录会立即失效。`;
       $("adminResetPassword").value = "";
@@ -4217,6 +4298,30 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     function closeAdminPasswordReset() {
       $("adminResetPasswordModal").hidden = true;
       adminResetUsername = "";
+      adminOverlayTrigger?.focus?.();
+    }
+
+    function confirmAdminHighRisk(message, title = "确认高风险操作") {
+      adminOverlayTrigger = document.activeElement;
+      adminHighRiskPending = false;
+      $("adminHighRiskTitle").textContent = title;
+      $("adminHighRiskMessage").textContent = message;
+      $("adminHighRiskPending").textContent = "";
+      $("confirmAdminHighRiskBtn").disabled = false;
+      $("cancelAdminHighRiskBtn").disabled = false;
+      $("adminHighRiskModal").hidden = false;
+      requestAnimationFrame(() => $("cancelAdminHighRiskBtn").focus());
+      return new Promise((resolve) => { adminHighRiskResolver = resolve; });
+    }
+
+    function closeAdminHighRisk(confirmed = false) {
+      if (adminHighRiskPending && !confirmed) return;
+      adminHighRiskPending = false;
+      $("adminHighRiskModal").hidden = true;
+      const resolve = adminHighRiskResolver;
+      adminHighRiskResolver = null;
+      adminOverlayTrigger?.focus?.();
+      resolve?.(confirmed);
     }
 
     async function submitAdminPasswordReset() {
@@ -4290,7 +4395,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     async function saveAdminSecurityPage() {
       const apiKey = $("adminAiApiKey").value.trim();
-      if (apiKey && !confirm("确认设置新的 AI API 密钥？密钥只会提交到服务端加密保存。")) return false;
+      if (apiKey && !await confirmAdminHighRisk("确认设置新的 AI API 密钥？密钥只会提交到服务端加密保存。", "确认设置密钥")) return false;
       const sessionDurationMinutes = Number($("adminSessionDurationMinutes").value);
       if (!Number.isInteger(sessionDurationMinutes) || sessionDurationMinutes < 5 || sessionDurationMinutes > 43200) throw new Error("登录保持时间必须是 5 到 43200 分钟之间的整数");
       const ai = { enabled: adminDraftSettings.ai?.enabled === true, provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek", model: String(adminDraftSettings.ai?.model || "").trim() };
@@ -4344,6 +4449,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setAdminSection(section);
       if (adminActiveSection === "overview") await loadAdminDashboard();
       if (adminActiveSection === "operations") await loadScheduledTasks();
+      if (adminActiveSection === "audit") await loadAdminAudit();
       renderAdmin();
     }
 
@@ -5050,6 +5156,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("adminResetPasswordModal").addEventListener("click", (event) => {
       if (event.target.id === "adminResetPasswordModal") closeAdminPasswordReset();
     });
+    $("cancelAdminHighRiskBtn").addEventListener("click", () => closeAdminHighRisk(false));
+    $("confirmAdminHighRiskBtn").addEventListener("click", () => {
+      if (adminHighRiskPending) return;
+      adminHighRiskPending = true;
+      $("adminHighRiskPending").textContent = "正在确认…";
+      $("confirmAdminHighRiskBtn").disabled = true;
+      $("cancelAdminHighRiskBtn").disabled = true;
+      closeAdminHighRisk(true);
+    });
+    $("adminHighRiskModal").addEventListener("click", (event) => {
+      if (event.target === $("adminHighRiskModal")) closeAdminHighRisk(false);
+    });
     $("confirmAdminResetPasswordBtn").addEventListener("click", async () => {
       const button = $("confirmAdminResetPasswordBtn");
       button.disabled = true;
@@ -5292,6 +5410,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       if (!enabledButton) return;
       const username = enabledButton.dataset.adminAccountEnabled;
       const enabled = enabledButton.dataset.nextEnabled === "true";
+      if (!enabled && !await confirmAdminHighRisk(`确认停用账号 ${username}？该账号将无法继续登录。`, "确认停用成员")) return;
+      enabledButton.disabled = true;
       try {
         if (adminRole === "leader") {
           await apiJson(`/api/admin/leader/accounts/${encodeURIComponent(username)}/enabled`, { method: "POST", headers: { "Content-Type": "application/json", ...adminRequestHeaders() }, body: JSON.stringify({ enabled }) });
@@ -5303,7 +5423,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         }
         closeAdminMemberDrawer();
         renderAdmin();
-      } catch (error) { setSyncStatus(error.message || "账号状态更新失败", "warn"); }
+      } catch (error) { setSyncStatus(error.message || "账号状态更新失败", "warn"); enabledButton.disabled = false; }
     });
     $("adminMemberDrawer").addEventListener("change", async (event) => {
       const username = event.target.dataset.adminMemberRole || event.target.dataset.adminMemberManagedModules;
@@ -5405,13 +5525,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("scheduledTaskList").addEventListener("click", async (event) => {
       const button = event.target.closest("[data-run-scheduled-task]");
-      if (!button || scheduledTaskRunning) return;
+      if (!button || adminRunPending) return;
       const task = scheduledTasks.find((item) => item.id === button.dataset.runScheduledTask);
       const isReportArchive = task?.kind === "report-auto-archive";
       const message = isReportArchive
-        ? "确认立即补跑报告自动归档？只会归档已经到期的报告，不会提前归档仍在编辑的报告。"
-        : "确认立即重新启动周任务结转？已成功结转的部门不会重复创建任务。";
-      if (!confirm(message)) return;
+        ? "确认检查并补跑报告归档？只处理已经到期但尚未完成的报告，只会归档已经到期的报告，不会提前归档仍在编辑的报告。"
+        : "确认检查并补跑周任务？已成功结转的部门不会重复创建任务。";
+      if (!await confirmAdminHighRisk(message, "确认运行补跑")) return;
+      adminRunPending = true;
       scheduledTaskRunning = true;
       renderScheduledTasks();
       try {
@@ -5424,13 +5545,21 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           ? `补跑完成，归档 ${Number(result.result?.archivedCount || 0)} 份`
           : `定时任务执行完成，结转 ${Number(result.result?.rolledTaskCount || 0)} 项`, "ok");
       } catch (error) {
-        setSyncStatus(error.message || "定时任务启动失败", "warn");
+        setSyncStatus(`${error.message || "定时任务启动失败"}，请检查后重试`, "warn");
         await loadScheduledTasks().catch(() => {});
       } finally {
         scheduledTaskRunning = false;
+        adminRunPending = false;
+        await Promise.all([loadScheduledTasks(), loadAdminDashboard()]).catch(() => {});
         renderScheduledTasks();
       }
     });
+    document.querySelectorAll("[data-admin-audit-filter]").forEach((control) => control.addEventListener("change", (event) => {
+      const key = event.target.dataset.adminAuditFilter;
+      const value = String(event.target.value || "");
+      adminAuditFilters[key] = key === "date" && value && !isSafeAuditDate(value) ? "" : value;
+      renderAdminAudit();
+    }));
     $("adminSessionDurationMinutes").addEventListener("input", () => markAdminDirty());
     ["adminWeeklyArchiveTime", "adminMonthlyArchiveTime", "adminQuarterlyArchiveTime"].forEach((id) => $(id).addEventListener("input", () => markAdminDirty()));
     $("adminAiApiKey").addEventListener("input", () => markAdminDirty("输入了新密钥，保存后生效"));
@@ -5455,7 +5584,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
     });
     $("adminAiClearBtn").addEventListener("click", async () => {
-      if (!confirm("确认清除当前 AI API 密钥？清除后 AI 功能将停用。")) return;
+      if (!await confirmAdminHighRisk("确认清除当前 AI API 密钥？清除后 AI 功能将停用。", "确认清除密钥")) return;
+      $("adminAiClearBtn").disabled = true;
       try {
         const result = await apiJson("/api/admin/settings", {
           method: "PATCH",
@@ -5469,6 +5599,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         setSyncStatus("AI 密钥已清除", "ok");
       } catch (error) {
         setSyncStatus(error.message || "清除失败", "warn");
+      } finally {
+        $("adminAiClearBtn").disabled = false;
       }
     });
     document.addEventListener("keydown", (event) => {
@@ -5479,6 +5611,12 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       } else if (!$("adminUnsavedModal").hidden) {
         event.preventDefault();
         $("adminContinueEditingBtn").click();
+      } else if (!$("adminResetPasswordModal").hidden) {
+        event.preventDefault();
+        closeAdminPasswordReset();
+      } else if (!$("adminHighRiskModal").hidden) {
+        event.preventDefault();
+        closeAdminHighRisk(false);
       }
     });
     window.addEventListener("beforeunload", (event) => {
