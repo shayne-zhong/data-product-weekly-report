@@ -314,11 +314,12 @@ function departmentRecordKey(departmentId, recordId) {
 }
 
 function emptyState() {
-  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {}, loginAttempts: {} };
+  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {}, loginAttempts: {}, adminAudit: [] };
 }
 
-function hydrateState(state = {}) {
+export function hydrateState(state = {}) {
   const merged = { ...emptyState(), ...state };
+  merged.adminAudit = Array.isArray(merged.adminAudit) ? merged.adminAudit : [];
   merged.settings = getSettings(merged);
   const fallbackDepartmentId = merged.settings.departments[0].id;
   Object.values(merged.users).forEach((user) => {
