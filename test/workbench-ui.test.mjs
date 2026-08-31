@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
 function adminLoginRuntime(apiJson) {
-  const source = html.match(/    \$\("adminLoginBtn"\)\.addEventListener\("click", async \(\) => \{[\s\S]*?\r?\n    \}\);(?=\r?\n    \$\("addAdminDepartmentBtn"\))/)?.[0];
+  const source = html.match(/ {4}\$\("adminLoginBtn"\)\.addEventListener\("click", async \(\) => \{[\s\S]*?\r?\n {4}\}\);(?=\r?\n {4}\$\("addAdminDepartmentBtn"\))/)?.[0];
   assert.ok(source, "missing admin login handler");
   const elements = {
     adminLoginBtn: { addEventListener(_event, handler) { this.handler = handler; } },
