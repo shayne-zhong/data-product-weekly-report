@@ -646,8 +646,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     </section>
   </div>
 
-  <div class="modal-mask" id="adminHighRiskModal" hidden>
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="adminHighRiskTitle">
+  <div class="modal-mask" id="adminHighRiskModal" hidden role="dialog" aria-modal="true" aria-labelledby="adminHighRiskTitle">
+    <section class="modal">
       <div class="modal-head"><strong id="adminHighRiskTitle">确认高风险操作</strong></div>
       <div class="modal-body"><p class="subtitle" id="adminHighRiskMessage"></p></div>
       <div class="modal-foot"><span id="adminHighRiskPending" role="status" aria-live="polite"></span><button class="ghost-btn" id="cancelAdminHighRiskBtn" type="button">取消</button><button class="danger-btn" id="confirmAdminHighRiskBtn" type="button">确认执行</button></div>
@@ -899,6 +899,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let adminHighRiskResolver = null;
     let adminHighRiskAction = null;
     let adminHighRiskPending = false;
+    let adminOverlayFocusStack = [];
     let adminPageDirty = false;
     let adminPendingSection = "";
     let adminPendingView = "";
@@ -4000,7 +4001,10 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     function auditDateForEntry(value) {
       const date = new Date(typeof value === "number" ? value : String(value || ""));
-      return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+      if (Number.isNaN(date.getTime())) return "";
+      const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
+      const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+      return `${values.year}-${values.month}-${values.day}`;
     }
 
     function renderAdminAudit() {
@@ -4174,9 +4178,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const allowedModules = adminRole === "leader" ? departmentModules.filter((module) => leaderModules.includes(module)) : departmentModules;
       const managedModulesControl = !isLeader ? `<div><dt>负责模块</dt><dd><select multiple data-admin-member-managed-modules="${escapeHtml(username)}" ${account.role === "module_leader" ? "" : "disabled"}>${allowedModules.map((module) => `<option value="${escapeHtml(module)}" ${(account.managedModules || []).includes(module) ? "selected" : ""}>${escapeHtml(module)}</option>`).join("")}</select><div class="subtitle">模块负责人至少选择一个本部门模块。</div></dd></div>` : "";
       $("adminMemberDrawerBody").innerHTML = `<dl class="admin-member-drawer-grid"><div><dt>账号</dt><dd>${escapeHtml(account.username)}</dd></div><div><dt>部门</dt><dd>${escapeHtml(department?.name || account.departmentId || "本部门")}</dd></div><div><dt>当前角色</dt><dd>${isLeader ? "部门负责人" : account.role === "module_leader" ? "模块负责人" : "普通用户"}</dd></div>${roleControl}${managedModulesControl}<div><dt>账号状态</dt><dd>${account.enabled === false ? "已停用" : "已启用"}</dd></div></dl><div class="actions" style="justify-content:flex-start;margin-top:20px">${account.registered && !leaderLocked ? `<button class="ghost-btn" data-admin-reset-password="${escapeHtml(username)}">重置密码</button>` : ""}${!leaderLocked ? `<button class="${account.enabled === false ? "ghost-btn" : "danger-btn"}" data-admin-account-enabled="${escapeHtml(username)}" data-next-enabled="${account.enabled === false}">${account.enabled === false ? "启用账号" : "停用账号"}</button>` : `<span class="subtitle">负责人账号由全局管理员维护</span>`}</div>`;
-      adminOverlayTrigger = document.activeElement;
-      $("adminMemberDrawer").hidden = false;
-      requestAnimationFrame(() => $("closeAdminMemberDrawer").focus());
+      openAdminOverlay("adminMemberDrawer", "closeAdminMemberDrawer");
     }
 
     function renderAdminNavigation() {
@@ -4286,6 +4288,65 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       setSyncStatus(message, "warn");
     }
 
+    function nextAdminOverlayFocusTarget(targets, activeElement, backwards) {
+      if (!targets.length) return null;
+      const current = targets.indexOf(activeElement);
+      if (current < 0) return backwards ? targets.at(-1) : targets[0];
+      return targets[(current + (backwards ? -1 : 1) + targets.length) % targets.length];
+    }
+
+    function createAdminHighRiskRunner() {
+      let pending = false;
+      return { pending: () => pending, run: async (action, onStart) => {
+        if (pending) return { ignored: true };
+        pending = true;
+        onStart?.();
+        try { await action?.(); return { success: true }; }
+        catch (error) { return { success: false, error }; }
+        finally { pending = false; }
+      } };
+    }
+
+    const adminHighRiskRunner = createAdminHighRiskRunner();
+
+    function adminOverlayFocusableElements(overlay) {
+      return [...overlay.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+        .filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
+    }
+
+    function activeAdminOverlay() {
+      return [...adminOverlayFocusStack].reverse().find((entry) => !entry.overlay.hidden) || null;
+    }
+
+    function openAdminOverlay(id, initialFocusId) {
+      const overlay = $(id);
+      adminOverlayFocusStack.push({ id, overlay, opener: document.activeElement });
+      overlay.hidden = false;
+      requestAnimationFrame(() => $(initialFocusId)?.focus());
+    }
+
+    function closeAdminOverlay(id) {
+      const index = [...adminOverlayFocusStack].map((entry) => entry.id).lastIndexOf(id);
+      const entry = index < 0 ? null : adminOverlayFocusStack.splice(index, 1)[0];
+      const overlay = entry?.overlay || $(id);
+      overlay.hidden = true;
+      const parent = activeAdminOverlay();
+      const fallback = parent ? adminOverlayFocusableElements(parent.overlay)[0] : null;
+      const target = entry?.opener?.isConnected === false ? fallback : entry?.opener || fallback;
+      target?.focus?.();
+    }
+
+    function trapAdminOverlayFocus(event) {
+      if (event.key !== "Tab") return false;
+      const active = activeAdminOverlay();
+      if (!active) return false;
+      const target = nextAdminOverlayFocusTarget(adminOverlayFocusableElements(active.overlay), document.activeElement, event.shiftKey);
+      if (!target) return false;
+      event.preventDefault();
+      target.focus();
+      return true;
+    }
+
     function openAdminPasswordReset(username) {
       adminOverlayTrigger = document.activeElement;
       adminResetUsername = String(username || "").trim().toLowerCase();
@@ -4304,7 +4365,6 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     }
 
     function confirmAdminHighRisk(message, title = "确认高风险操作", action = async () => {}) {
-      adminOverlayTrigger = document.activeElement;
       adminHighRiskPending = false;
       adminHighRiskAction = action;
       $("adminHighRiskTitle").textContent = title;
@@ -4312,19 +4372,17 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       $("adminHighRiskPending").textContent = "";
       $("confirmAdminHighRiskBtn").disabled = false;
       $("cancelAdminHighRiskBtn").disabled = false;
-      $("adminHighRiskModal").hidden = false;
-      requestAnimationFrame(() => $("cancelAdminHighRiskBtn").focus());
+      openAdminOverlay("adminHighRiskModal", "cancelAdminHighRiskBtn");
       return new Promise((resolve) => { adminHighRiskResolver = resolve; });
     }
 
     function closeAdminHighRisk(confirmed = false) {
       if (adminHighRiskPending && !confirmed) return;
       adminHighRiskPending = false;
-      $("adminHighRiskModal").hidden = true;
       const resolve = adminHighRiskResolver;
       adminHighRiskResolver = null;
       adminHighRiskAction = null;
-      adminOverlayTrigger?.focus?.();
+      closeAdminOverlay("adminHighRiskModal");
       resolve?.(confirmed);
     }
 
@@ -4434,9 +4492,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       }
       adminPendingSection = safeSection;
       $("adminNavigationError").textContent = "";
-      adminOverlayTrigger = document.activeElement;
-      $("adminUnsavedModal").hidden = false;
-      requestAnimationFrame(() => $("adminContinueEditingBtn").focus());
+      openAdminOverlay("adminUnsavedModal", "adminContinueEditingBtn");
       return false;
     }
 
@@ -4445,9 +4501,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       adminPendingView = nextView;
       adminPendingSection = "";
       $("adminNavigationError").textContent = "";
-      adminOverlayTrigger = document.activeElement;
-      $("adminUnsavedModal").hidden = false;
-      requestAnimationFrame(() => $("adminContinueEditingBtn").focus());
+      openAdminOverlay("adminUnsavedModal", "adminContinueEditingBtn");
       return false;
     }
 
@@ -5164,17 +5218,18 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     });
     $("cancelAdminHighRiskBtn").addEventListener("click", () => closeAdminHighRisk(false));
     $("confirmAdminHighRiskBtn").addEventListener("click", async () => {
-      if (adminHighRiskPending) return;
-      adminHighRiskPending = true;
-      $("adminHighRiskPending").textContent = "正在执行，请稍候…";
-      $("confirmAdminHighRiskBtn").disabled = true;
-      $("cancelAdminHighRiskBtn").disabled = true;
-      try {
-        await adminHighRiskAction?.();
+      const outcome = await adminHighRiskRunner.run(adminHighRiskAction, () => {
+        adminHighRiskPending = true;
+        $("adminHighRiskPending").textContent = "正在执行，请稍候…";
+        $("confirmAdminHighRiskBtn").disabled = true;
+        $("cancelAdminHighRiskBtn").disabled = true;
+      });
+      if (outcome.ignored) return;
+      if (outcome.success) {
         closeAdminHighRisk(true);
-      } catch (error) {
+      } else {
         adminHighRiskPending = false;
-        $("adminHighRiskPending").textContent = `执行失败：${error.message || "高风险操作失败"}。请检查后重试。`;
+        $("adminHighRiskPending").textContent = `执行失败：${outcome.error?.message || "高风险操作失败"}。请检查后重试。`;
         $("confirmAdminHighRiskBtn").disabled = false;
         $("cancelAdminHighRiskBtn").disabled = false;
         $("confirmAdminHighRiskBtn").focus();
@@ -5316,15 +5371,14 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     $("adminContinueEditingBtn").addEventListener("click", () => {
       adminPendingSection = "";
       adminPendingView = "";
-      $("adminUnsavedModal").hidden = true;
-      adminOverlayTrigger?.focus?.();
+      closeAdminOverlay("adminUnsavedModal");
     });
     $("adminDiscardChangesBtn").addEventListener("click", async () => {
       const nextSection = adminPendingSection;
       const nextView = adminPendingView;
       adminPendingSection = "";
       adminPendingView = "";
-      $("adminUnsavedModal").hidden = true;
+      closeAdminOverlay("adminUnsavedModal");
       try {
         if (adminRole === "leader") await loadLeaderWorkspace(); else await loadSettings({ admin: true });
         adminPageDirty = false;
@@ -5339,7 +5393,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         const nextView = adminPendingView;
         adminPendingSection = "";
         adminPendingView = "";
-        $("adminUnsavedModal").hidden = true;
+        closeAdminOverlay("adminUnsavedModal");
         if (nextView) setView(nextView); else await leaveAdminPage(nextSection);
       } catch (error) {
         $("adminNavigationError").textContent = error.message || "保存失败，请继续编辑后重试";
@@ -5413,8 +5467,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       renderAdmin();
     }));
     function closeAdminMemberDrawer() {
-      $("adminMemberDrawer").hidden = true;
-      adminOverlayTrigger?.focus?.();
+      closeAdminOverlay("adminMemberDrawer");
     }
     $("closeAdminMemberDrawer").addEventListener("click", closeAdminMemberDrawer);
     $("adminMemberDrawer").addEventListener("click", async (event) => {
@@ -5435,12 +5488,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           if (account) account.enabled = enabled;
           markAdminDirty();
         }
-        closeAdminMemberDrawer();
-        renderAdmin();
       };
       try {
         const updated = enabled ? (await updateEnabled(), true) : await confirmAdminHighRisk(`确认停用账号 ${username}？该账号将无法继续登录。`, "确认停用成员", updateEnabled);
-        if (!updated) enabledButton.disabled = false;
+        if (updated) {
+          closeAdminMemberDrawer();
+          renderAdmin();
+        } else enabledButton.disabled = false;
       } catch (error) { setSyncStatus(error.message || "账号状态更新失败", "warn"); enabledButton.disabled = false; }
     });
     $("adminMemberDrawer").addEventListener("change", async (event) => {
@@ -5615,19 +5669,20 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       });
     });
     document.addEventListener("keydown", (event) => {
+      if (trapAdminOverlayFocus(event)) return;
       if (event.key !== "Escape") return;
-      if (!$("adminMemberDrawer").hidden) {
+      if (!$("adminHighRiskModal").hidden) {
         event.preventDefault();
-        closeAdminMemberDrawer();
+        closeAdminHighRisk(false);
       } else if (!$("adminUnsavedModal").hidden) {
         event.preventDefault();
         $("adminContinueEditingBtn").click();
+      } else if (!$("adminMemberDrawer").hidden) {
+        event.preventDefault();
+        closeAdminMemberDrawer();
       } else if (!$("adminResetPasswordModal").hidden) {
         event.preventDefault();
         closeAdminPasswordReset();
-      } else if (!$("adminHighRiskModal").hidden) {
-        event.preventDefault();
-        closeAdminHighRisk(false);
       }
     });
     window.addEventListener("beforeunload", (event) => {

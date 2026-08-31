@@ -709,8 +709,8 @@ test("admin dirty protection covers top navigation and accessible overlays", () 
   assert.match(html, /await confirmAdminViewNavigation\(viewBtn\.dataset\.view\)/);
   assert.match(html, /adminPendingView/);
   assert.match(html, /adminOverlayTrigger = document\.activeElement/);
-  assert.match(html, /\$\("closeAdminMemberDrawer"\)\.focus\(\)/);
-  assert.match(html, /\$\("adminContinueEditingBtn"\)\.focus\(\)/);
+  assert.match(html, /openAdminOverlay\("adminMemberDrawer", "closeAdminMemberDrawer"\)/);
+  assert.match(html, /openAdminOverlay\("adminUnsavedModal", "adminContinueEditingBtn"\)/);
   assert.match(html, /event\.key !== "Escape"/);
 });
 
@@ -1086,8 +1086,8 @@ test("admin audit view filters safely without export and keeps operations outsid
 test("high-risk confirmation dialog exposes pending and keyboard-safe controls", () => {
   assert.match(html, /id="adminHighRiskModal"/);
   assert.match(html, /aria-modal="true"/);
-  assert.match(html, /requestAnimationFrame\(\(\) => \$\("cancelAdminHighRiskBtn"\)\.focus\(\)\)/);
-  assert.match(html, /adminOverlayTrigger\?\.focus\?\.\(\)/);
+  assert.match(html, /openAdminOverlay\("adminHighRiskModal", "cancelAdminHighRiskBtn"\)/);
+  assert.match(html, /adminOverlayFocusStack/);
   assert.match(html, /closeAdminHighRisk\(false\)/);
   assert.match(html, /adminHighRiskPending/);
 });
@@ -1100,8 +1100,47 @@ test("leader audit renders the shared scoped audit state", () => {
 });
 
 test("high-risk actions stay in the dialog until their request succeeds", () => {
-  assert.match(html, /await adminHighRiskAction\?\.\(\);[\s\S]{0,180}closeAdminHighRisk\(true\)/);
-  assert.match(html, /执行失败：\$\{error\.message \|\| "高风险操作失败"\}/);
+  assert.match(html, /adminHighRiskRunner\.run\(adminHighRiskAction/);
+  assert.match(html, /if \(outcome\.success\) \{\s+closeAdminHighRisk\(true\)/);
+  assert.match(html, /执行失败：\$\{outcome\.error\?\.message \|\| "高风险操作失败"\}/);
   assert.match(html, /await confirmAdminHighRisk\(message, "确认运行补跑", async \(\) =>/);
   assert.match(html, /await confirmAdminHighRisk\("确认清除当前 AI API 密钥？清除后 AI 功能将停用。", "确认清除密钥", async \(\) =>/);
+});
+
+function adminOverlayHelpersRuntime() {
+  const focusSource = html.match(/ {4}function nextAdminOverlayFocusTarget\(targets, activeElement, backwards\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  const runnerSource = html.match(/ {4}function createAdminHighRiskRunner\(\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  assert.ok(focusSource, "missing overlay focus helper");
+  assert.ok(runnerSource, "missing high-risk runner helper");
+  return new Function(`${focusSource}\n${runnerSource}\nreturn { nextAdminOverlayFocusTarget, createAdminHighRiskRunner };`)();
+}
+
+test("admin overlay focus cycles and pending actions reject duplicate submits before retry", async () => {
+  const { nextAdminOverlayFocusTarget, createAdminHighRiskRunner } = adminOverlayHelpersRuntime();
+  const first = { id: "first" };
+  const middle = { id: "middle" };
+  const last = { id: "last" };
+  assert.equal(nextAdminOverlayFocusTarget([first, middle, last], last, false), first);
+  assert.equal(nextAdminOverlayFocusTarget([first, middle, last], first, true), last);
+  const runner = createAdminHighRiskRunner();
+  let release;
+  let calls = 0;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const firstRun = runner.run(async () => { calls += 1; await waiting; });
+  const duplicate = await runner.run(async () => { calls += 1; });
+  assert.equal(duplicate.ignored, true);
+  release();
+  assert.equal((await firstRun).success, true);
+  const failed = await runner.run(async () => { calls += 1; throw new Error("temporary"); });
+  assert.equal(failed.success, false);
+  assert.equal((await runner.run(async () => { calls += 1; })).success, true);
+  assert.equal(calls, 3);
+});
+
+test("audit filter uses the same Asia Shanghai date as its display", () => {
+  const source = html.match(/ {4}function auditDateForEntry\(value\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  assert.ok(source, "missing audit date helper");
+  const auditDateForEntry = new Function(`${source}\nreturn auditDateForEntry;`)();
+  assert.equal(auditDateForEntry(Date.UTC(2026, 7, 31, 16, 30)), "2026-09-01");
+  assert.equal(auditDateForEntry(Date.UTC(2026, 7, 31, 15, 59)), "2026-08-31");
 });
