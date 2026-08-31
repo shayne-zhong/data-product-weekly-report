@@ -13,6 +13,7 @@ import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
+import { validateAdminSettingsTransition } from "../lib/admin-access.mjs";
 import {
   applyWeeklyRollover,
   completeWeeklyRolloverExecution,
@@ -1157,14 +1158,6 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
     return { ...department, leaderUsername, leaderAssignedAt: leaderChanged ? now : previous?.leaderAssignedAt || 0 };
   });
-  const invalidModuleLeader = accounts.find((account) => {
-    if (account.role !== "module_leader") return false;
-    const department = departmentsWithLeaders.find((item) => item.id === account.departmentId);
-    return !account.managedModules.length || account.managedModules.some((moduleName) => !department?.modules.includes(moduleName));
-  });
-  if (invalidModuleLeader) {
-    return json(res, { error: "模块负责人至少负责一个模块，且模块必须属于本部门" }, 400);
-  }
   const next = {
     modules: departmentsWithLeaders[0].modules,
     departments: departmentsWithLeaders,
@@ -1189,6 +1182,7 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   }
   if (!next.modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
   if (!next.accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
+  validateAdminSettingsTransition(current, next);
   state.settings = { ...next, updatedAt: now };
   await saveState(state);
   return json(res, { settings: publicSettings(state, { admin: true }) });
