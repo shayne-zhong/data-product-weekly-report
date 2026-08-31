@@ -674,6 +674,38 @@ test("admin overview hides global health from leaders and navigation marks only 
   assert.match(html, /admin-center-v2__nav button:focus-visible/);
 });
 
+test("admin management uses page-scoped dirty navigation and no legacy global savebar", () => {
+  assert.doesNotMatch(html, /class="admin-savebar panel"/);
+  assert.match(html, /let adminPageDirty = false/);
+  assert.match(html, /let adminPendingSection = ""/);
+  assert.match(html, /id="adminDirtyIndicator"/);
+  assert.match(html, /async function confirmAdminNavigation\(nextSection\)/);
+  assert.match(html, /保存并离开/);
+  assert.match(html, /放弃更改/);
+  assert.match(html, /继续编辑/);
+  assert.match(html, /await saveCurrentAdminPage\(\)/);
+});
+
+test("member and role pages share filters and the semantic member drawer", () => {
+  assert.match(html, /id="adminMemberSearch"/);
+  assert.match(html, /id="adminMemberRoleFilter"/);
+  assert.match(html, /id="adminMemberEnabledFilter"/);
+  assert.match(html, /data-admin-member-detail/);
+  assert.match(html, /id="adminMemberDrawer"/);
+  assert.match(html, /data-admin-account-enabled/);
+  assert.match(html, /data-admin-reset-password/);
+  assert.match(html, /function consumeAdminInheritedFilters/);
+});
+
+test("admin saves are page scoped and sensitive AI key changes stay isolated", () => {
+  assert.match(html, /body: JSON\.stringify\(\{ accounts:/);
+  assert.match(html, /body: JSON\.stringify\(\{ departments:/);
+  assert.match(html, /body: JSON\.stringify\(\{ reportArchive:/);
+  assert.match(html, /body: JSON\.stringify\(\{ sessionDurationMinutes:/);
+  assert.match(html, /body: JSON\.stringify\(\{ ai:/);
+  assert.match(html, /async function saveCurrentAdminPage\(\)/);
+});
+
 test("admin center styles stay rooted and define the responsive enterprise shell", () => {
   const adminCenterStyles = html.slice(html.indexOf(".admin-center-v2{"), html.indexOf("</style>"));
   assert.match(html, /\.admin-center-v2\{[^}]*grid-template-columns:224px minmax\(0,1fr\)/);
