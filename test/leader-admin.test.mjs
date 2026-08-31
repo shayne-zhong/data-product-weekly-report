@@ -619,10 +619,15 @@ test("successful high-risk mutations persist scoped and sanitized audit records"
   const leader = await setupLeader("audit-a");
   const other = await setupLeader("audit-b");
   const memberUsername = uniqueUsername("audit-member");
+  const bulkUsernames = Array.from({ length: 200 }, (_, index) => `${uniqueUsername("audit-bulk")}${index}`);
   const current = await api("/settings", { admin: true });
   await saveSettings({
     departments: current.body.settings.departments,
-    accounts: [...current.body.settings.accounts, { name: "审计成员", username: memberUsername, departmentId: leader.departmentId }],
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "审计成员", username: memberUsername, departmentId: leader.departmentId },
+      ...bulkUsernames.map((username) => ({ name: "批量审计成员", username, departmentId: leader.departmentId })),
+    ],
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
   const token = await leaderToken(leader.username, leader.password);
@@ -655,4 +660,36 @@ test("successful high-risk mutations persist scoped and sanitized audit records"
   const adminAudit = await api("/admin/audit", { admin: true, includeSyncKey: false });
   assert.equal(adminAudit.statusCode, 200);
   assert.ok(adminAudit.body.audit.some((entry) => entry.targetId === memberUsername));
+
+  const markerId = record.id;
+  let beforeBulk = await api("/settings", { admin: true });
+  const leaderModule = beforeBulk.body.settings.departments.find((department) => department.id === leader.departmentId).modules[0];
+  const requestedBulkSet = new Set(bulkUsernames);
+  const persistedBulkUsernames = beforeBulk.body.settings.accounts
+    .filter((account) => requestedBulkSet.has(account.username))
+    .map((account) => account.username);
+  const persistedBulkSet = new Set(persistedBulkUsernames);
+  const batchCount = Math.ceil(201 / persistedBulkUsernames.length);
+  for (let batch = 0; batch < batchCount; batch += 1) {
+    const moduleLeader = batch % 2 === 0;
+    const bulkChanged = await saveSettings({
+      departments: beforeBulk.body.settings.departments,
+      accounts: beforeBulk.body.settings.accounts.map((account) => persistedBulkSet.has(account.username)
+        ? { ...account, role: moduleLeader ? "module_leader" : "member", managedModules: moduleLeader ? [leaderModule] : [] }
+        : account),
+      sessionDurationMinutes: beforeBulk.body.settings.sessionDurationMinutes,
+    });
+    assert.equal(bulkChanged.statusCode, 200);
+    beforeBulk = { body: bulkChanged.body };
+  }
+
+  const capped = await api("/admin/audit", { adminToken: token, includeSyncKey: false });
+  assert.equal(capped.statusCode, 200);
+  assert.equal(capped.body.audit.length, 200);
+  assert.equal(capped.body.audit[0].targetId, persistedBulkUsernames[0]);
+  assert.equal(capped.body.audit.at(-1).targetId, persistedBulkUsernames[199 % persistedBulkUsernames.length]);
+  assert.notEqual(capped.body.audit[0].id, capped.body.audit.at(-1).id);
+  assert.equal(capped.body.audit.some((entry) => entry.id === markerId), false);
+  assert.ok(capped.body.audit[0].createdAt > record.createdAt);
+  assert.ok(capped.body.audit[0].createdAt > capped.body.audit.at(-1).createdAt);
 });
