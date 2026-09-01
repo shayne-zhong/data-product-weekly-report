@@ -212,3 +212,44 @@ test("Vercel Blob writes use the loaded ETag as a conditional update", async () 
   assert.equal(puts[0][2].ifMatch, "etag-1");
   assert.equal(puts[0][2].access, "private");
 });
+
+test("Vercel Blob retries an ETag conflict and merges the latest unrelated state", async () => {
+  let reads = 0;
+  const puts = [];
+  const blob = {
+    async get() {
+      reads += 1;
+      const state = reads === 1
+        ? { tasks: {}, settings: { theme: "light" }, sessions: {} }
+        : { tasks: {}, settings: { theme: "dark" }, sessions: {} };
+      return { blob: { etag: `etag-${reads}` }, stream: new Blob([JSON.stringify(state)]).stream() };
+    },
+    async put(pathname, value, options) {
+      puts.push([pathname, JSON.parse(value), options]);
+      if (puts.length === 1) {
+        const error = new Error("ETag mismatch");
+        error.name = "BlobPreconditionFailedError";
+        throw error;
+      }
+      return { etag: "etag-3" };
+    },
+  };
+  const store = createStateStore({
+    env: { NODE_ENV: "production", VERCEL: "1", BLOB_READ_WRITE_TOKEN: "token" },
+    vercelBlob: blob,
+  });
+  const base = await store.load();
+  const next = structuredClone(base);
+  next.sessions.login = { username: "alice" };
+
+  const persisted = await store.save(next, { baseState: base });
+
+  assert.equal(reads, 2);
+  assert.equal(puts.length, 2);
+  assert.equal(puts[1][2].ifMatch, "etag-2");
+  assert.deepEqual(persisted, {
+    tasks: {},
+    settings: { theme: "dark" },
+    sessions: { login: { username: "alice" } },
+  });
+});
