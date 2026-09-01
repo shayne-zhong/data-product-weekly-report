@@ -1690,6 +1690,89 @@ function accountForOpenTask(settings, task, departmentId) {
     account.departmentId === departmentId && account.username === username) || null;
 }
 
+function appendWebsiteTaskEvent(state, task, action, result, now, message) {
+  appendSyncEvent(state, {
+    source: "website",
+    action,
+    result,
+    taskId: task?.id,
+    taskTitle: task?.title,
+    username: task?.ownerUsername,
+    displayName: task?.owner,
+    message,
+    occurredAt: now,
+  }, { now });
+  state.workbuddy.status ||= {};
+  state.workbuddy.status.lastWritebackAt = now;
+}
+
+const workbuddyEventActions = new Set([
+  "created",
+  "updated",
+  "recreated",
+  "skipped",
+  "failed",
+  "retry_scheduled",
+]);
+const workbuddyEventResults = new Set(["success", "failed", "skipped", "retrying"]);
+
+function normalizedWorkbuddyEvent(body, state, now) {
+  const externalEventId = String(body.event_id || "").trim();
+  const taskId = String(body.task_id || "").trim();
+  const occurredAt = Number(body.occurred_at);
+  if (!externalEventId || !taskId) throw new Error("event_id and task_id are required");
+  if (!workbuddyEventActions.has(body.action) || !workbuddyEventResults.has(body.result)) {
+    throw new Error("Invalid sync event action or result");
+  }
+  if (
+    !Number.isSafeInteger(occurredAt)
+    || Math.abs(now - occurredAt) > 24 * 60 * 60 * 1_000
+  ) {
+    throw new Error("occurred_at is outside the accepted window");
+  }
+  const task = state.tasks[taskId];
+  return {
+    externalEventId: externalEventId.slice(0, 100),
+    source: "workbuddy",
+    action: body.action,
+    result: body.result,
+    taskId,
+    taskTitle: task?.title || "",
+    username: task?.ownerUsername || "",
+    displayName: task?.owner || "",
+    wecomTodoId: String(body.wecom_todo_id || ""),
+    attempt: Number(body.attempt) || 0,
+    message: body.message,
+    occurredAt,
+  };
+}
+
+async function handleWorkbuddySyncEvents(req, res, state, now) {
+  if (req.method !== "POST") return methodNotAllowed(res);
+  const config = await effectiveWorkbuddyConfig(state, { decrypt: decryptSecret });
+  if (!config.enabled) return json(res, { error: "WorkBuddy integration is disabled" }, 503);
+  if (!config.openApiToken || !config.departmentId) {
+    return json(res, { error: "WorkBuddy open API is not configured" }, 503);
+  }
+  if (!workbuddyTokenValid(req.headers?.authorization, config.openApiToken)) {
+    return json(res, { error: "Unauthorized" }, 401);
+  }
+
+  let input;
+  try {
+    input = normalizedWorkbuddyEvent(await readBody(req), state, now);
+  } catch (error) {
+    return json(res, { error: error.message }, 400);
+  }
+  const appended = appendSyncEvent(state, input, { now });
+  if (!appended.duplicate) {
+    state.workbuddy.status ||= {};
+    state.workbuddy.status.lastResultReportedAt = now;
+    await saveState(state);
+  }
+  return json(res, { log_id: appended.event.id, duplicate: appended.duplicate });
+}
+
 async function handleOpenTasks(req, res, state, parts, now) {
   const config = await effectiveWorkbuddyConfig(state, { decrypt: decryptSecret });
   if (!config.enabled) return json(res, { error: "WorkBuddy integration is disabled" }, 503);
@@ -1704,14 +1787,49 @@ async function handleOpenTasks(req, res, state, parts, now) {
   if (req.method === "GET" && parts.length === 2) {
     const updatedSince = parseUpdatedSince(req.query.updated_since);
     if (updatedSince === null) return json(res, { error: "updated_since must be a nonnegative integer" }, 400);
-    const directoryChanged = applyConfiguredDirectoryMappings(state, departmentId);
-    const taskStateChanged = reconcileOpenTasks(state, { departmentId, now });
-    if (directoryChanged || taskStateChanged) await saveState(state);
-    const settings = getSettings(state);
-    const tasks = Object.values(state.tasks || {})
-      .filter((task) => task.departmentId === departmentId && Number(task.openUpdatedAt) > updatedSince)
-      .sort((left, right) => left.openUpdatedAt - right.openUpdatedAt)
-      .map((task) => projectOpenTask(task, accountForOpenTask(settings, task, departmentId)));
+    let tasks;
+    try {
+      applyConfiguredDirectoryMappings(state, departmentId);
+      reconcileOpenTasks(state, { departmentId, now });
+      const settings = getSettings(state);
+      tasks = Object.values(state.tasks || {})
+        .filter((task) => task.departmentId === departmentId && Number(task.openUpdatedAt) > updatedSince)
+        .sort((left, right) => left.openUpdatedAt - right.openUpdatedAt)
+        .map((task) => projectOpenTask(task, accountForOpenTask(settings, task, departmentId)));
+    } catch (error) {
+      state.workbuddy ||= {};
+      state.workbuddy.status ||= {};
+      state.workbuddy.status.lastPollAt = now;
+      state.workbuddy.status.lastPollCount = 0;
+      appendSyncEvent(state, {
+        source: "website",
+        action: "poll_failed",
+        result: "failed",
+        message: error.message || "Task polling failed",
+        occurredAt: now,
+      }, { now });
+      await saveState(state);
+      throw error;
+    }
+    state.workbuddy ||= {};
+    state.workbuddy.status ||= {};
+    state.workbuddy.status.lastPollAt = now;
+    state.workbuddy.status.lastSuccessfulPollAt = now;
+    state.workbuddy.status.lastPollCount = tasks.length;
+    state.workbuddy.status.lastWatermark = tasks.reduce(
+      (watermark, task) => Math.max(watermark, task.updated_at),
+      updatedSince,
+    );
+    if (tasks.length) {
+      appendSyncEvent(state, {
+        source: "website",
+        action: "polled",
+        result: "success",
+        message: `${tasks.length} task(s) returned`,
+        occurredAt: now,
+      }, { now });
+    }
+    await saveState(state);
     return json(res, { tasks });
   }
 
@@ -1724,6 +1842,15 @@ async function handleOpenTasks(req, res, state, parts, now) {
     const existing = state.tasks[taskId];
     if (!existing || existing.departmentId !== departmentId) return json(res, { error: "Task not found" }, 404);
     if (existing.status === "已完成") {
+      appendWebsiteTaskEvent(
+        state,
+        existing,
+        "writeback_terminal",
+        "skipped",
+        now,
+        "Task was already terminal",
+      );
+      await saveState(state);
       return json(res, { code: "TASK_ALREADY_TERMINAL", error: "Task is already terminal" }, 409);
     }
     let task;
@@ -1731,6 +1858,15 @@ async function handleOpenTasks(req, res, state, parts, now) {
       task = applyTaskStatus(existing, "已完成", { now });
     } catch (error) {
       if (error.message === "完成任务前必须关联年度指标并填写贡献数") {
+        appendWebsiteTaskEvent(
+          state,
+          existing,
+          "writeback_rejected",
+          "failed",
+          now,
+          "Task completion requirements were not met",
+        );
+        await saveState(state);
         return json(res, { code: "TASK_COMPLETION_REQUIREMENTS_NOT_MET", error: error.message }, 422);
       }
       throw error;
@@ -1743,6 +1879,14 @@ async function handleOpenTasks(req, res, state, parts, now) {
     };
     state.tasks[taskId] = task;
     reconcileOpenTasks(state, { departmentId, now });
+    appendWebsiteTaskEvent(
+      state,
+      task,
+      "writeback_completed",
+      "success",
+      now,
+      "Task completed from WeCom",
+    );
     await saveState(state);
     return json(res, { task_id: task.id, status: task.status, updated_at: task.openUpdatedAt });
   }
@@ -1775,6 +1919,18 @@ function oauthSessionCookie(token, expiresAt, now, req) {
   ].join("; ");
 }
 
+function appendOAuthEvent(state, action, result, now, { identity, account, message } = {}) {
+  appendSyncEvent(state, {
+    source: "website",
+    action,
+    result,
+    username: account?.username || String(identity?.username || ""),
+    displayName: account?.name || "",
+    message,
+    occurredAt: now,
+  }, { now });
+}
+
 async function handleWecomCallback(req, res, state, now) {
   if (req.method !== "GET") return methodNotAllowed(res);
   const config = await effectiveWorkbuddyConfig(state, { decrypt: decryptSecret });
@@ -1801,12 +1957,21 @@ async function handleWecomCallback(req, res, state, now) {
       token: config.oauthResolverToken,
     });
   } catch (error) {
+    appendOAuthEvent(state, "oauth_rejected", "failed", now, {
+      message: "Identity resolver failed",
+    });
+    await saveState(state);
     return json(res, { error: error.message }, 502);
   }
 
   const departmentId = config.departmentId;
   if (String(identity.corp_id || "").trim() !== config.corpId
     || String(identity.department_id || "").trim() !== departmentId) {
+    appendOAuthEvent(state, "oauth_rejected", "failed", now, {
+      identity,
+      message: "Identity was outside the configured scope",
+    });
+    await saveState(state);
     return json(res, { error: "WeCom identity is outside the configured enterprise or department" }, 403);
   }
 
@@ -1815,18 +1980,35 @@ async function handleWecomCallback(req, res, state, now) {
   const exact = settings.accounts.find((account) =>
     account.departmentId === departmentId && account.username === identity.username);
   if (mapped && mapped.username !== identity.username) {
+    appendOAuthEvent(state, "oauth_rejected", "failed", now, {
+      identity,
+      message: "WeCom userid was already mapped",
+    });
+    await saveState(state);
     return json(res, { code: "WECOM_MAPPING_CONFLICT", error: "WeCom userid is already mapped" }, 409);
   }
   const account = mapped || exact;
   const department = settings.departments.find((item) => item.id === departmentId);
   const user = account ? state.users[account.username] : null;
   if (!account || account.departmentId !== departmentId || account.enabled === false || !department?.enabled || !user) {
+    appendOAuthEvent(state, "oauth_rejected", "failed", now, {
+      identity,
+      account,
+      message: "No active website account matched the identity",
+    });
+    await saveState(state);
     return json(res, { error: "No active registered website account matches this identity" }, 403);
   }
 
   try {
     bindWecomUserId(state.settings.accounts, account.username, identity.wecom_userid);
   } catch (error) {
+    appendOAuthEvent(state, "oauth_rejected", "failed", now, {
+      identity,
+      account,
+      message: "WeCom userid mapping conflicted",
+    });
+    await saveState(state);
     return json(res, { code: "WECOM_MAPPING_CONFLICT", error: error.message }, 409);
   }
   user.departmentId = departmentId;
@@ -1837,6 +2019,11 @@ async function handleWecomCallback(req, res, state, now) {
   const token = randomId("session");
   const expiresAt = now + settings.sessionDurationMinutes * 60_000;
   state.sessions[token] = { username: account.username, departmentId, createdAt: now, expiresAt };
+  appendOAuthEvent(state, "oauth_mapped", "success", now, {
+    identity,
+    account,
+    message: "OAuth sign-in mapped successfully",
+  });
   await saveState(state);
 
   res.setHeader("Cache-Control", "no-store");
@@ -1851,10 +2038,12 @@ export default async function handler(req, res) {
   const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
   const parts = routePath.split("/").filter(Boolean);
   const openTaskRequest = parts[0] === "open" && parts[1] === "tasks";
+  const openSyncEventRequest = parts[0] === "open" && parts[1] === "sync-events";
   const wecomCallbackRequest = parts[0] === "wecom" && parts[1] === "callback";
   const workbuddyAdminRequest = parts[0] === "admin" && parts[1] === "workbuddy";
   const mutating = !["GET", "HEAD"].includes(req.method)
     || openTaskRequest
+    || openSyncEventRequest
     || wecomCallbackRequest
     || workbuddyAdminRequest;
   const release = mutating ? await mutationLock.acquire() : () => {};
@@ -1886,6 +2075,7 @@ export default async function handler(req, res) {
     }
     const actor = currentUser(req, state, now);
     if (openTaskRequest) return await handleOpenTasks(req, res, state, parts, now);
+    if (openSyncEventRequest) return await handleWorkbuddySyncEvents(req, res, state, now);
     if (wecomCallbackRequest) return await handleWecomCallback(req, res, state, now);
     if (parts[0] === "auth") return await handleAuth(req, res, state, parts[1], now);
     if (parts[0] === "admin") return await handleAdmin(req, res, state, parts, now, release);
