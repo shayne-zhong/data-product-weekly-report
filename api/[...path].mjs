@@ -15,6 +15,16 @@ import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
 import { projectOpenTask, reconcileOpenTasks } from "../lib/open-task-sync.mjs";
 import {
+  effectiveWorkbuddyConfig,
+  publicWorkbuddyConfig,
+  validateWorkbuddyConfigPatch,
+} from "../lib/workbuddy-config.mjs";
+import {
+  appendSyncEvent,
+  querySyncEvents,
+  summarizeSyncEvents,
+} from "../lib/workbuddy-sync-log.mjs";
+import {
   applyDirectoryMappings,
   bindWecomUserId,
   consumeOAuthState,
@@ -1357,6 +1367,174 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
   return json(res, { error: "Not found" }, 404);
 }
 
+function workbuddyMappings(state) {
+  const config = publicWorkbuddyConfig(state);
+  return getSettings(state).accounts
+    .filter((account) => account.departmentId === config.departmentId)
+    .map((account) => ({
+      username: account.username,
+      displayName: account.name || account.username,
+      enabled: account.enabled !== false,
+      wecomUserId: String(account.wecomUserId || ""),
+      mappedAt: Number(account.wecomMappedAt || 0),
+      mappedBy: String(account.wecomMappedBy || ""),
+    }))
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, "zh-CN"));
+}
+
+function workbuddyAdminPayload(state, now) {
+  const mappings = workbuddyMappings(state);
+  const savedStatus = state.workbuddy?.status || {};
+  return {
+    config: publicWorkbuddyConfig(state),
+    status: {
+      lastPollAt: Number(savedStatus.lastPollAt || 0),
+      lastSuccessfulPollAt: Number(savedStatus.lastSuccessfulPollAt || 0),
+      lastPollCount: Number(savedStatus.lastPollCount || 0),
+      lastWatermark: Number(savedStatus.lastWatermark || 0),
+      lastWritebackAt: Number(savedStatus.lastWritebackAt || 0),
+      lastResultReportedAt: Number(savedStatus.lastResultReportedAt || 0),
+    },
+    summary: {
+      ...summarizeSyncEvents(state, { now }),
+      unmapped: mappings.filter((mapping) => mapping.enabled && !mapping.wecomUserId).length,
+    },
+    mappings,
+  };
+}
+
+async function handleWorkbuddyAdminConfig(req, res, state, now, admin) {
+  const body = await readBody(req);
+  try {
+    validateWorkbuddyConfigPatch(body);
+  } catch (error) {
+    return json(res, { error: error.message }, 400);
+  }
+
+  const current = state.workbuddy || {};
+  const next = structuredClone(current);
+  const changedFields = [];
+  const assignText = (bodyKey, storedKey) => {
+    if (!Object.hasOwn(body, bodyKey)) return;
+    next[storedKey] = String(body[bodyKey] || "").trim();
+    changedFields.push(bodyKey);
+  };
+
+  if (Object.hasOwn(body, "enabled")) {
+    next.enabled = body.enabled;
+    changedFields.push("enabled");
+  }
+  assignText("department_id", "departmentId");
+  assignText("oauth_resolver_url", "oauthResolverUrl");
+  assignText("corp_id", "corpId");
+
+  if (Object.hasOwn(body, "open_api_token")) {
+    const token = String(body.open_api_token).trim();
+    next.openApiToken = { encrypted: await encryptSecret(token), last4: token.slice(-4) };
+    changedFields.push("open_api_token");
+  }
+  if (body.clear_open_api_token === true) {
+    delete next.openApiToken;
+    changedFields.push("clear_open_api_token");
+  }
+  if (Object.hasOwn(body, "oauth_resolver_token")) {
+    const token = String(body.oauth_resolver_token).trim();
+    next.oauthResolverToken = {
+      encrypted: await encryptSecret(token),
+      last4: token.slice(-4),
+    };
+    changedFields.push("oauth_resolver_token");
+  }
+  if (body.clear_oauth_resolver_token === true) {
+    delete next.oauthResolverToken;
+    changedFields.push("clear_oauth_resolver_token");
+  }
+
+  let effective;
+  try {
+    effective = await effectiveWorkbuddyConfig(
+      { ...state, workbuddy: next },
+      { decrypt: decryptSecret },
+    );
+  } catch (error) {
+    return json(res, { error: error.message }, 400);
+  }
+  if (effective.openApiToken && effective.openApiToken === effective.oauthResolverToken) {
+    return json(res, { error: "WorkBuddy tokens must be different" }, 400);
+  }
+  const department = getSettings(state).departments.find((item) => (
+    item.id === effective.departmentId && item.enabled
+  ));
+  if (effective.enabled && (!department || !effective.openApiToken)) {
+    return json(res, { error: "启用同步前必须配置有效部门和 Open API Token" }, 400);
+  }
+  const oauthValues = [
+    effective.oauthResolverUrl,
+    effective.oauthResolverToken,
+    effective.corpId,
+  ];
+  if (oauthValues.some(Boolean) && !oauthValues.every(Boolean)) {
+    return json(res, { error: "OAuth 地址、Token 和企业 ID 必须同时配置" }, 400);
+  }
+
+  state.workbuddy = next;
+  if (changedFields.length) {
+    appendSyncEvent(state, {
+      source: "website",
+      action: "config_changed",
+      result: "success",
+      username: admin.username,
+      message: `Changed fields: ${[...new Set(changedFields)].join(", ")}`,
+      occurredAt: now,
+    }, { now });
+  }
+  await saveState(state);
+  return json(res, workbuddyAdminPayload(state, now));
+}
+
+async function handleWorkbuddyMappingUpdate(req, res, state, username, now, admin) {
+  const body = await readBody(req);
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const wecomUserId = String(body.wecom_userid || "").trim();
+  const config = publicWorkbuddyConfig(state);
+  const settings = getSettings(state);
+  const accounts = structuredClone(settings.accounts);
+  const account = accounts.find((candidate) => (
+    candidate.departmentId === config.departmentId
+    && candidate.username === normalizedUsername
+  ));
+  if (!account) return json(res, { error: "Website account not found" }, 404);
+  if (String(account.wecomUserId || "") === wecomUserId) {
+    return json(res, { mapping: workbuddyMappings(state).find((row) => row.username === normalizedUsername) });
+  }
+
+  account.wecomUserId = "";
+  if (wecomUserId) {
+    try {
+      bindWecomUserId(accounts, normalizedUsername, wecomUserId);
+    } catch (error) {
+      return json(res, { error: error.message }, 409);
+    }
+  }
+  account.wecomMappedAt = now;
+  account.wecomMappedBy = admin.username;
+  state.settings = { ...settings, accounts, updatedAt: now };
+  reconcileOpenTasks(state, { departmentId: config.departmentId, now });
+  appendSyncEvent(state, {
+    source: "website",
+    action: "mapping_changed",
+    result: "success",
+    username: account.username,
+    displayName: account.name,
+    message: wecomUserId ? "WeCom userid mapped" : "WeCom userid unmapped",
+    occurredAt: now,
+  }, { now });
+  await saveState(state);
+  return json(res, {
+    mapping: workbuddyMappings(state).find((row) => row.username === normalizedUsername),
+  });
+}
+
 async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   const action = parts[1] || "";
   if (action === "login") {
@@ -1400,8 +1578,47 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
+    if (action === "workbuddy") return json(res, { error: "仅全局管理员可管理企微任务同步" }, 403);
     if (action === "scheduled-tasks") return json(res, { error: "仅全局管理员可管理定时任务" }, 403);
     return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
+  }
+
+  if (action === "workbuddy") {
+    if (parts.length === 2 && req.method === "GET") {
+      return json(res, workbuddyAdminPayload(state, now));
+    }
+    if (parts[2] === "config" && req.method === "PATCH") {
+      return handleWorkbuddyAdminConfig(req, res, state, now, decoded);
+    }
+    if (parts[2] === "mappings" && parts[3] && req.method === "PATCH") {
+      return handleWorkbuddyMappingUpdate(
+        req,
+        res,
+        state,
+        decodeURIComponent(parts[3]),
+        now,
+        decoded,
+      );
+    }
+    if (parts[2] === "mappings" && req.method === "GET") {
+      return json(res, { mappings: workbuddyMappings(state) });
+    }
+    if (parts[2] === "logs" && req.method === "GET") {
+      try {
+        return json(res, querySyncEvents(state, {
+          source: String(req.query.source || "").trim(),
+          result: String(req.query.result || "").trim(),
+          action: String(req.query.action || "").trim(),
+          keyword: String(req.query.keyword || "").trim(),
+          before: String(req.query.before || "").trim(),
+          limit: req.query.limit,
+          now,
+        }));
+      } catch (error) {
+        return json(res, { error: error.message }, 400);
+      }
+    }
+    return methodNotAllowed(res);
   }
 
   if (action === "scheduled-tasks") {
@@ -1436,14 +1653,6 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     }
   }
   return json(res, { error: "Not found" }, 404);
-}
-
-function workbuddyDepartmentId() {
-  return String(process.env.WORKBUDDY_DEPARTMENT_ID || "").trim();
-}
-
-function openApiConfigured() {
-  return Boolean(String(process.env.WORKBUDDY_OPEN_API_TOKEN || "").trim() && workbuddyDepartmentId());
 }
 
 function parseUpdatedSince(value) {
@@ -1482,11 +1691,15 @@ function accountForOpenTask(settings, task, departmentId) {
 }
 
 async function handleOpenTasks(req, res, state, parts, now) {
-  if (!openApiConfigured()) return json(res, { error: "WorkBuddy open API is not configured" }, 503);
-  if (!workbuddyTokenValid(req.headers?.authorization, process.env)) {
+  const config = await effectiveWorkbuddyConfig(state, { decrypt: decryptSecret });
+  if (!config.enabled) return json(res, { error: "WorkBuddy integration is disabled" }, 503);
+  if (!config.openApiToken || !config.departmentId) {
+    return json(res, { error: "WorkBuddy open API is not configured" }, 503);
+  }
+  if (!workbuddyTokenValid(req.headers?.authorization, config.openApiToken)) {
     return json(res, { error: "Unauthorized" }, 401);
   }
-  const departmentId = workbuddyDepartmentId();
+  const departmentId = config.departmentId;
 
   if (req.method === "GET" && parts.length === 2) {
     const updatedSince = parseUpdatedSince(req.query.updated_since);
@@ -1538,12 +1751,13 @@ async function handleOpenTasks(req, res, state, parts, now) {
   return methodNotAllowed(res);
 }
 
-function oauthConfigured() {
+function oauthConfigured(config) {
   return Boolean(
-    workbuddyDepartmentId()
-    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_URL || "").trim()
-    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN || "").trim()
-    && String(process.env.WECOM_OAUTH_CORP_ID || "").trim(),
+    config.enabled
+    && config.departmentId
+    && config.oauthResolverUrl
+    && config.oauthResolverToken
+    && config.corpId,
   );
 }
 
@@ -1563,7 +1777,8 @@ function oauthSessionCookie(token, expiresAt, now, req) {
 
 async function handleWecomCallback(req, res, state, now) {
   if (req.method !== "GET") return methodNotAllowed(res);
-  if (!oauthConfigured()) return json(res, { error: "WorkBuddy OAuth is not configured" }, 503);
+  const config = await effectiveWorkbuddyConfig(state, { decrypt: decryptSecret });
+  if (!oauthConfigured(config)) return json(res, { error: "WorkBuddy OAuth is not configured" }, 503);
   const code = String(req.query.code || "").trim();
   const stateToken = String(req.query.state || "").trim();
   if (!code || !stateToken) return json(res, { error: "code and state are required" }, 400);
@@ -1571,7 +1786,7 @@ async function handleWecomCallback(req, res, state, now) {
   let oauthState;
   try {
     oauthState = consumeOAuthState(state, stateToken, {
-      secret: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN,
+      secret: config.oauthResolverToken,
       now,
     });
   } catch (error) {
@@ -1582,15 +1797,15 @@ async function handleWecomCallback(req, res, state, now) {
   let identity;
   try {
     identity = await resolveWorkbuddyIdentity(code, {
-      url: process.env.WORKBUDDY_OAUTH_RESOLVER_URL,
-      token: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN,
+      url: config.oauthResolverUrl,
+      token: config.oauthResolverToken,
     });
   } catch (error) {
     return json(res, { error: error.message }, 502);
   }
 
-  const departmentId = workbuddyDepartmentId();
-  if (String(identity.corp_id || "").trim() !== String(process.env.WECOM_OAUTH_CORP_ID || "").trim()
+  const departmentId = config.departmentId;
+  if (String(identity.corp_id || "").trim() !== config.corpId
     || String(identity.department_id || "").trim() !== departmentId) {
     return json(res, { error: "WeCom identity is outside the configured enterprise or department" }, 403);
   }
@@ -1637,7 +1852,11 @@ export default async function handler(req, res) {
   const parts = routePath.split("/").filter(Boolean);
   const openTaskRequest = parts[0] === "open" && parts[1] === "tasks";
   const wecomCallbackRequest = parts[0] === "wecom" && parts[1] === "callback";
-  const mutating = !["GET", "HEAD"].includes(req.method) || openTaskRequest || wecomCallbackRequest;
+  const workbuddyAdminRequest = parts[0] === "admin" && parts[1] === "workbuddy";
+  const mutating = !["GET", "HEAD"].includes(req.method)
+    || openTaskRequest
+    || wecomCallbackRequest
+    || workbuddyAdminRequest;
   const release = mutating ? await mutationLock.acquire() : () => {};
   try {
     const state = await loadState();
