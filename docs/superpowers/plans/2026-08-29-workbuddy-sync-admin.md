@@ -18,7 +18,7 @@
 - Modify: `lib/workbuddy-auth.mjs`
 - Modify: `test/workbuddy-auth.test.mjs`
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 ```js
 import assert from "node:assert/strict";
@@ -69,13 +69,13 @@ test("patch validation rejects short identical tokens and invalid URLs", () => {
 });
 ```
 
-- [ ] **Step 2: Run configuration tests and confirm RED**
+- [x] **Step 2: Run configuration tests and confirm RED**
 
 Run: `node --test test/workbuddy-config.test.mjs`
 
 Expected: FAIL because `lib/workbuddy-config.mjs` does not exist.
 
-- [ ] **Step 3: Implement configuration resolution and safe projection**
+- [x] **Step 3: Implement configuration resolution and safe projection**
 
 ```js
 const text = (value) => String(value || "").trim();
@@ -144,13 +144,13 @@ export function workbuddyTokenValid(header, expectedToken) {
 
 Update `test/workbuddy-auth.test.mjs` to pass `"open-secret"` as the second argument and assert that an empty expected token is rejected.
 
-- [ ] **Step 4: Run configuration and existing auth tests and confirm GREEN**
+- [x] **Step 4: Run configuration and existing auth tests and confirm GREEN**
 
 Run: `node --test test/workbuddy-config.test.mjs test/workbuddy-auth.test.mjs`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit the configuration domain**
+- [x] **Step 5: Commit the configuration domain**
 
 ```bash
 git add -- lib/workbuddy-config.mjs lib/workbuddy-auth.mjs test/workbuddy-config.test.mjs test/workbuddy-auth.test.mjs
@@ -163,7 +163,7 @@ git commit -m "feat: add WorkBuddy configuration domain"
 - Create: `lib/workbuddy-sync-log.mjs`
 - Create: `test/workbuddy-sync-log.test.mjs`
 
-- [ ] **Step 1: Write failing tests for sanitization, idempotency, retention, statistics, and cursor pagination**
+- [x] **Step 1: Write failing tests for sanitization, idempotency, retention, statistics, and cursor pagination**
 
 ```js
 import assert from "node:assert/strict";
@@ -228,13 +228,13 @@ test("queries use stable cursor ordering and filters", () => {
 });
 ```
 
-- [ ] **Step 2: Run log tests and confirm RED**
+- [x] **Step 2: Run log tests and confirm RED**
 
 Run: `node --test test/workbuddy-sync-log.test.mjs`
 
 Expected: FAIL because `lib/workbuddy-sync-log.mjs` does not exist.
 
-- [ ] **Step 3: Implement the log domain**
+- [x] **Step 3: Implement the log domain**
 
 ```js
 const retentionMs = 30 * 24 * 60 * 60 * 1000;
@@ -297,13 +297,13 @@ export function appendSyncEvent(state, input, { now = Date.now(), idFactory = ()
 
 Implement `querySyncEvents` with a base64url JSON cursor `{ occurredAt, id }`. Sort by `occurredAt DESC, id DESC`; apply exact `source`, `result`, and `action` filters plus a case-insensitive `keyword` match across task ID/title, username/display name, WeCom todo ID, and message; include only rows strictly after the cursor in that order; clamp `limit` to 1–100; and return `{ events, nextBefore }`. Implement `summarizeSyncEvents` by counting each result over rows whose `occurredAt >= now - 24 hours`, returning zero-filled `success`, `failed`, `skipped`, and `retrying` fields.
 
-- [ ] **Step 4: Run log tests and confirm GREEN**
+- [x] **Step 4: Run log tests and confirm GREEN**
 
 Run: `node --test test/workbuddy-sync-log.test.mjs`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit the log domain**
+- [x] **Step 5: Commit the log domain**
 
 ```bash
 git add -- lib/workbuddy-sync-log.mjs test/workbuddy-sync-log.test.mjs
@@ -318,7 +318,7 @@ git commit -m "feat: add WorkBuddy synchronization log domain"
 - Modify: `test/workbuddy-open-api.test.mjs`
 - Modify: `test/workbuddy-oauth-api.test.mjs`
 
-- [ ] **Step 1: Write failing admin API tests**
+- [x] **Step 1: Write failing admin API tests**
 
 ```js
 test("only a global administrator can read WorkBuddy operations data", async () => {
@@ -363,13 +363,13 @@ test("mapping edit is unique, audited, and restamps assigned tasks", async () =>
 });
 ```
 
-- [ ] **Step 2: Run admin API tests and confirm RED**
+- [x] **Step 2: Run admin API tests and confirm RED**
 
 Run: `node --test test/workbuddy-admin-api.test.mjs`
 
 Expected: FAIL because `/api/admin/workbuddy` routes do not exist.
 
-- [ ] **Step 3: Implement global-admin-only routes**
+- [x] **Step 3: Implement global-admin-only routes**
 
 Add these routes inside the existing `handleAdmin` global-admin branch:
 
@@ -396,7 +396,7 @@ Before the existing leader delegation in `handleAdmin`, return 403 when `decoded
 
 In `test/workbuddy-admin-api.test.mjs`, define the request/response harness and issue real admin and leader tokens in `beforeEach`, mirroring the existing WorkBuddy API test harness. Keep `adminHeaders`, `leaderHeaders`, `api`, and `openApi` local to that file; seed one mapped task and two enabled data-product accounts so every example above is directly runnable.
 
-- [ ] **Step 4: Replace environment-only open/OAuth config reads**
+- [x] **Step 4: Replace environment-only open/OAuth config reads**
 
 At the start of each open API or OAuth request, resolve configuration once:
 
@@ -414,13 +414,13 @@ if (!workbuddyTokenValid(req.headers?.authorization, config.openApiToken)) {
 Pass the same resolved `config` through the handler. Do not decrypt more than once per request.
 Invalid or missing bearer tokens return 401 without appending a synchronization event, so unauthenticated traffic cannot fill the retained log.
 
-- [ ] **Step 5: Run admin and existing WorkBuddy tests and confirm GREEN**
+- [x] **Step 5: Run admin and existing WorkBuddy tests and confirm GREEN**
 
 Run: `node --test test/workbuddy-admin-api.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs test/workbuddy-auth.test.mjs test/workbuddy-config.test.mjs`
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit the admin API**
+- [x] **Step 6: Commit the admin API**
 
 ```bash
 git add -- api/[...path].mjs test/workbuddy-admin-api.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs
@@ -435,7 +435,7 @@ git commit -m "feat: add WorkBuddy admin configuration APIs"
 - Modify: `test/workbuddy-open-api.test.mjs`
 - Modify: `test/workbuddy-oauth-api.test.mjs`
 
-- [ ] **Step 1: Write failing event ingestion tests**
+- [x] **Step 1: Write failing event ingestion tests**
 
 ```js
 test("WorkBuddy reports one real WeCom result idempotently without changing the task", async () => {
@@ -467,7 +467,7 @@ test("event ingestion rejects invalid actions and timestamps outside 24 hours", 
 });
 ```
 
-- [ ] **Step 2: Add failing automatic website event tests**
+- [x] **Step 2: Add failing automatic website event tests**
 
 ```js
 test("empty polling updates status without writing detail while nonempty polling writes one event", async () => {
@@ -493,13 +493,13 @@ test("writeback 200, 409, and 422 create distinct safe events", async () => {
 });
 ```
 
-- [ ] **Step 3: Run event tests and confirm RED**
+- [x] **Step 3: Run event tests and confirm RED**
 
 Run: `node --test test/workbuddy-sync-events-api.test.mjs test/workbuddy-open-api.test.mjs`
 
 Expected: FAIL because `/api/open/sync-events` and automatic log writes are absent.
 
-- [ ] **Step 4: Implement strict WorkBuddy event validation and ingestion**
+- [x] **Step 4: Implement strict WorkBuddy event validation and ingestion**
 
 ```js
 const workbuddyActions = new Set(["created", "updated", "recreated", "skipped", "failed", "retry_scheduled"]);
@@ -523,17 +523,17 @@ function normalizedWorkbuddyEvent(body, state, now) {
 
 Route `POST /api/open/sync-events` before the task-specific PUT route, append the event, update `lastResultReportedAt`, save once for new events, and return the stable log ID for duplicates.
 
-- [ ] **Step 5: Add automatic events without changing business outcomes**
+- [x] **Step 5: Add automatic events without changing business outcomes**
 
 On GET task polling, always update `lastPollAt`, `lastSuccessfulPollAt`, `lastPollCount`, and `lastWatermark`; append `polled` only when tasks are returned. Append the three writeback result events before returning 200/409/422. Append OAuth mapping or rejection events without ever including code/state/token values.
 
-- [ ] **Step 6: Run event, open API, OAuth, and admin tests and confirm GREEN**
+- [x] **Step 6: Run event, open API, OAuth, and admin tests and confirm GREEN**
 
 Run: `node --test test/workbuddy-sync-events-api.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs test/workbuddy-admin-api.test.mjs test/workbuddy-sync-log.test.mjs`
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit event ingestion and automatic logging**
+- [x] **Step 7: Commit event ingestion and automatic logging**
 
 ```bash
 git add -- api/[...path].mjs test/workbuddy-sync-events-api.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs
@@ -546,7 +546,7 @@ git commit -m "feat: add WorkBuddy synchronization events"
 - Modify: `public/index.html`
 - Modify: `test/workbench-ui.test.mjs`
 
-- [ ] **Step 1: Write failing static UI contract tests**
+- [x] **Step 1: Write failing static UI contract tests**
 
 ```js
 test("global admin exposes a WorkBuddy operations panel with no leader access", () => {
@@ -565,13 +565,13 @@ test("WorkBuddy token fields never hydrate from returned masks", () => {
 });
 ```
 
-- [ ] **Step 2: Run the UI test and confirm RED**
+- [x] **Step 2: Run the UI test and confirm RED**
 
 Run: `node --test --test-name-pattern="WorkBuddy" test/workbench-ui.test.mjs`
 
 Expected: FAIL because the admin panel does not exist.
 
-- [ ] **Step 3: Add the admin navigation and four panel regions**
+- [x] **Step 3: Add the admin navigation and four panel regions**
 
 Add one `data-admin-section="workbuddy"` button visible only to `admin`, and one panel containing:
 
@@ -590,7 +590,7 @@ Add one `data-admin-section="workbuddy"` button visible only to `admin`, and one
 
 Use existing cards, tables, inputs, badges, and responsive settings layout. Do not introduce a new visual system.
 
-- [ ] **Step 4: Implement state loading and masked configuration editing**
+- [x] **Step 4: Implement state loading and masked configuration editing**
 
 ```js
 let workbuddyAdmin = null;
@@ -625,19 +625,19 @@ async function saveWorkbuddyConfig() {
 
 Render source/mask next to each empty password input. Require a confirmation dialog whenever a token field or clear checkbox is present.
 
-- [ ] **Step 5: Implement mapping editing and log filters with cursor loading**
+- [x] **Step 5: Implement mapping editing and log filters with cursor loading**
 
 Mapping saves call `PATCH /api/admin/workbuddy/mappings/:username`, display 409 conflicts inline, then reload overview and mappings. Log filters build URLSearchParams for time, result, action and keyword; “加载更多” sends `before`, appends results, and replaces the cursor.
 
 The log table must use existing `escapeHtml` for every string, format timestamps locally, show result badges, truncate summaries to two lines, and expose the full sanitized message through an accessible title/detail element.
 
-- [ ] **Step 6: Run UI and relevant admin tests and confirm GREEN**
+- [x] **Step 6: Run UI and relevant admin tests and confirm GREEN**
 
 Run: `node --test test/workbench-ui.test.mjs test/workbuddy-admin-api.test.mjs`
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit the administrator UI**
+- [x] **Step 7: Commit the administrator UI**
 
 ```bash
 git add -- public/index.html test/workbench-ui.test.mjs
@@ -651,13 +651,13 @@ git commit -m "feat: add WorkBuddy synchronization admin UI"
 - Modify: `docs/workbuddy-integration-api.md`
 - Modify: `docs/superpowers/plans/2026-08-29-workbuddy-sync-admin.md`
 
-- [ ] **Step 1: Document the final module and route boundaries**
+- [x] **Step 1: Document the final module and route boundaries**
 
 Add `lib/workbuddy-config.mjs`, `lib/workbuddy-sync-log.mjs`, `/api/admin/workbuddy/*`, and `POST /api/open/sync-events` to the architecture map. Document that persistent encrypted config overrides environment variables and that the website never controls WorkBuddy polling or retry policy.
 
 Add the exact `POST /api/open/sync-events` request, allowed enums, idempotency response, and error codes to the WorkBuddy integration guide.
 
-- [ ] **Step 2: Run contract-focused tests**
+- [x] **Step 2: Run contract-focused tests**
 
 Run:
 
@@ -667,7 +667,7 @@ node --test test/workbuddy-config.test.mjs test/workbuddy-sync-log.test.mjs test
 
 Expected: zero failures.
 
-- [ ] **Step 3: Run complete repository verification**
+- [x] **Step 3: Run complete repository verification**
 
 Run: `npm test`
 
@@ -681,7 +681,7 @@ Run: `npm run build`
 
 Expected: exit code 0 and a production build path.
 
-- [ ] **Step 4: Verify scope, secrets, and whitespace**
+- [x] **Step 4: Verify scope, secrets, and whitespace**
 
 Run:
 
@@ -693,7 +693,7 @@ git status --short
 
 Expected: no real credential values, no whitespace errors, and only planned source/test/document files changed.
 
-- [ ] **Step 5: Commit final documentation**
+- [x] **Step 5: Commit final documentation**
 
 ```bash
 git add -- PROJECT_ARCHITECTURE.md docs/workbuddy-integration-api.md docs/superpowers/plans/2026-08-29-workbuddy-sync-admin.md
