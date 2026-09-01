@@ -35,8 +35,12 @@ CMD ["node", "server.mjs"]
 
 let version = String(process.env.VERCEL_GIT_COMMIT_SHA || "").trim();
 if (!version) {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root });
-  version = stdout.trim();
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root });
+    version = stdout.trim();
+  } catch {
+    version = "manual-upload";
+  }
 }
 const manifest = {
   version,

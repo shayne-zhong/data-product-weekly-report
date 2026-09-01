@@ -32,3 +32,8 @@ test("production build uses Vercel commit metadata without requiring a Git check
   const manifest = JSON.parse(await readFile(new URL("../build/build-manifest.json", import.meta.url), "utf8"));
   assert.equal(manifest.version, commit);
 });
+
+test("production build has a safe version fallback for manual uploads", async () => {
+  const source = await readFile(new URL("../scripts/build.mjs", import.meta.url), "utf8");
+  assert.match(source, /catch\s*\{[\s\S]*version = "manual-upload"/);
+});
