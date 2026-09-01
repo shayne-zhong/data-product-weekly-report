@@ -9,27 +9,28 @@ import {
 test("production rejects missing secrets", () => {
   assert.throws(
     () => validateProductionConfig({ NODE_ENV: "production" }),
-    /ADMIN_USERNAME.*ADMIN_PASSWORD.*ADMIN_SESSION_SECRET/,
+    /ADMIN_USERNAME.*ADMIN_PASSWORD.*ADMIN_SESSION_SECRET.*BLOB_READ_WRITE_TOKEN/,
   );
 });
 
-test("production accepts CloudBase configuration without a dedicated AI key encryption secret", () => {
+test("production accepts Vercel Blob configuration without a dedicated AI key encryption secret", () => {
   assert.doesNotThrow(() => validateProductionConfig({
     NODE_ENV: "production",
     ADMIN_USERNAME: "operator",
     ADMIN_PASSWORD: "admin-test-value",
     ADMIN_SESSION_SECRET: "session-test-value",
+    BLOB_READ_WRITE_TOKEN: "blob-test-value",
   }));
 });
 
-test("production accepts full configuration with CloudBase API key", () => {
-  assert.doesNotThrow(() => validateProductionConfig({
+test("production ignores legacy CloudBase configuration unless Vercel Blob is configured", () => {
+  assert.throws(() => validateProductionConfig({
     NODE_ENV: "production",
     ADMIN_USERNAME: "operator",
     ADMIN_PASSWORD: "admin-test-value",
     ADMIN_SESSION_SECRET: "session-test-value",
     CLOUDBASE_APIKEY: "cloudbase-server-test-value",
-  }));
+  }), /BLOB_READ_WRITE_TOKEN/);
 });
 
 test("credentials come only from environment variables", () => {

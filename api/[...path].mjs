@@ -354,8 +354,13 @@ async function loadState() {
 }
 
 function weeklyRolloverAuthorized(req) {
-  const expected = String(process.env.WEEKLY_ROLLOVER_SECRET || "");
-  const provided = String(req.headers?.["x-weekly-rollover-secret"] || "");
+  const authorization = String(req.headers?.authorization || "");
+  const cronSecret = String(process.env.CRON_SECRET || "");
+  const legacySecret = String(process.env.WEEKLY_ROLLOVER_SECRET || "");
+  const expected = authorization.startsWith("Bearer ") ? cronSecret : legacySecret;
+  const provided = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length)
+    : String(req.headers?.["x-weekly-rollover-secret"] || "");
   if (!expected || !provided) return false;
   const expectedBuffer = Buffer.from(expected);
   const providedBuffer = Buffer.from(provided);
@@ -1556,9 +1561,9 @@ export default async function handler(req, res) {
     const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
     const parts = routePath.split("/").filter(Boolean);
     if (parts[0] === "internal" && parts[1] === "weekly-rollover") {
-      if (req.method !== "POST") return methodNotAllowed(res);
+      if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
       if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
-      const body = await readBody(req);
+      const body = req.method === "POST" ? await readBody(req) : {};
       const triggeredAt = Date.parse(String(body.triggeredAt || ""));
       const result = await executeWeeklyRollover(state, {
         triggeredAt: Number.isNaN(triggeredAt) ? now : triggeredAt,
@@ -1568,9 +1573,9 @@ export default async function handler(req, res) {
       return json(res, result);
     }
     if (parts[0] === "internal" && parts[1] === "report-auto-archive") {
-      if (req.method !== "POST") return methodNotAllowed(res);
+      if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
       if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
-      const body = await readBody(req);
+      const body = req.method === "POST" ? await readBody(req) : {};
       const parsed = Date.parse(String(body.triggeredAt || ""));
       const result = await executeReportAutoArchive(state, {
         triggeredAt: Number.isNaN(parsed) ? now : parsed,

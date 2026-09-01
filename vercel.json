@@ -1,5 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "crons": [
+    { "path": "/api/internal/weekly-rollover", "schedule": "5 16 * * 0" },
+    { "path": "/api/internal/report-auto-archive", "schedule": "0 12 * * *" }
+  ]
 }

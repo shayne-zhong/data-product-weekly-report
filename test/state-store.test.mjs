@@ -1,7 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-
 import { createStateStore, defaultLocalStatePath } from "../lib/state-store.mjs";
 
 function fakeDatabase() {
@@ -191,8 +189,26 @@ test("local fallback state survives a server process restart", () => {
   assert.match(defaultLocalStatePath(4321, {}), /data-product-weekly-report-state-v1\.json$/);
 });
 
-test("production uses the CloudBase SDK version that supports API key authentication", async () => {
-  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+test("Vercel Blob writes use the loaded ETag as a conditional update", async () => {
+  const puts = [];
+  const blob = {
+    async get() {
+      return { blob: { etag: "etag-1" }, stream: new Blob([JSON.stringify({ tasks: {} })]).stream() };
+    },
+    async put(pathname, value, options) {
+      puts.push([pathname, JSON.parse(value), options]);
+      return { etag: "etag-2" };
+    },
+  };
+  const store = createStateStore({
+    env: { NODE_ENV: "production", VERCEL: "1", BLOB_READ_WRITE_TOKEN: "token" },
+    vercelBlob: blob,
+  });
+  const base = await store.load();
+  const next = { tasks: { taskA: { id: "taskA" } } };
 
-  assert.equal(manifest.dependencies["@cloudbase/node-sdk"], "4.0.3");
+  await store.save(next, { baseState: base });
+
+  assert.equal(puts[0][2].ifMatch, "etag-1");
+  assert.equal(puts[0][2].access, "private");
 });

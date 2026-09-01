@@ -14,8 +14,7 @@
 - `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api`、托管静态资源，并在直接运行时提供周结转启动补偿与本地定时兜底。
 - `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
 - `netlify/functions/api.mjs`：Netlify 到统一 API 的运行时适配层。
-- `cloudfunctions/weekly-task-rollover/`：CloudBase Event Function，每周触发一次受保护的任务结转入口。
-- `cloudfunctions/report-auto-archive/`：CloudBase Event Function，固定频率唤醒受保护的报告归档入口；实际归档时间读取后台配置。
+- `vercel.json`：Vercel 构建与 Cron 配置，按周触发任务结转、按日触发报告归档。
 - `scripts/build.mjs`：校验内联脚本，生成 `build` 目录和构建清单。
 
 常用命令：`npm.cmd start`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run lint`、`npm.cmd run format:check`。
@@ -35,7 +34,7 @@
 
 - 任务与指标贡献：`lib/task-core.mjs`、`lib/workbench-utils.mjs` 及对应任务测试；指标当前值由已完成待办的 `goalLinks` 贡献数汇总。
 - 周任务结转：`lib/weekly-rollover.mjs` 负责北京时间周窗口、按部门持久化防重和任务复制；CloudBase 事件函数为云端主调度，`server.mjs` 提供启动补偿和本地定时兜底，浏览器加载周数据不触发结转。
-- 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
+- 持久化：`lib/state-store.mjs` 使用 Private Vercel Blob 保存业务状态，`lib/artifact-store.mjs` 保存附件；对应 `test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
 - 后台管理中心：`lib/admin-access.mjs`、`lib/admin-dashboard.mjs`、`lib/admin-audit.mjs` 分别负责管理范围与设置变更校验、范围化概览、审计记录与查询；由 `test/admin-access.test.mjs`、`test/admin-dashboard.test.mjs`、`test/admin-audit.test.mjs`、`test/leader-admin.test.mjs` 覆盖全局管理员与部门负责人边界。
@@ -47,12 +46,12 @@
 1. 浏览器从 `public/index.html` 发起 `/api/*` 请求。
 2. Node、Vercel、Netlify 三种入口最终调用 `api/[...path].mjs`。
 3. API 完成鉴权和路由，并调用 `lib/` 领域服务。
-4. `lib/state-store.mjs` 依次按环境选择 CloudBase、Netlify Blobs、Vercel Blob；非生产环境可使用临时目录 JSON。
+4. Vercel 生产环境通过 Private Vercel Blob 保存业务状态和附件；非生产环境可使用临时目录 JSON。
 5. API 返回 JSON，浏览器更新页面状态和视图。
 
-周任务结转由 CloudBase 定时触发器调用 `cloudfunctions/weekly-task-rollover/`，函数携带共享密钥请求 `/api/internal/weekly-rollover`；直接运行的 Node 服务也会在启动时补偿并按相同周计划兜底。两条路径最终调用同一 API 执行器，并以“部门 + 源周 + 目标周”记录持久化结果。
+周任务结转由 Vercel Cron 调用 `/api/internal/weekly-rollover`，并以 `CRON_SECRET` 鉴权；最终以“部门 + 源周 + 目标周”记录持久化结果。
 
-报告自动归档由 `cloudfunctions/report-auto-archive/` 固定频率调用 `/api/internal/report-auto-archive`，服务端按北京时间和后台的周/月/季配置判断到期报告；直接运行的 Node 服务每五分钟检查并在启动时补偿漏跑。
+报告自动归档由 Vercel Cron 每日调用 `/api/internal/report-auto-archive`，服务端按北京时间和后台的周/月/季配置判断到期报告。
 
 顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`、`internal`；`internal` 仅接受服务端共享密钥。
 
