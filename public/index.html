@@ -50,7 +50,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
 .login-page{min-height:100vh;display:grid;grid-template-columns:minmax(420px,1.08fr) minmax(420px,.92fr);background:#edf2f9}.login-brand-panel{position:relative;overflow:hidden;background:#17326f;color:#fff;padding:56px clamp(38px,6vw,86px);display:flex;flex-direction:column;justify-content:space-between}.login-brand-panel:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(255,255,255,.14);border-radius:50%;right:-120px;top:-140px}.login-brand-panel:after{content:"";position:absolute;width:230px;height:230px;border-radius:54px;background:#315efb;right:50px;bottom:-130px;transform:rotate(24deg);opacity:.7}.login-brand-lockup,.login-brand-copy,.login-brand-foot{position:relative;z-index:1}.login-brand-lockup{display:flex;align-items:center;gap:13px;font-size:18px;font-weight:800}.login-brand-copy{max-width:520px}.login-kicker{font-size:12px;letter-spacing:.2em;color:#9db7ff;font-weight:800}.login-brand-copy h1{font-size:clamp(36px,5vw,58px);line-height:1.12;margin:18px 0}.login-brand-copy p{font-size:16px;line-height:1.9;color:#c8d6f6}.login-brand-foot{color:#91a7d5}.login-form-panel{background:#fff;padding:48px;display:grid;place-items:center}.login-box{width:min(390px,100%)}.login-box h2{font-size:30px;margin:8px 0}.login-box>p{color:var(--muted);margin:0 0 30px}.login-field{display:grid;gap:7px;margin-bottom:17px}.login-field label{font-size:12px;color:#344054;font-weight:800}.login-field input{height:46px;border:1px solid var(--line);border-radius:11px;padding:0 13px;outline:none}.login-field input:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(49,94,251,.1)}.login-submit{width:100%;height:47px;margin-top:8px}.login-message{min-height:22px;margin-top:12px;color:var(--red)}.login-register{text-align:center;margin-top:19px;color:var(--muted)}.login-register button{border:0;background:transparent;color:var(--primary);font-weight:800;cursor:pointer}
 .settings-center{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}.settings-nav{position:sticky;top:88px;padding:10px;display:grid;gap:5px}.settings-nav button{border:0;background:transparent;color:#475467;border-radius:10px;padding:11px 12px;text-align:left;cursor:pointer;font-weight:700}.settings-nav button:hover{background:#f5f7fb;color:var(--text)}.settings-nav button.active{background:var(--primary-soft);color:var(--primary)}.settings-editor{min-height:520px}.admin-section{padding:22px}.admin-section[hidden]{display:none!important}.admin-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}.admin-section-head h3{margin:0 0 4px}.admin-section-head p{margin:0;color:var(--muted)}.settings-center+.admin-savebar{margin-left:238px}.admin-savebar[hidden]{display:none!important}
+.workbuddy-overview{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;margin-bottom:16px}.workbuddy-metric{border:1px solid var(--line);background:var(--panel-2);border-radius:12px;padding:13px}.workbuddy-metric span{display:block;color:var(--muted);font-size:12px}.workbuddy-metric strong{display:block;font-size:19px;margin-top:5px}.workbuddy-stack{display:grid;gap:14px}.workbuddy-block{border:1px solid var(--line);border-radius:14px;padding:16px}.workbuddy-block-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:13px}.workbuddy-block-head h4{margin:0 0 3px}.workbuddy-block-head p{margin:0;color:var(--muted);font-size:12px}.workbuddy-config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.workbuddy-config-grid label{display:grid;gap:6px;color:#344054;font-weight:650}.workbuddy-config-grid input,.workbuddy-config-grid select{width:100%}.workbuddy-secret-status{color:var(--muted);font-size:12px;font-weight:500}.workbuddy-checks{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}.workbuddy-checks label{display:flex;align-items:center;gap:7px;color:var(--muted)}.workbuddy-table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}.workbuddy-table{min-width:820px}.workbuddy-table input{min-width:190px}.workbuddy-log-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.workbuddy-log-toolbar .search{flex:1;min-width:220px}.workbuddy-log-message{max-width:320px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.workbuddy-inline-message{min-height:20px;color:var(--red);font-size:12px;margin-bottom:8px}
 @media(max-width:900px){.settings-center{grid-template-columns:1fr}.settings-nav{position:static;display:flex;overflow:auto}.settings-nav button{white-space:nowrap}.settings-center+.admin-savebar{margin-left:0}}
+@media(max-width:1100px){.workbuddy-overview{grid-template-columns:repeat(3,1fr)}.workbuddy-config-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.login-page{grid-template-columns:1fr}.login-brand-panel{display:none}.login-form-panel{padding:28px 20px}.login-box h2{font-size:26px}}
 .task-view-switch button.active{color:var(--primary)}
 .kanban.quadrant-mode{display:block;overflow:visible}
@@ -393,6 +395,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <nav class="settings-nav panel" aria-label="后台设置分类">
             <button class="active" data-admin-section="departments">部门管理</button>
             <button data-admin-section="scheduled-tasks">定时任务</button>
+            <button data-admin-section="workbuddy">企微任务同步</button>
             <button data-admin-section="modules">项目类型</button>
             <button data-admin-section="accounts">账号管理</button>
             <button data-admin-section="ai">AI 服务</button>
@@ -404,6 +407,45 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             <section class="panel admin-section" data-admin-panel="scheduled-tasks" hidden>
               <div class="admin-section-head"><div><h3>定时任务</h3><p>查看自动执行状态和失败原因；人工重新启动仍受防重机制保护。</p></div><button class="ghost-btn" id="reloadScheduledTasksBtn">刷新状态</button></div>
               <div id="scheduledTaskList" class="scheduled-task-list"></div>
+            </section>
+            <section class="panel admin-section" data-admin-panel="workbuddy" hidden>
+              <div class="admin-section-head">
+                <div><h3>企微任务同步</h3><p>统一查看同步状态、生产配置、员工 userid 映射和 WorkBuddy 执行结果。</p></div>
+                <button class="ghost-btn" id="reloadWorkbuddyBtn">刷新</button>
+              </div>
+              <div id="workbuddyOverview" class="workbuddy-overview"><div class="subtitle">读取同步状态中...</div></div>
+              <div class="workbuddy-stack">
+                <article class="workbuddy-block">
+                  <div class="workbuddy-block-head"><div><h4>生产配置</h4><p>后台配置优先于环境变量；完整 Token 保存后不再显示。</p></div><button class="primary-btn" id="saveWorkbuddyConfigBtn">保存配置</button></div>
+                  <div class="workbuddy-config-grid" id="workbuddyConfig">
+                    <label>同步状态<select id="workbuddyEnabled"><option value="true">启用</option><option value="false">停用</option></select></label>
+                    <label>同步部门 ID<input id="workbuddyDepartment" autocomplete="off" /></label>
+                    <label>企业 ID<input id="workbuddyCorpId" autocomplete="off" /></label>
+                    <label>OAuth 解析地址<input id="workbuddyResolverUrl" type="url" autocomplete="off" placeholder="http://workbuddy.internal/resolve" /></label>
+                    <label>Open API Token<input type="password" id="workbuddyOpenToken" autocomplete="new-password" placeholder="留空表示保持当前配置" /><span class="workbuddy-secret-status" id="workbuddyOpenTokenStatus"></span></label>
+                    <label>OAuth Resolver Token<input type="password" id="workbuddyOauthToken" autocomplete="new-password" placeholder="留空表示保持当前配置" /><span class="workbuddy-secret-status" id="workbuddyOauthTokenStatus"></span></label>
+                  </div>
+                  <div class="workbuddy-checks"><label><input id="workbuddyClearOpenToken" type="checkbox" />清除后台 Open API Token（恢复环境变量）</label><label><input id="workbuddyClearOauthToken" type="checkbox" />清除后台 OAuth Token（恢复环境变量）</label></div>
+                </article>
+                <article class="workbuddy-block">
+                  <div class="workbuddy-block-head"><div><h4>员工 userid 映射</h4><p>仅显示当前同步部门；同一个企微 userid 只能绑定一个网站账号。</p></div></div>
+                  <div id="workbuddyMappingMessage" class="workbuddy-inline-message" role="status"></div>
+                  <div id="workbuddyMappings" class="workbuddy-table-wrap"></div>
+                </article>
+                <article class="workbuddy-block">
+                  <div class="workbuddy-block-head"><div><h4>同步日志</h4><p>保留最近 30 天、最多 5000 条；空轮询只更新上方状态。</p></div></div>
+                  <div class="workbuddy-log-toolbar">
+                    <select class="chip-select" id="workbuddyLogTime"><option value="24">最近 24 小时</option><option value="168">最近 7 天</option><option value="720">最近 30 天</option></select>
+                    <select class="chip-select" id="workbuddyLogSource"><option value="">全部来源</option><option value="website">网站</option><option value="workbuddy">WorkBuddy</option></select>
+                    <select class="chip-select" id="workbuddyLogResult"><option value="">全部结果</option><option value="success">成功</option><option value="failed">失败</option><option value="skipped">跳过</option><option value="retrying">重试中</option></select>
+                    <select class="chip-select" id="workbuddyLogAction"><option value="">全部动作</option><option value="polled">增量查询</option><option value="poll_failed">查询失败</option><option value="writeback_completed">完成回写</option><option value="writeback_terminal">终态跳过</option><option value="writeback_rejected">回写拒绝</option><option value="oauth_mapped">OAuth 映射</option><option value="oauth_rejected">OAuth 拒绝</option><option value="created">企微待办创建</option><option value="updated">企微待办更新</option><option value="recreated">企微待办重建</option><option value="failed">企微执行失败</option></select>
+                    <div class="search">🔎<input id="workbuddyLogKeyword" type="search" placeholder="任务、员工、待办 ID" /></div>
+                    <button class="ghost-btn" id="filterWorkbuddyLogsBtn">查询</button>
+                  </div>
+                  <div id="workbuddyLogs" class="workbuddy-table-wrap"></div>
+                  <div class="actions" style="justify-content:center;margin-top:12px;"><button class="ghost-btn" id="moreWorkbuddyLogsBtn" hidden>加载更多</button></div>
+                </article>
+              </div>
             </section>
             <section class="panel admin-section" data-admin-panel="departments">
               <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门名称与启用状态；已有部门请停用，不直接删除。</p></div><button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
@@ -851,6 +893,9 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     let leaderModules = [];
     let scheduledTasks = [];
     let scheduledTaskRunning = false;
+    let workbuddyAdmin = null;
+    let workbuddyLogs = [];
+    let workbuddyLogCursor = "";
     let adminDirty = false;
     let adminResetUsername = "";
     let goalsSaveTimer = null;
@@ -1717,6 +1762,88 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
     async function loadScheduledTasks() {
       const result = await apiJson("/api/admin/scheduled-tasks", { headers: adminRequestHeaders() });
       scheduledTasks = result.tasks || [];
+    }
+
+    async function loadWorkbuddyLogs({ append = false } = {}) {
+      if (adminRole !== "admin") return;
+      const params = new URLSearchParams({ limit: "50" });
+      const hours = Math.max(1, Number($("workbuddyLogTime").value) || 24);
+      params.set("since", String(Date.now() - hours * 60 * 60 * 1000));
+      const filters = {
+        source: $("workbuddyLogSource").value,
+        result: $("workbuddyLogResult").value,
+        action: $("workbuddyLogAction").value,
+        keyword: $("workbuddyLogKeyword").value.trim(),
+      };
+      Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+      if (append && workbuddyLogCursor) params.set("before", workbuddyLogCursor);
+      const result = await apiJson(`/api/admin/workbuddy/logs?${params}`, {
+        headers: adminRequestHeaders(),
+      });
+      workbuddyLogs = append ? [...workbuddyLogs, ...(result.events || [])] : result.events || [];
+      workbuddyLogCursor = result.nextBefore || "";
+    }
+
+    async function loadWorkbuddyAdmin({ includeLogs = true } = {}) {
+      if (adminRole !== "admin") return;
+      workbuddyAdmin = await apiJson("/api/admin/workbuddy", {
+        headers: adminRequestHeaders(),
+      });
+      $("workbuddyOpenToken").value = "";
+      $("workbuddyOauthToken").value = "";
+      $("workbuddyClearOpenToken").checked = false;
+      $("workbuddyClearOauthToken").checked = false;
+      if (includeLogs) await loadWorkbuddyLogs();
+    }
+
+    async function saveWorkbuddyConfig() {
+      if (adminRole !== "admin") return;
+      const openToken = $("workbuddyOpenToken").value.trim();
+      const oauthToken = $("workbuddyOauthToken").value.trim();
+      const clearOpen = $("workbuddyClearOpenToken").checked;
+      const clearOauth = $("workbuddyClearOauthToken").checked;
+      if ((openToken || oauthToken || clearOpen || clearOauth)
+        && !confirm("确认变更生产 Token？保存后完整 Token 不会再次显示，并会立即生效。")) return;
+      const body = {
+        enabled: $("workbuddyEnabled").value === "true",
+        department_id: $("workbuddyDepartment").value.trim(),
+        corp_id: $("workbuddyCorpId").value.trim(),
+        oauth_resolver_url: $("workbuddyResolverUrl").value.trim(),
+      };
+      if (openToken) body.open_api_token = openToken;
+      if (oauthToken) body.oauth_resolver_token = oauthToken;
+      if (clearOpen) body.clear_open_api_token = true;
+      if (clearOauth) body.clear_oauth_resolver_token = true;
+      workbuddyAdmin = await apiJson("/api/admin/workbuddy/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+        body: JSON.stringify(body),
+      });
+      $("workbuddyOpenToken").value = "";
+      $("workbuddyOauthToken").value = "";
+      $("workbuddyClearOpenToken").checked = false;
+      $("workbuddyClearOauthToken").checked = false;
+      renderWorkbuddyAdmin();
+    }
+
+    async function saveWorkbuddyMapping(username) {
+      if (adminRole !== "admin") return;
+      const input = document.querySelector(`[data-workbuddy-userid="${CSS.escape(username)}"]`);
+      if (!input) return;
+      try {
+        await apiJson(`/api/admin/workbuddy/mappings/${encodeURIComponent(username)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", ...adminRequestHeaders() },
+          body: JSON.stringify({ wecom_userid: input.value.trim() }),
+        });
+        $("workbuddyMappingMessage").textContent = "映射已保存，相关任务已进入下一次增量同步。";
+        $("workbuddyMappingMessage").style.color = "var(--green)";
+        await loadWorkbuddyAdmin({ includeLogs: false });
+        renderWorkbuddyAdmin();
+      } catch (error) {
+        $("workbuddyMappingMessage").textContent = error.message || "映射保存失败";
+        $("workbuddyMappingMessage").style.color = "var(--red)";
+      }
     }
 
     function renderModuleFilterOptions() {
@@ -3914,6 +4041,101 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       `).join("") || `<div class="empty">暂无定时任务</div>`;
     }
 
+    function workbuddySourceLabel(source) {
+      return source === "workbuddy" ? "WorkBuddy" : "网站";
+    }
+
+    function workbuddyActionLabel(action) {
+      return ({
+        polled: "增量查询",
+        poll_failed: "查询失败",
+        writeback_completed: "完成回写",
+        writeback_terminal: "终态跳过",
+        writeback_rejected: "回写拒绝",
+        oauth_mapped: "OAuth 映射",
+        oauth_rejected: "OAuth 拒绝",
+        config_changed: "配置变更",
+        mapping_changed: "映射变更",
+        created: "待办创建",
+        updated: "待办更新",
+        recreated: "待办重建",
+        skipped: "执行跳过",
+        failed: "执行失败",
+        retry_scheduled: "安排重试",
+      })[action] || action || "-";
+    }
+
+    function renderWorkbuddyAdmin() {
+      if (!workbuddyAdmin) {
+        $("workbuddyOverview").innerHTML = `<div class="subtitle">点击刷新读取企微同步状态。</div>`;
+        $("workbuddyMappings").innerHTML = `<div class="empty">暂无映射数据</div>`;
+        $("workbuddyLogs").innerHTML = `<div class="empty">暂无同步日志</div>`;
+        return;
+      }
+      const config = workbuddyAdmin.config || {};
+      const status = workbuddyAdmin.status || {};
+      const summary = workbuddyAdmin.summary || {};
+      const metrics = [
+        ["集成状态", config.enabled ? "已启用" : "已停用", config.enabled ? "good" : "warn"],
+        ["最近轮询", scheduledTaskTime(status.lastPollAt), ""],
+        ["最近返回", `${Number(status.lastPollCount || 0)} 项`, ""],
+        ["增量水位", status.lastWatermark ? String(status.lastWatermark) : "-", ""],
+        ["24h 失败", String(Number(summary.failed || 0)), Number(summary.failed || 0) ? "bad" : "good"],
+        ["未映射员工", String(Number(summary.unmapped || 0)), Number(summary.unmapped || 0) ? "warn" : "good"],
+      ];
+      $("workbuddyOverview").innerHTML = metrics.map(([label, value, tone]) => `
+        <div class="workbuddy-metric"><span>${escapeHtml(label)}</span><strong class="${tone}">${escapeHtml(value)}</strong></div>
+      `).join("");
+
+      $("workbuddyEnabled").value = String(config.enabled === true);
+      $("workbuddyDepartment").value = config.departmentId || "";
+      $("workbuddyCorpId").value = config.corpId || "";
+      $("workbuddyResolverUrl").value = config.oauthResolverUrl || "";
+      $("workbuddyOpenToken").value = "";
+      $("workbuddyOauthToken").value = "";
+      const tokenStatus = (token) => token?.configured
+        ? `${token.mask || "已配置"} · ${token.source === "admin" ? "后台配置" : "环境变量"}`
+        : "未配置";
+      $("workbuddyOpenTokenStatus").textContent = tokenStatus(config.openApiToken);
+      $("workbuddyOauthTokenStatus").textContent = tokenStatus(config.oauthResolverToken);
+
+      const mappings = workbuddyAdmin.mappings || [];
+      $("workbuddyMappings").innerHTML = `
+        <table class="data-table workbuddy-table">
+          <thead><tr><th>员工</th><th>网站账号</th><th>企微 userid</th><th>账号状态</th><th>操作</th></tr></thead>
+          <tbody>${mappings.map((mapping) => `
+            <tr data-workbuddy-mapping-row="${escapeHtml(mapping.username)}">
+              <td><strong>${escapeHtml(mapping.displayName || mapping.username)}</strong></td>
+              <td>${escapeHtml(mapping.username)}</td>
+              <td><input data-workbuddy-userid="${escapeHtml(mapping.username)}" value="${escapeHtml(mapping.wecomUserId || "")}" placeholder="未映射" /></td>
+              <td><span class="status-pill ${mapping.enabled ? "status-normal" : "status-done"}">${mapping.enabled ? "启用" : "停用"}</span></td>
+              <td><button class="ghost-btn" data-save-workbuddy-mapping="${escapeHtml(mapping.username)}">保存</button></td>
+            </tr>
+          `).join("") || `<tr><td colspan="5" class="empty">当前同步部门暂无员工</td></tr>`}</tbody>
+        </table>`;
+
+      const resultLabels = { success: "成功", failed: "失败", skipped: "跳过", retrying: "重试中" };
+      const resultClasses = { success: "status-normal", failed: "status-risk", skipped: "status-done", retrying: "status-late" };
+      $("workbuddyLogs").innerHTML = `
+        <table class="data-table workbuddy-table">
+          <thead><tr><th>发生时间</th><th>来源</th><th>动作</th><th>结果</th><th>任务 / 员工</th><th>企微待办 ID</th><th>说明</th></tr></thead>
+          <tbody>${workbuddyLogs.map((row) => {
+            const taskPerson = [row.taskTitle || row.taskId, row.displayName || row.username].filter(Boolean).join(" · ") || "-";
+            const message = row.message || "-";
+            return `<tr>
+              <td>${escapeHtml(scheduledTaskTime(row.occurredAt))}</td>
+              <td>${escapeHtml(workbuddySourceLabel(row.source))}</td>
+              <td>${escapeHtml(workbuddyActionLabel(row.action))}</td>
+              <td><span class="status-pill ${resultClasses[row.result] || "status-done"}">${escapeHtml(resultLabels[row.result] || row.result || "-")}</span></td>
+              <td>${escapeHtml(taskPerson)}</td>
+              <td>${escapeHtml(row.wecomTodoId || "-")}</td>
+              <td><div class="workbuddy-log-message" title="${escapeHtml(message)}">${escapeHtml(message)}</div></td>
+            </tr>`;
+          }).join("") || `<tr><td colspan="7" class="empty">当前筛选条件下暂无日志</td></tr>`}</tbody>
+        </table>`;
+      $("moreWorkbuddyLogsBtn").hidden = !workbuddyLogCursor;
+    }
+
     function renderAdmin() {
       $("adminLoginPanel").hidden = adminAuthed;
       $("adminManagePanel").hidden = !adminAuthed;
@@ -3929,6 +4151,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== adminActiveSection; });
       document.querySelector(".admin-savebar").hidden = !adminDirty;
       if (adminActiveSection === "scheduled-tasks") renderScheduledTasks();
+      if (adminActiveSection === "workbuddy") renderWorkbuddyAdmin();
       const draftDepartments = adminDraftSettings.departments || [];
       if (!draftDepartments.some((department) => department.id === adminModulesDepartmentId)) adminModulesDepartmentId = draftDepartments[0]?.id || "";
       const selectedDepartment = draftDepartments.find((department) => department.id === adminModulesDepartmentId) || draftDepartments[0];
@@ -5081,7 +5304,54 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           setSyncStatus(error.message || "定时任务状态读取失败", "warn");
         }
       }
+      if (adminActiveSection === "workbuddy") {
+        try {
+          await loadWorkbuddyAdmin();
+        } catch (error) {
+          setSyncStatus(error.message || "企微同步状态读取失败", "warn");
+        }
+      }
       renderAdmin();
+    });
+    $("reloadWorkbuddyBtn").addEventListener("click", async () => {
+      try {
+        await loadWorkbuddyAdmin();
+        renderWorkbuddyAdmin();
+        setSyncStatus("企微同步状态已刷新", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "企微同步状态读取失败", "warn");
+      }
+    });
+    $("saveWorkbuddyConfigBtn").addEventListener("click", async () => {
+      try {
+        await saveWorkbuddyConfig();
+        setSyncStatus("企微同步配置已保存", "ok");
+      } catch (error) {
+        setSyncStatus(error.message || "企微同步配置保存失败", "warn");
+      }
+    });
+    $("workbuddyMappings").addEventListener("click", async (event) => {
+      const username = event.target.closest("[data-save-workbuddy-mapping]")?.dataset.saveWorkbuddyMapping;
+      if (username) await saveWorkbuddyMapping(username);
+    });
+    $("filterWorkbuddyLogsBtn").addEventListener("click", async () => {
+      try {
+        await loadWorkbuddyLogs();
+        renderWorkbuddyAdmin();
+      } catch (error) {
+        setSyncStatus(error.message || "同步日志读取失败", "warn");
+      }
+    });
+    $("workbuddyLogKeyword").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") $("filterWorkbuddyLogsBtn").click();
+    });
+    $("moreWorkbuddyLogsBtn").addEventListener("click", async () => {
+      try {
+        await loadWorkbuddyLogs({ append: true });
+        renderWorkbuddyAdmin();
+      } catch (error) {
+        setSyncStatus(error.message || "更多同步日志读取失败", "warn");
+      }
     });
     $("reloadScheduledTasksBtn").addEventListener("click", async () => {
       try {
