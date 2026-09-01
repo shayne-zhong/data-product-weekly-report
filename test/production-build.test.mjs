@@ -21,3 +21,14 @@ test("production build contains the runnable service", async () => {
   assert.match(manifest.builtAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(join("build", manifest.entry), join("build", "server.mjs"));
 });
+
+test("production build uses Vercel commit metadata without requiring a Git checkout", async () => {
+  const commit = "1234567890abcdef1234567890abcdef12345678";
+  await execFileAsync(process.execPath, ["scripts/build.mjs"], {
+    cwd: root,
+    env: { ...process.env, VERCEL_GIT_COMMIT_SHA: commit },
+  });
+
+  const manifest = JSON.parse(await readFile(new URL("../build/build-manifest.json", import.meta.url), "utf8"));
+  assert.equal(manifest.version, commit);
+});

@@ -33,9 +33,13 @@ USER node
 CMD ["node", "server.mjs"]
 `, "utf8");
 
-const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root });
+let version = String(process.env.VERCEL_GIT_COMMIT_SHA || "").trim();
+if (!version) {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root });
+  version = stdout.trim();
+}
 const manifest = {
-  version: stdout.trim(),
+  version,
   builtAt: new Date().toISOString(),
   entry: "server.mjs",
 };
