@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createStateStore, defaultLocalStatePath } from "../lib/state-store.mjs";
 
 function fakeDatabase() {
@@ -252,4 +253,9 @@ test("Vercel Blob retries an ETag conflict and merges the latest unrelated state
     settings: { theme: "dark" },
     sessions: { login: { username: "alice" } },
   });
+});
+
+test("Vercel Blob SDK supports cache-bypassed consistent private reads", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(manifest.dependencies["@vercel/blob"], "^2.8.0");
 });
