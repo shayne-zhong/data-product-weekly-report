@@ -259,3 +259,25 @@ test("Vercel Blob SDK supports cache-bypassed consistent private reads", async (
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.equal(manifest.dependencies["@vercel/blob"], "^2.8.0");
 });
+
+test("Vercel Blob converts a weak read ETag to the strong conditional-write form", async () => {
+  const puts = [];
+  const blob = {
+    async get() {
+      return { blob: { etag: 'W/"etag-1"' }, stream: new Blob([JSON.stringify({ sessions: {} })]).stream() };
+    },
+    async put(pathname, value, options) {
+      puts.push(options);
+      return { etag: '"etag-2"' };
+    },
+  };
+  const store = createStateStore({
+    env: { NODE_ENV: "production", VERCEL: "1", BLOB_READ_WRITE_TOKEN: "token" },
+    vercelBlob: blob,
+  });
+  const base = await store.load();
+
+  await store.save({ sessions: { login: {} } }, { baseState: base });
+
+  assert.equal(puts[0].ifMatch, '"etag-1"');
+});
