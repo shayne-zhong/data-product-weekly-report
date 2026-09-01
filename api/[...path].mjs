@@ -1610,6 +1610,7 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
           result: String(req.query.result || "").trim(),
           action: String(req.query.action || "").trim(),
           keyword: String(req.query.keyword || "").trim(),
+          since: req.query.since,
           before: String(req.query.before || "").trim(),
           limit: req.query.limit,
           now,

@@ -108,6 +108,17 @@ test("queries use stable cursor ordering and filters", () => {
   });
 });
 
+test("queries can limit rows by an absolute start timestamp", () => {
+  const state = { workbuddy: { syncEvents: [
+    { id: "new", occurredAt: 2_000, result: "success", action: "created" },
+    { id: "old", occurredAt: 1_000, result: "success", action: "created" },
+  ] } };
+
+  const result = querySyncEvents(state, { since: 1_500, now: 3_000 });
+
+  assert.deepEqual(result.events.map((event) => event.id), ["new"]);
+});
+
 test("invalid event source, action, result, or timestamp is rejected", () => {
   const valid = {
     source: "website",

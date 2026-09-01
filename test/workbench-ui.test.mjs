@@ -560,6 +560,26 @@ test("admin uses categorized settings and safe AI key controls", () => {
   assert.match(html, /adminDirty/);
 });
 
+test("global admin exposes a WorkBuddy operations panel with no leader access", () => {
+  assert.match(html, /data-admin-section="workbuddy"/);
+  assert.match(html, /data-admin-panel="workbuddy"/);
+  assert.match(html, /adminRole !== "admin"/);
+  assert.match(html, /\/api\/admin\/workbuddy\/config/);
+  assert.match(html, /\/api\/admin\/workbuddy\/mappings/);
+  assert.match(html, /\/api\/admin\/workbuddy\/logs/);
+  assert.match(html, /id="workbuddyOverview"/);
+  assert.match(html, /id="workbuddyMappings"/);
+  assert.match(html, /id="workbuddyLogs"/);
+});
+
+test("WorkBuddy token fields never hydrate from returned masks or local storage", () => {
+  assert.match(html, /\$\("workbuddyOpenToken"\)\.value = ""/);
+  assert.match(html, /\$\("workbuddyOauthToken"\)\.value = ""/);
+  assert.doesNotMatch(html, /localStorage\.setItem\([^\n]*workbuddy/i);
+  assert.match(html, /type="password"[^>]+id="workbuddyOpenToken"/);
+  assert.match(html, /type="password"[^>]+id="workbuddyOauthToken"/);
+});
+
 test("department rows expose a leader picker and account rows expose an enable toggle", () => {
   assert.match(html, /data-admin-department-leader="\$\{index\}"/);
   assert.match(html, /department\.leaderUsername/);
