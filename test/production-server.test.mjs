@@ -20,6 +20,10 @@ function close(server) {
   return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
+test("production server exposes a Vercel-compatible default server", () => {
+  assert.equal(typeof productionServer.default?.listen, "function");
+});
+
 test("production server forwards API query parameters", () => {
   assert.equal(typeof productionServer.apiQueryFromUrl, "function");
   const query = productionServer.apiQueryFromUrl(

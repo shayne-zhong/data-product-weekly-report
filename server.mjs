@@ -116,6 +116,9 @@ export function createProductionServer({
   });
 }
 
+const productionServer = createProductionServer();
+export default productionServer;
+
 const chinaOffsetMs = 8 * 60 * 60 * 1000;
 const weekMs = 7 * 24 * 60 * 60 * 1000;
 
@@ -198,11 +201,10 @@ const isDirectRun = process.argv[1]
 
 if (isDirectRun) {
   const port = Number(process.env.PORT || 3000);
-  const server = createProductionServer();
-  server.listen(port, "0.0.0.0", () => {
+  productionServer.listen(port, "0.0.0.0", () => {
     console.log(`Department workbench listening on port ${port}`);
     const scheduler = startWeeklyRolloverScheduler();
     const reportArchiveScheduler = startReportAutoArchiveScheduler();
-    server.once("close", () => { scheduler.stop(); reportArchiveScheduler.stop(); });
+    productionServer.once("close", () => { scheduler.stop(); reportArchiveScheduler.stop(); });
   });
 }
