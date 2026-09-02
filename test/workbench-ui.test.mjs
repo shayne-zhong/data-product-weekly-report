@@ -561,14 +561,29 @@ test("report import shows all permitted department tasks with a this-week/all sc
   assert.match(html, /scope === "all" \|\| dateInWeek/);
 });
 
-test("admin uses categorized settings and safe AI key controls", () => {
-  for (const section of ["departments", "modules", "accounts", "ai", "session"]) {
-    assert.match(html, new RegExp(`data-admin-section="${section}"`));
+test("admin uses three top-level groups and six second-level pages", () => {
+  for (const group of ["organization", "rules", "operations"]) {
+    assert.match(html, new RegExp(`data-admin-group="${group}"`));
   }
-  assert.match(html, /id="adminAiApiKey"/);
-  assert.match(html, /id="adminAiTestBtn"/);
-  assert.match(html, /id="adminAiClearBtn"/);
-  assert.match(html, /adminDirty/);
+  for (const section of ["departments", "members", "login", "archive", "api-key", "scheduled-tasks"]) {
+    assert.match(html, new RegExp(`data-admin-section="${section}"`));
+    assert.match(html, new RegExp(`data-admin-panel="${section}"`));
+  }
+  assert.match(html, /组织管理/);
+  assert.match(html, /规则配置/);
+  assert.match(html, /系统运维/);
+  assert.match(html, /部门管理/);
+  assert.match(html, /成员管理/);
+  assert.match(html, /保持登录/);
+  assert.match(html, /归档设置/);
+  assert.match(html, /API 密钥/);
+});
+
+test("admin navigation maps groups to their default and remembered sections", () => {
+  assert.match(html, /organization:\s*"departments"/);
+  assert.match(html, /rules:\s*"login"/);
+  assert.match(html, /operations:\s*"api-key"/);
+  assert.match(html, /adminLastSectionByGroup\[adminActiveGroup\]/);
 });
 
 test("department rows expose a leader picker and account rows expose an enable toggle", () => {
@@ -592,15 +607,44 @@ test("task editing uses the signed-in role to limit assignees and modules", () =
   assert.match(html, /currentUser\?\.role === "member"/);
 });
 
-test("a department leader gets a cut-down admin panel scoped to their own department", () => {
+test("a department leader only gets organization management scoped to their department", () => {
   assert.match(html, /let adminRole = adminSession\.role === "leader" \? "leader" : "admin"/);
   assert.match(html, /function renderLeaderAdmin\(\)/);
   assert.match(html, /async function loadLeaderWorkspace\(\)/);
   assert.match(html, /\/api\/admin\/leader\/accounts/);
   assert.match(html, /\/api\/admin\/leader\/modules/);
-  assert.match(html, /data-admin-section="leader-accounts"/);
-  assert.match(html, /data-admin-section="leader-modules"/);
+  assert.match(html, /adminRole === "leader"[\s\S]{0,300}group\.id === "organization"/);
+  assert.doesNotMatch(html, /data-admin-section="leader-accounts"/);
+  assert.doesNotMatch(html, /data-admin-section="leader-modules"/);
   assert.match(html, /data-leader-account-enabled=/);
+});
+
+test("admin merged pages keep the existing controls under the new sections", () => {
+  assert.match(html, /data-admin-panel="departments"[\s\S]*id="adminDepartmentsList"[\s\S]*id="adminModulesList"/);
+  assert.match(html, /data-admin-panel="members"[\s\S]*id="adminAccountsList"/);
+  assert.match(html, /data-admin-panel="login"[\s\S]*id="adminSessionDurationMinutes"/);
+  assert.match(html, /data-admin-panel="archive"[\s\S]*id="adminWeeklyArchiveTime"/);
+  assert.match(html, /data-admin-panel="api-key"[\s\S]*id="adminAiApiKey"/);
+});
+
+test("admin tracks unsaved settings by second-level page", () => {
+  assert.match(html, /new Set\(\)/);
+  assert.match(html, /markAdminDirty\("departments"/);
+  assert.match(html, /markAdminDirty\("members"/);
+  assert.match(html, /markAdminDirty\("login"/);
+  assert.match(html, /markAdminDirty\("archive"/);
+  assert.match(html, /markAdminDirty\("api-key"/);
+  assert.match(html, /classList\.toggle\("dirty"/);
+});
+
+test("admin navigation becomes horizontally scrollable on narrow screens", () => {
+  assert.match(html, /@media\(max-width:900px\)[\s\S]*\.admin-primary-nav[\s\S]*overflow-x:auto/);
+  assert.match(html, /@media\(max-width:900px\)[\s\S]*\.settings-nav[\s\S]*overflow-x:auto/);
+});
+
+test("admin warns before leaving with unsaved settings", () => {
+  assert.match(html, /backFromAdminBtn[\s\S]{0,300}adminDirtySections\.size > 0[\s\S]{0,180}当前后台有未保存修改/);
+  assert.match(html, /window\.addEventListener\("beforeunload"[\s\S]{0,180}adminDirtySections\.size === 0/);
 });
 
 test("department tasks default to a remembered quadrant view", () => {
