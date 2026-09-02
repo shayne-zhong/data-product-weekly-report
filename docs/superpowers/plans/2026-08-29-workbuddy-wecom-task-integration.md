@@ -4,9 +4,9 @@
 
 **Goal:** Implement the four approved WorkBuddy contracts for Data Product Department task polling, completion writeback, WeCom userid mapping, and OAuth callback login.
 
-**Architecture:** Keep task projection and monotonic timestamp logic in a small pure module, and keep WorkBuddy token/OAuth handling in a separate authentication module. The existing catch-all API remains the single business entry point; Node, Vercel, and Netlify adapters only translate the exact `/wecom/callback` path into that handler. Existing task completion and session rules remain authoritative.
+**Architecture:** Keep task projection and monotonic timestamp logic in a small pure module, and keep WorkBuddy token/OAuth handling in a separate authentication module. The existing catch-all API remains the single business entry point; the current intranet Node server translates the exact `/wecom/callback` path into that handler. Existing task completion and session rules remain authoritative.
 
-**Tech Stack:** Node.js ESM, built-in `node:test`, existing JSON state store, Vercel/Netlify/Node adapters.
+**Tech Stack:** Node.js ESM, built-in `node:test`, existing JSON state store, intranet Node server.
 
 ---
 
@@ -16,7 +16,7 @@
 - Create: `lib/open-task-sync.mjs`
 - Create: `test/open-task-sync.test.mjs`
 
-- [ ] **Step 1: Write failing tests for timestamp allocation, visible-field reconciliation, mapping changes, and projection**
+- [x] **Step 1: Write failing tests for timestamp allocation, visible-field reconciliation, mapping changes, and projection**
 
 ```js
 test("allocates strictly increasing second timestamps", () => {
@@ -41,13 +41,13 @@ test("reconciles only externally visible task changes", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm RED**
+- [x] **Step 2: Run the focused test and confirm RED**
 
 Run: `node --test test/open-task-sync.test.mjs`
 
 Expected: FAIL because `lib/open-task-sync.mjs` does not exist.
 
-- [ ] **Step 3: Implement the pure synchronization helpers**
+- [x] **Step 3: Implement the pure synchronization helpers**
 
 ```js
 export function nextOpenTaskTimestamp(state, now = Date.now()) {
@@ -87,7 +87,7 @@ export function projectOpenTask(task, account) {
 }
 ```
 
-- [ ] **Step 4: Run the focused test and confirm GREEN**
+- [x] **Step 4: Run the focused test and confirm GREEN**
 
 Run: `node --test test/open-task-sync.test.mjs`
 
@@ -98,10 +98,8 @@ Expected: all tests pass.
 **Files:**
 - Create: `lib/workbuddy-auth.mjs`
 - Create: `test/workbuddy-auth.test.mjs`
-- Modify: `lib/runtime-config.mjs`
-- Modify: `test/runtime-config.test.mjs`
 
-- [ ] **Step 1: Write failing tests for bearer validation, exact one-to-one mapping, signed one-time state, and resolver errors**
+- [x] **Step 1: Write failing tests for bearer validation, exact one-to-one mapping, signed one-time state, and resolver errors**
 
 ```js
 test("validates the configured WorkBuddy bearer token", () => {
@@ -122,13 +120,13 @@ test("consumes a signed OAuth state only once", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm RED**
+- [x] **Step 2: Run the focused tests and confirm RED**
 
-Run: `node --test test/workbuddy-auth.test.mjs test/runtime-config.test.mjs`
+Run: `node --test test/workbuddy-auth.test.mjs`
 
 Expected: FAIL because the new module and production configuration rules are missing.
 
-- [ ] **Step 3: Implement minimal authentication and mapping helpers**
+- [x] **Step 3: Implement minimal authentication and mapping helpers**
 
 ```js
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
@@ -206,11 +204,11 @@ export async function resolveWorkbuddyIdentity(code, { url, token, fetchImpl = f
 }
 ```
 
-Add production validation for `WORKBUDDY_OPEN_API_TOKEN`, `WORKBUDDY_DEPARTMENT_ID`, `WORKBUDDY_OAUTH_RESOLVER_URL`, `WORKBUDDY_OAUTH_RESOLVER_TOKEN`, `WECOM_OAUTH_CORP_ID`, `WECOM_OAUTH_AGENT_ID`, and `WECOM_OAUTH_REDIRECT_URI` only when WorkBuddy integration is enabled.
+The unified API checks `WORKBUDDY_OPEN_API_TOKEN`, `WORKBUDDY_DEPARTMENT_ID`, `WORKBUDDY_OAUTH_RESOLVER_URL`, `WORKBUDDY_OAUTH_RESOLVER_TOKEN`, and `WECOM_OAUTH_CORP_ID` at the relevant request boundary. Optional `WORKBUDDY_DIRECTORY_MAPPINGS_JSON` and `WORKBUDDY_DIRECTORY_BATCH_ID` drive the internal idempotent directory initialization.
 
-- [ ] **Step 4: Run the focused tests and confirm GREEN**
+- [x] **Step 4: Run the focused tests and confirm GREEN**
 
-Run: `node --test test/workbuddy-auth.test.mjs test/runtime-config.test.mjs`
+Run: `node --test test/workbuddy-auth.test.mjs`
 
 Expected: all tests pass.
 
@@ -220,7 +218,7 @@ Expected: all tests pass.
 - Modify: `api/[...path].mjs`
 - Create: `test/workbuddy-open-api.test.mjs`
 
-- [ ] **Step 1: Write failing API tests for authentication, input validation, department filtering, ordering, and mapping refresh**
+- [x] **Step 1: Write failing API tests for authentication, input validation, department filtering, ordering, and mapping refresh**
 
 ```js
 test("GET open tasks returns only timestamps greater than updated_since", async () => {
@@ -237,13 +235,13 @@ test("GET open tasks rejects missing token and invalid updated_since", async () 
 });
 ```
 
-- [ ] **Step 2: Run the API test and confirm RED**
+- [x] **Step 2: Run the API test and confirm RED**
 
 Run: `node --test test/workbuddy-open-api.test.mjs`
 
 Expected: FAIL with 401/404 because the open route does not exist.
 
-- [ ] **Step 3: Add the open route before employee-session authentication**
+- [x] **Step 3: Add the open route before employee-session authentication**
 
 ```js
 if (parts[0] === "open" && parts[1] === "tasks") {
@@ -254,7 +252,7 @@ if (parts[0] === "open" && parts[1] === "tasks") {
 
 `handleOpenTaskQuery` validates a nonnegative safe integer, reconciles/persists visible task changes, filters `openUpdatedAt > updated_since`, sorts ascending, and responds as `{ tasks }`.
 
-- [ ] **Step 4: Run the API test and confirm GREEN**
+- [x] **Step 4: Run the API test and confirm GREEN**
 
 Run: `node --test test/workbuddy-open-api.test.mjs`
 
@@ -266,7 +264,7 @@ Expected: all GET cases pass.
 - Modify: `api/[...path].mjs`
 - Modify: `test/workbuddy-open-api.test.mjs`
 
-- [ ] **Step 1: Add failing tests for completion, terminal 409, domain 422, unsupported status, and cross-department 404**
+- [x] **Step 1: Add failing tests for completion, terminal 409, domain 422, unsupported status, and cross-department 404**
 
 ```js
 test("PUT completion writes once and returns terminal conflict on repeat", async () => {
@@ -282,13 +280,13 @@ test("PUT completion writes once and returns terminal conflict on repeat", async
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm RED**
+- [x] **Step 2: Run the focused test and confirm RED**
 
 Run: `node --test test/workbuddy-open-api.test.mjs`
 
 Expected: FAIL because the PUT route returns 404/405.
 
-- [ ] **Step 3: Implement the minimal writeback handler**
+- [x] **Step 3: Implement the minimal writeback handler**
 
 ```js
 if (!["completed", "已完成"].includes(String(body.status || ""))) return json(res, { error: "Unsupported status" }, 400);
@@ -305,7 +303,7 @@ try {
 
 After success, reconcile the task, persist once, and return `{ task_id, status, updated_at }`. Repeated terminal requests return before any mutation.
 
-- [ ] **Step 4: Run the focused test and confirm GREEN**
+- [x] **Step 4: Run the focused test and confirm GREEN**
 
 Run: `node --test test/workbuddy-open-api.test.mjs`
 
@@ -317,7 +315,7 @@ Expected: all GET and PUT cases pass.
 - Modify: `api/[...path].mjs`
 - Create: `test/workbuddy-oauth-api.test.mjs`
 
-- [ ] **Step 1: Write failing tests for existing mapping, exact auto-fill, conflicts, inactive users, resolver failure, and state replay**
+- [x] **Step 1: Write failing tests for existing mapping, exact auto-fill, conflicts, inactive users, resolver failure, and state replay**
 
 ```js
 test("OAuth callback auto-fills one exact registered account and creates a session", async () => {
@@ -342,13 +340,13 @@ test("OAuth callback rejects a replayed state", async () => {
 });
 ```
 
-- [ ] **Step 2: Run the OAuth API test and confirm RED**
+- [x] **Step 2: Run the OAuth API test and confirm RED**
 
 Run: `node --test test/workbuddy-oauth-api.test.mjs`
 
 Expected: FAIL because `/wecom/callback` is not handled.
 
-- [ ] **Step 3: Implement callback handling before ordinary session checks**
+- [x] **Step 3: Implement callback handling before ordinary session checks**
 
 ```js
 if (parts[0] === "wecom" && parts[1] === "callback") {
@@ -358,23 +356,19 @@ if (parts[0] === "wecom" && parts[1] === "callback") {
 
 The handler consumes the one-time state, resolves `code` through WorkBuddy, validates enterprise/department identity, binds only one exact active registered account, persists the mapping and affected task timestamps, creates the existing session shape, and redirects only to an allowlisted local path. Resolver credentials and authorization codes are never logged.
 
-- [ ] **Step 4: Run the OAuth API test and confirm GREEN**
+- [x] **Step 4: Run the OAuth API test and confirm GREEN**
 
 Run: `node --test test/workbuddy-oauth-api.test.mjs`
 
 Expected: all callback cases pass.
 
-### Task 6: Exact callback routing in every runtime
+### Task 6: Exact callback routing in the intranet Node service
 
 **Files:**
 - Modify: `server.mjs`
-- Modify: `vercel.json`
-- Modify: `netlify.toml`
-- Modify: relevant Netlify adapter only if the existing redirect cannot preserve query parameters
 - Modify: `test/production-server.test.mjs`
-- Modify: `test/production-build.test.mjs`
 
-- [ ] **Step 1: Write failing routing tests**
+- [x] **Step 1: Write failing routing tests**
 
 ```js
 test("production server forwards exact WeCom callback path to the API handler", async () => {
@@ -384,15 +378,13 @@ test("production server forwards exact WeCom callback path to the API handler", 
 });
 ```
 
-Assert that Vercel and Netlify configuration preserve `/wecom/callback` and its query string while directing it to the unified backend.
+- [x] **Step 2: Run the intranet routing test and confirm RED**
 
-- [ ] **Step 2: Run routing/build tests and confirm RED**
-
-Run: `node --test test/production-server.test.mjs test/production-build.test.mjs`
+Run: `node --test test/production-server.test.mjs`
 
 Expected: callback route currently falls through to the SPA/static index.
 
-- [ ] **Step 3: Add the exact runtime rewrites**
+- [x] **Step 3: Add the exact intranet Node rewrite**
 
 ```js
 if (url.pathname === "/wecom/callback") {
@@ -401,11 +393,9 @@ if (url.pathname === "/wecom/callback") {
 }
 ```
 
-Add equivalent Vercel/Netlify rewrites without adding any other public endpoint.
+- [x] **Step 4: Run the intranet routing test and confirm GREEN**
 
-- [ ] **Step 4: Run routing/build tests and confirm GREEN**
-
-Run: `node --test test/production-server.test.mjs test/production-build.test.mjs`
+Run: `node --test test/production-server.test.mjs`
 
 Expected: all routing cases pass.
 
@@ -415,17 +405,17 @@ Expected: all routing cases pass.
 - Modify: `PROJECT_ARCHITECTURE.md`
 - Modify: this plan file checkboxes as tasks finish
 
-- [ ] **Step 1: Document the implemented boundaries**
+- [x] **Step 1: Document the implemented boundaries**
 
 Add concise architecture entries for `lib/open-task-sync.mjs`, `lib/workbuddy-auth.mjs`, the two `/api/open/tasks` routes, exact `/wecom/callback`, Data Product Department scoping, and persistent `openTaskClock`/`openUpdatedAt`.
 
-- [ ] **Step 2: Run contract-focused tests**
+- [x] **Step 2: Run contract-focused tests**
 
-Run: `node --test test/open-task-sync.test.mjs test/workbuddy-auth.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs test/runtime-config.test.mjs test/production-server.test.mjs test/production-build.test.mjs`
+Run: `node --test test/open-task-sync.test.mjs test/workbuddy-auth.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs test/production-server.test.mjs`
 
 Expected: zero failures.
 
-- [ ] **Step 3: Run repository verification**
+- [x] **Step 3: Run repository verification**
 
 Run: `npm test`
 
@@ -439,7 +429,7 @@ Run: `npm run build`
 
 Expected: exit code 0.
 
-- [ ] **Step 4: Verify scope and working tree**
+- [x] **Step 4: Verify scope and working tree**
 
 Run: `git diff --check`
 
@@ -449,9 +439,9 @@ Run: `git status --short`
 
 Expected: only the explicitly listed implementation, test, architecture, and plan files are modified; unrelated `.claude/` remains untracked and unstaged.
 
-- [ ] **Step 5: Commit the verified implementation**
+- [x] **Step 5: Commit the verified implementation**
 
 ```bash
-git add -- PROJECT_ARCHITECTURE.md api/[...path].mjs lib/open-task-sync.mjs lib/workbuddy-auth.mjs lib/runtime-config.mjs server.mjs vercel.json netlify.toml test/open-task-sync.test.mjs test/workbuddy-auth.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs test/runtime-config.test.mjs test/production-server.test.mjs test/production-build.test.mjs docs/superpowers/plans/2026-08-29-workbuddy-wecom-task-integration.md
+git add -- PROJECT_ARCHITECTURE.md api/[...path].mjs lib/open-task-sync.mjs lib/workbuddy-auth.mjs server.mjs test/open-task-sync.test.mjs test/workbuddy-auth.test.mjs test/workbuddy-open-api.test.mjs test/workbuddy-oauth-api.test.mjs test/production-server.test.mjs docs/superpowers/specs/2026-08-29-workbuddy-wecom-task-integration-design.md docs/superpowers/plans/2026-08-29-workbuddy-wecom-task-integration.md
 git commit -m "feat: add WorkBuddy WeCom task integration"
 ```

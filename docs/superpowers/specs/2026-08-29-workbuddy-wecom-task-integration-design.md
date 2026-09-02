@@ -186,7 +186,7 @@ Content-Type: application/json
 GET /wecom/callback?code=<authorization-code>&state=<one-time-state>
 ```
 
-Node、本地服务、Vercel 和 Netlify 入口都必须把该精确路径转发到统一后端处理器，不能要求调用方改用 `/api/...` 路径。
+当前内网 Node 服务必须把该精确路径转发到统一后端处理器，不能要求调用方改用 `/api/...` 路径。本期不改造 Vercel、Netlify 等外部托管运行时。
 
 ### 处理顺序
 
@@ -208,12 +208,12 @@ WORKBUDDY_OPEN_API_TOKEN
 WORKBUDDY_DEPARTMENT_ID
 WORKBUDDY_OAUTH_RESOLVER_URL
 WORKBUDDY_OAUTH_RESOLVER_TOKEN
+WORKBUDDY_DIRECTORY_MAPPINGS_JSON
+WORKBUDDY_DIRECTORY_BATCH_ID
 WECOM_OAUTH_CORP_ID
-WECOM_OAUTH_AGENT_ID
-WECOM_OAUTH_REDIRECT_URI
 ```
 
-任务开放 API Token 与 OAuth 身份解析 Token 必须分离。任何密钥都不得进入前端代码、持久化业务状态、普通错误响应或日志。
+`WORKBUDDY_DIRECTORY_MAPPINGS_JSON` 与批次 ID 用于内网部署时执行一次幂等通讯录初始化；后续批次必须使用新的批次 ID。任务开放 API Token 与 OAuth 身份解析 Token 必须分离。任何密钥都不得进入前端代码、持久化业务状态、普通错误响应或日志。
 
 ## 错误处理与兼容性
 
@@ -259,8 +259,6 @@ WECOM_OAUTH_REDIRECT_URI
 - `api/[...path].mjs`：新增两个开放任务 API 和 OAuth 回调处理。
 - `lib/open-task-sync.mjs`：封装时间戳分配、增量投影和基线初始化。
 - `lib/workbuddy-auth.mjs`：封装 Bearer Token 校验、OAuth state 和身份解析。
-- `lib/runtime-config.mjs`：读取 WorkBuddy 与企微服务端配置。
-- `lib/state-store.mjs`：持久化开放时间钟、任务时间戳、账号映射和 OAuth state。
-- `server.mjs` 及部署路由配置：支持精确路径 `/wecom/callback`。
-- `public/index.html`：增加企微免登入口及失败提示。
-- 对应测试文件：覆盖增量、回写、映射、OAuth 和多运行时路由。
+- 现有状态存储：随统一状态持久化开放时间钟、任务时间戳、账号映射和 OAuth state，无需新增存储适配器。
+- `server.mjs`：在当前内网 Node 服务支持精确路径 `/wecom/callback`。
+- 对应测试文件：覆盖增量、回写、映射、OAuth 和内网 Node 路由。

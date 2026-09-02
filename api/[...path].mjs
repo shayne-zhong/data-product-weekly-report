@@ -13,6 +13,14 @@ import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
+import { projectOpenTask, reconcileOpenTasks } from "../lib/open-task-sync.mjs";
+import {
+  applyDirectoryMappings,
+  bindWecomUserId,
+  consumeOAuthState,
+  resolveWorkbuddyIdentity,
+  workbuddyTokenValid,
+} from "../lib/workbuddy-auth.mjs";
 import {
   applyWeeklyRollover,
   completeWeeklyRolloverExecution,
@@ -123,14 +131,18 @@ function normalizeModules(list) {
 function normalizeAccounts(list, fallbackDepartmentId = defaultDepartment.id) {
   const seen = new Set();
   return (Array.isArray(list) ? list : [])
-    .map((account) => ({
-      name: String(account?.name || "").trim(),
-      username: String(account?.username || "").trim().toLowerCase(),
-      departmentId: safeId(account?.departmentId || fallbackDepartmentId).toLowerCase(),
-      enabled: account?.enabled !== false,
-      role: account?.role === "module_leader" ? "module_leader" : "member",
-      managedModules: normalizeModules(account?.managedModules),
-    }))
+    .map((account) => {
+      const wecomUserId = String(account?.wecomUserId || account?.wecom_userid || "").trim();
+      return {
+        name: String(account?.name || "").trim(),
+        username: String(account?.username || "").trim().toLowerCase(),
+        departmentId: safeId(account?.departmentId || fallbackDepartmentId).toLowerCase(),
+        enabled: account?.enabled !== false,
+        role: account?.role === "module_leader" ? "module_leader" : "member",
+        managedModules: normalizeModules(account?.managedModules),
+        ...(wecomUserId ? { wecomUserId } : {}),
+      };
+    })
     .filter((account) => account.name && account.username)
     .filter((account) => {
       if (seen.has(account.username)) return false;
@@ -270,7 +282,9 @@ function publicSettings(state = {}, { admin = false, departmentId = "" } = {}) {
         ...settings,
         modules: department.modules,
         departments: [department],
-        accounts: settings.accounts.filter((account) => account.departmentId === departmentId),
+        accounts: settings.accounts
+          .filter((account) => account.departmentId === departmentId)
+          .map(({ wecomUserId: _wecomUserId, ...account }) => account),
         ai,
       };
     }
@@ -471,8 +485,17 @@ function lockForActor(report, actor, now) {
   return report.editLock;
 }
 
+function requestCookie(req, name) {
+  const prefix = `${name}=`;
+  const row = String(req.headers?.cookie || "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  return row ? row.slice(prefix.length) : "";
+}
+
 function currentSession(req, state, now = Date.now()) {
-  const token = req.headers["x-user-token"];
+  const token = req.headers["x-user-token"] || requestCookie(req, "workbench_session");
   const session = token ? state.sessions[token] : null;
   if (!session) return null;
   if (!session.expiresAt || session.expiresAt <= now) return null;
@@ -995,9 +1018,9 @@ async function handleAccounts(req, res, state, actor) {
     .map((user) => publicUser(user, state));
   const accounts = getSettings(state).accounts
     .filter((account) => account.departmentId === actor.departmentId)
-    .map((account) => ({
-    ...account,
-    user: users.find((user) => user.username === account.username || user.displayName === account.name) || null,
+    .map(({ wecomUserId: _wecomUserId, ...account }) => ({
+      ...account,
+      user: users.find((user) => user.username === account.username || user.displayName === account.name) || null,
     }));
   return json(res, { accounts });
 }
@@ -1420,15 +1443,210 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   return json(res, { error: "Not found" }, 404);
 }
 
+function workbuddyDepartmentId() {
+  return String(process.env.WORKBUDDY_DEPARTMENT_ID || "").trim();
+}
+
+function openApiConfigured() {
+  return Boolean(String(process.env.WORKBUDDY_OPEN_API_TOKEN || "").trim() && workbuddyDepartmentId());
+}
+
+function parseUpdatedSince(value) {
+  const raw = String(value ?? "");
+  if (!/^(0|[1-9]\d*)$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function applyConfiguredDirectoryMappings(state, departmentId) {
+  const raw = String(process.env.WORKBUDDY_DIRECTORY_MAPPINGS_JSON || "").trim();
+  if (!raw) return false;
+  let mappings;
+  try {
+    mappings = JSON.parse(raw);
+  } catch {
+    const error = new Error("WorkBuddy directory mappings are invalid");
+    error.statusCode = 503;
+    throw error;
+  }
+  if (!Array.isArray(mappings)) {
+    const error = new Error("WorkBuddy directory mappings are invalid");
+    error.statusCode = 503;
+    throw error;
+  }
+  const batchId = String(process.env.WORKBUDDY_DIRECTORY_BATCH_ID || "configured-directory-v1").trim();
+  const alreadyApplied = Boolean(state.workbuddyDirectoryBatches?.[batchId]);
+  applyDirectoryMappings(state, mappings, { departmentId, batchId });
+  return !alreadyApplied;
+}
+
+function accountForOpenTask(settings, task, departmentId) {
+  const username = String(task.ownerUsername || "").trim().toLowerCase();
+  return settings.accounts.find((account) =>
+    account.departmentId === departmentId && account.username === username) || null;
+}
+
+async function handleOpenTasks(req, res, state, parts, now) {
+  if (!openApiConfigured()) return json(res, { error: "WorkBuddy open API is not configured" }, 503);
+  if (!workbuddyTokenValid(req.headers?.authorization, process.env)) {
+    return json(res, { error: "Unauthorized" }, 401);
+  }
+  const departmentId = workbuddyDepartmentId();
+
+  if (req.method === "GET" && parts.length === 2) {
+    const updatedSince = parseUpdatedSince(req.query.updated_since);
+    if (updatedSince === null) return json(res, { error: "updated_since must be a nonnegative integer" }, 400);
+    const directoryChanged = applyConfiguredDirectoryMappings(state, departmentId);
+    const taskStateChanged = reconcileOpenTasks(state, { departmentId, now });
+    if (directoryChanged || taskStateChanged) await saveState(state);
+    const settings = getSettings(state);
+    const tasks = Object.values(state.tasks || {})
+      .filter((task) => task.departmentId === departmentId && Number(task.openUpdatedAt) > updatedSince)
+      .sort((left, right) => left.openUpdatedAt - right.openUpdatedAt)
+      .map((task) => projectOpenTask(task, accountForOpenTask(settings, task, departmentId)));
+    return json(res, { tasks });
+  }
+
+  if (req.method === "PUT" && parts.length === 4 && parts[3] === "status") {
+    const body = await readBody(req);
+    if (!["completed", "已完成"].includes(String(body.status || "").trim())) {
+      return json(res, { error: "Unsupported status" }, 400);
+    }
+    const taskId = decodeURIComponent(parts[2] || "");
+    const existing = state.tasks[taskId];
+    if (!existing || existing.departmentId !== departmentId) return json(res, { error: "Task not found" }, 404);
+    if (existing.status === "已完成") {
+      return json(res, { code: "TASK_ALREADY_TERMINAL", error: "Task is already terminal" }, 409);
+    }
+    let task;
+    try {
+      task = applyTaskStatus(existing, "已完成", { now });
+    } catch (error) {
+      if (error.message === "完成任务前必须关联年度指标并填写贡献数") {
+        return json(res, { code: "TASK_COMPLETION_REQUIREMENTS_NOT_MET", error: error.message }, 422);
+      }
+      throw error;
+    }
+    task.updatedBy = {
+      username: "workbuddy",
+      displayName: "WorkBuddy",
+      role: "integration",
+      departmentId,
+    };
+    state.tasks[taskId] = task;
+    reconcileOpenTasks(state, { departmentId, now });
+    await saveState(state);
+    return json(res, { task_id: task.id, status: task.status, updated_at: task.openUpdatedAt });
+  }
+
+  if (["GET", "PUT"].includes(req.method)) return json(res, { error: "Not found" }, 404);
+  return methodNotAllowed(res);
+}
+
+function oauthConfigured() {
+  return Boolean(
+    workbuddyDepartmentId()
+    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_URL || "").trim()
+    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN || "").trim()
+    && String(process.env.WECOM_OAUTH_CORP_ID || "").trim(),
+  );
+}
+
+function oauthSessionCookie(token, expiresAt, now, req) {
+  const maxAge = Math.max(0, Math.floor((expiresAt - now) / 1000));
+  const forwardedProto = String(req.headers?.["x-forwarded-proto"] || "").toLowerCase();
+  const secure = forwardedProto === "https" || process.env.NODE_ENV === "production";
+  return [
+    `workbench_session=${token}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${maxAge}`,
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
+}
+
+async function handleWecomCallback(req, res, state, now) {
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!oauthConfigured()) return json(res, { error: "WorkBuddy OAuth is not configured" }, 503);
+  const code = String(req.query.code || "").trim();
+  const stateToken = String(req.query.state || "").trim();
+  if (!code || !stateToken) return json(res, { error: "code and state are required" }, 400);
+
+  let oauthState;
+  try {
+    oauthState = consumeOAuthState(state, stateToken, {
+      secret: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN,
+      now,
+    });
+  } catch (error) {
+    return json(res, { error: error.message }, 400);
+  }
+  await saveState(state);
+
+  let identity;
+  try {
+    identity = await resolveWorkbuddyIdentity(code, {
+      url: process.env.WORKBUDDY_OAUTH_RESOLVER_URL,
+      token: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN,
+    });
+  } catch (error) {
+    return json(res, { error: error.message }, 502);
+  }
+
+  const departmentId = workbuddyDepartmentId();
+  if (String(identity.corp_id || "").trim() !== String(process.env.WECOM_OAUTH_CORP_ID || "").trim()
+    || String(identity.department_id || "").trim() !== departmentId) {
+    return json(res, { error: "WeCom identity is outside the configured enterprise or department" }, 403);
+  }
+
+  const settings = getSettings(state);
+  const mapped = settings.accounts.find((account) => account.wecomUserId === identity.wecom_userid);
+  const exact = settings.accounts.find((account) =>
+    account.departmentId === departmentId && account.username === identity.username);
+  if (mapped && mapped.username !== identity.username) {
+    return json(res, { code: "WECOM_MAPPING_CONFLICT", error: "WeCom userid is already mapped" }, 409);
+  }
+  const account = mapped || exact;
+  const department = settings.departments.find((item) => item.id === departmentId);
+  const user = account ? state.users[account.username] : null;
+  if (!account || account.departmentId !== departmentId || account.enabled === false || !department?.enabled || !user) {
+    return json(res, { error: "No active registered website account matches this identity" }, 403);
+  }
+
+  try {
+    bindWecomUserId(state.settings.accounts, account.username, identity.wecom_userid);
+  } catch (error) {
+    return json(res, { code: "WECOM_MAPPING_CONFLICT", error: error.message }, 409);
+  }
+  user.departmentId = departmentId;
+  user.displayName = account.name || user.displayName;
+  user.updatedAt = now;
+  reconcileOpenTasks(state, { departmentId, now });
+
+  const token = randomId("session");
+  const expiresAt = now + settings.sessionDurationMinutes * 60_000;
+  state.sessions[token] = { username: account.username, departmentId, createdAt: now, expiresAt };
+  await saveState(state);
+
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Location", oauthState.returnTo);
+  res.setHeader("Set-Cookie", oauthSessionCookie(token, expiresAt, now, req));
+  res.status(302);
+  return typeof res.end === "function" ? res.end() : res.json({ redirect: oauthState.returnTo });
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
-  const mutating = !["GET", "HEAD"].includes(req.method);
+  const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
+  const parts = routePath.split("/").filter(Boolean);
+  const openTaskRequest = parts[0] === "open" && parts[1] === "tasks";
+  const wecomCallbackRequest = parts[0] === "wecom" && parts[1] === "callback";
+  const mutating = !["GET", "HEAD"].includes(req.method) || openTaskRequest || wecomCallbackRequest;
   const release = mutating ? await mutationLock.acquire() : () => {};
   try {
     const state = await loadState();
     const now = Date.now();
-    const routePath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "");
-    const parts = routePath.split("/").filter(Boolean);
     if (parts[0] === "internal" && parts[1] === "weekly-rollover") {
       if (req.method !== "POST") return methodNotAllowed(res);
       if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
@@ -1453,6 +1671,8 @@ export default async function handler(req, res) {
       return json(res, result);
     }
     const actor = currentUser(req, state, now);
+    if (openTaskRequest) return await handleOpenTasks(req, res, state, parts, now);
+    if (wecomCallbackRequest) return await handleWecomCallback(req, res, state, now);
     if (parts[0] === "auth") return await handleAuth(req, res, state, parts[1], now);
     if (parts[0] === "admin") return await handleAdmin(req, res, state, parts, now, release);
     if (parts[0] === "settings") return await handleSettings(req, res, state, now);
