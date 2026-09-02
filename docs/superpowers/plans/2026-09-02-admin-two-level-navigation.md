@@ -37,6 +37,9 @@ Replace the current `后台管理中心` items with:
 5. 全局管理员可访问全部导航。部门负责人只显示“组织管理”，可维护本部门工作模块及成员角色、负责模块、启停和密码，不可新增或删除成员账号。
 6. 每个二级页面独立保存配置。切换页面保留未保存草稿并标记对应菜单；保存失败保留输入并显示原因。
 7. 清除 API 密钥和人工补跑继续要求显式确认，菜单可见性不替代服务端权限校验。
+8. 离开后台管理视图或关闭页面前，存在未保存修改时必须二次确认。
+9. 密码重置、账号停用、角色变更、API 密钥清除和人工补跑不得与普通配置批量保存，必须单独提交和确认。
+10. 成员与任务类列表保留适用的关键词、部门、角色和启用状态筛选，并明确区分加载中、无数据、无匹配、无权限和加载失败状态。
 ```
 
 - [ ] **Step 2: Review the surrounding PRD for contradictions**
@@ -510,6 +513,8 @@ $("adminSaveBtn").addEventListener("click", () => saveAdminSettings().catch((err
 - [ ] **Step 6: Preserve existing safety confirmations**
 
 Keep the existing `confirm("确认清除当前 AI API 密钥？清除后 AI 功能将停用。")`. Keep scheduled-task confirmation and ensure report archive text states that only due, unfinished reports are handled and no report is archived early.
+
+Add an admin-view exit guard that only fires when `adminDirtySections.size > 0`; it must cover `backFromAdminBtn` and `beforeunload`, and it must not block a clean exit. Keep password reset, role/status changes, and scheduled-task runs as their existing independent API operations rather than including them in `saveAdminSettings()`.
 
 - [ ] **Step 7: Run the focused test and confirm GREEN**
 
