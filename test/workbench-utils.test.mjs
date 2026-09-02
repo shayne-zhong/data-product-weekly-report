@@ -10,11 +10,14 @@ import {
 } from "../lib/workbench-utils.mjs";
 
 test("report import line keeps existing content format with sequence title progress and detail", () => {
-  const line = reportTaskImportLine({
-    title: "成本还原表",
-    progress: 23,
-    dailyLogs: [{ progress: "已上线6个报表" }],
-  }, 0);
+  const line = reportTaskImportLine(
+    {
+      title: "成本还原表",
+      progress: 23,
+      dailyLogs: [{ progress: "已上线6个报表" }],
+    },
+    0,
+  );
   assert.equal(line, "1、成本还原表：整体进度23%，已上线6个报表");
 });
 

@@ -45,10 +45,7 @@ test("state fingerprint is stable and summarizes all migrated entities", () => {
 
 test("fingerprint verification rejects corrupt metadata", () => {
   const metadata = fingerprintState(state);
-  assert.throws(
-    () => assertStateFingerprint(state, { ...metadata, sha256: "0".repeat(64) }),
-    /fingerprint mismatch/i,
-  );
+  assert.throws(() => assertStateFingerprint(state, { ...metadata, sha256: "0".repeat(64) }), /fingerprint mismatch/i);
 });
 
 test("fingerprint verification rejects a different read-back payload", () => {

@@ -1,198 +1,66 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { createStateStore, defaultLocalStatePath } from "../lib/state-store.mjs";
 
-function fakeDatabase() {
-  const records = new Map();
-  const database = {
-    records,
-    collection(name) {
-      assert.equal(name, "workbench_state");
-      return {
-        doc(id) {
-          return {
-            async get() {
-              return { data: records.has(id) ? [records.get(id)] : [] };
-            },
-            async set(value) {
-              records.set(id, { _id: id, ...value });
-              return { updated: 1 };
-            },
-          };
-        },
-      };
+test("Vercel Blob store round-trips the state document", async () => {
+  let value = null;
+  const blob = {
+    async get() {
+      return value === null ? null : { stream: new Blob([value]).stream() };
     },
-    async runTransaction(callback) {
-      return callback(database);
+    async put(pathname, nextValue, options) {
+      assert.equal(pathname, "data-product-weekly-report/state-v1.json");
+      assert.equal(options.access, "private");
+      value = nextValue;
+      return { pathname };
     },
   };
-  return database;
-}
-
-test("CloudBase store round-trips the state document", async () => {
-  const database = fakeDatabase();
   const store = createStateStore({
-    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
-    cloudbaseDatabase: database,
-    now: () => 123456,
+    env: { NODE_ENV: "production", VERCEL: "1", BLOB_READ_WRITE_TOKEN: "token" },
+    vercelBlob: blob,
   });
   const state = { users: { alice: { username: "alice" } } };
 
   await store.save(state);
 
   assert.deepEqual(await store.load(), state);
-  assert.deepEqual(database.records.get("state-v1"), {
-    _id: "state-v1",
-    schemaVersion: 1,
-    updatedAt: 123456,
-    payload: state,
-  });
 });
 
-test("CloudBase store returns null before the first import", async () => {
-  const store = createStateStore({
-    env: { NODE_ENV: "production", TCB_ENV: "env-test" },
-    cloudbaseDatabase: fakeDatabase(),
-  });
+test("Node production uses an explicit local state path", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "workbench-state-test-"));
+  const statePath = join(directory, "state.json");
+  const store = createStateStore({ env: { NODE_ENV: "production", STATE_PATH: statePath } });
+  const state = { tasks: { taskA: { id: "taskA" } } };
 
-  assert.equal(await store.load(), null);
+  try {
+    await store.save(state);
+    assert.deepEqual(await store.load(), state);
+    assert.deepEqual(JSON.parse(await readFile(statePath, "utf8")), state);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
-test("CloudBase transaction preserves a task deletion across stale instance saves", async () => {
-  const database = fakeDatabase();
-  const options = { env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" }, cloudbaseDatabase: database };
-  const firstInstance = createStateStore(options);
-  const secondInstance = createStateStore(options);
-  const initial = { tasks: { taskA: { id: "taskA", title: "待删除" } }, settings: { theme: "light" } };
-  await firstInstance.save(initial);
-
-  const firstBase = await firstInstance.load();
-  const secondBase = await secondInstance.load();
-  const afterDelete = structuredClone(firstBase);
-  const staleSettingsSave = structuredClone(secondBase);
-  delete afterDelete.tasks.taskA;
-  staleSettingsSave.settings.theme = "dark";
-
-  await firstInstance.save(afterDelete, { baseState: firstBase });
-  await secondInstance.save(staleSettingsSave, { baseState: secondBase });
-
-  assert.deepEqual(await firstInstance.load(), { tasks: {}, settings: { theme: "dark" } });
-});
-
-test("CloudBase transaction does not resurrect a deleted task from a stale task update", async () => {
-  const database = fakeDatabase();
-  const options = { env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" }, cloudbaseDatabase: database };
-  const deletingInstance = createStateStore(options);
-  const staleInstance = createStateStore(options);
-  const initial = { tasks: { taskA: { id: "taskA", title: "删除前" } } };
-  await deletingInstance.save(initial);
-
-  const deleteBase = await deletingInstance.load();
-  const staleBase = await staleInstance.load();
-  const afterDelete = structuredClone(deleteBase);
-  const staleUpdate = structuredClone(staleBase);
-  delete afterDelete.tasks.taskA;
-  staleUpdate.tasks.taskA.title = "旧页面仍在保存";
-
-  await deletingInstance.save(afterDelete, { baseState: deleteBase });
-  await staleInstance.save(staleUpdate, { baseState: staleBase });
-
-  assert.deepEqual(await deletingInstance.load(), { tasks: {} });
-});
-
-test("CloudBase transaction preserves unrelated state when transaction reads return data.list", async () => {
-  const database = fakeDatabase();
-  const originalCollection = database.collection.bind(database);
-  database.runTransaction = async (callback) => callback({
-    collection(name) {
-      const collection = originalCollection(name);
-      return {
-        doc(id) {
-          const document = collection.doc(id);
-          return {
-            ...document,
-            async get() {
-              const result = await document.get();
-              return { data: { list: result.data } };
-            },
-          };
-        },
-      };
-    },
-  });
-  const store = createStateStore({
-    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
-    cloudbaseDatabase: database,
-  });
-  const initial = { users: { alice: { username: "alice" } }, tasks: { taskA: { id: "taskA" } }, loginAttempts: {} };
-  await store.save(initial);
-  const base = await store.load();
-  const next = structuredClone(base);
-  next.loginAttempts.alice = { failures: 1 };
-
-  await store.save(next, { baseState: base });
-
-  assert.deepEqual(await store.load(), next);
-});
-
-test("CloudBase transaction persists normalized fields that are missing from legacy state", async () => {
-  const database = fakeDatabase();
-  const store = createStateStore({
-    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
-    cloudbaseDatabase: database,
-  });
-  await store.save({ users: {}, tasks: {} });
-  const base = { users: {}, tasks: {}, sessions: {}, loginAttempts: {} };
-  const next = structuredClone(base);
-  next.loginAttempts.alice = { failures: 1 };
-
-  await store.save(next, { baseState: base });
-
-  assert.deepEqual(await store.load(), next);
-});
-
-test("production never falls back to temporary disk", async () => {
+test("production rejects missing Vercel Blob and Node state storage", async () => {
   const store = createStateStore({ env: { NODE_ENV: "production" } });
 
   await assert.rejects(() => store.load(), /durable state storage is not configured/i);
   await assert.rejects(() => store.save({}), /durable state storage is not configured/i);
 });
 
-test("production surfaces CloudBase write failures instead of reporting a temporary-disk success", async () => {
-  const database = fakeDatabase();
-  database.collection = () => ({ doc: () => ({
-    async set() { throw new Error("cloud write failed"); },
-  }) });
-  const store = createStateStore({
-    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
-    cloudbaseDatabase: database,
-  });
-
-  await assert.rejects(() => store.save({ tasks: {} }), /cloud write failed/);
-});
-
-test("production surfaces CloudBase read failures instead of serving stale local state", async () => {
-  const database = fakeDatabase();
-  database.collection = () => ({ doc: () => ({
-    async get() { throw new Error("cloud read failed"); },
-  }) });
-  const store = createStateStore({
-    env: { NODE_ENV: "production", CLOUDBASE_ENV_ID: "env-test" },
-    cloudbaseDatabase: database,
-  });
-
-  await assert.rejects(() => store.load(), /cloud read failed/);
-});
-
-test("local fallback state survives a server process restart", () => {
+test("default local state path is stable across process restarts", () => {
   assert.equal(defaultLocalStatePath(4321, {}), defaultLocalStatePath(9876, {}));
   assert.match(defaultLocalStatePath(4321, {}), /data-product-weekly-report-state-v1\.json$/);
 });
 
-test("production uses the CloudBase SDK version that supports API key authentication", async () => {
+test("runtime dependencies only include Vercel Blob", async () => {
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
-  assert.equal(manifest.dependencies["@cloudbase/node-sdk"], "4.0.3");
+  assert.equal(manifest.dependencies["@vercel/blob"], "^2.8.0");
+  assert.equal(manifest.dependencies["@cloudbase/node-sdk"], undefined);
+  assert.equal(manifest.dependencies["@netlify/blobs"], undefined);
 });

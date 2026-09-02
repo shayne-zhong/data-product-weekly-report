@@ -16,8 +16,20 @@ test("completed goal contributions sum only completed task links", () => {
   const totals = completedGoalContributionById([
     buildEmptyTask({ status: "已完成", goalLinks: [{ goalId: "g1", contribution: 2 }] }),
     buildEmptyTask({ status: "进行中", goalLinks: [{ goalId: "g1", contribution: 99 }] }),
-    buildEmptyTask({ status: "已完成", goalLinks: [{ goalId: "g1", contribution: 3 }, { goalId: "g2", contribution: 4 }] }),
-    { status: "已完成", goalLinks: [{ goalId: "g1", contribution: -1 }, { goalId: "", contribution: 8 }] },
+    buildEmptyTask({
+      status: "已完成",
+      goalLinks: [
+        { goalId: "g1", contribution: 3 },
+        { goalId: "g2", contribution: 4 },
+      ],
+    }),
+    {
+      status: "已完成",
+      goalLinks: [
+        { goalId: "g1", contribution: -1 },
+        { goalId: "", contribution: 8 },
+      ],
+    },
   ]);
 
   assert.deepEqual(totals, { g1: 5, g2: 4 });
@@ -61,7 +73,13 @@ test("rolloverTasks carries only unfinished tasks into the target week", () => {
     buildEmptyTask({ id: "done", weekId: "2026-06-08_2026-06-14", title: "已完成", status: "已完成" }),
     buildEmptyTask({ id: "doing", weekId: "2026-06-08_2026-06-14", title: "继续推进", status: "进行中" }),
     buildEmptyTask({ id: "blocked", weekId: "2026-06-08_2026-06-14", title: "存在阻塞", status: "阻塞" }),
-    buildEmptyTask({ id: "carry", weekId: "2026-06-08_2026-06-14", title: "显式带入", status: "已完成", carryToNextWeek: true }),
+    buildEmptyTask({
+      id: "carry",
+      weekId: "2026-06-08_2026-06-14",
+      title: "显式带入",
+      status: "已完成",
+      carryToNextWeek: true,
+    }),
   ];
 
   const rolled = rolloverTasks(sourceTasks, {
@@ -70,7 +88,10 @@ test("rolloverTasks carries only unfinished tasks into the target week", () => {
     now: 1000,
   });
 
-  assert.deepEqual(rolled.map((task) => task.title), ["继续推进", "存在阻塞"]);
+  assert.deepEqual(
+    rolled.map((task) => task.title),
+    ["继续推进", "存在阻塞"],
+  );
   assert.equal(rolled[0].weekId, "2026-06-15_2026-06-21");
   assert.equal(rolled[0].sourceTaskId, "doing");
   assert.equal(rolled[0].sourceWeekId, "2026-06-08_2026-06-14");

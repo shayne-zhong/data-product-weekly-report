@@ -4,9 +4,15 @@ import { extname, join, normalize } from "node:path";
 
 const root = join(process.cwd(), "public");
 const port = Number(process.env.PORT || 4177);
-const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+const types = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+};
 const now = Date.now();
-const weeks = [{ id: "2026-06-22_2026-06-28", startDate: "2026-06-22", endDate: "2026-06-28", createdAt: now, updatedAt: now }];
+const weeks = [
+  { id: "2026-06-22_2026-06-28", startDate: "2026-06-22", endDate: "2026-06-28", createdAt: now, updatedAt: now },
+];
 const reports = {};
 let settings = {
   modules: ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"],
@@ -54,14 +60,40 @@ createServer(async (req, res) => {
         },
       });
     }
-    if (url.pathname === "/api/accounts") return sendJson(res, { accounts: settings.accounts.map((account) => ({ ...account, user: null })) });
+    if (url.pathname === "/api/accounts")
+      return sendJson(res, { accounts: settings.accounts.map((account) => ({ ...account, user: null })) });
     if (url.pathname === "/api/weeks") return sendJson(res, { weeks });
     if (url.pathname === "/api/reports") {
-      if (req.method === "GET") return sendJson(res, { reports: Object.values(reports).map((report) => ({ id: report.id, summaryType: report.data.summaryType || "weekly", title: report.data.title, startDate: report.data.startDate, endDate: report.data.endDate, status: report.status, updatedAt: report.updatedAt })) });
+      if (req.method === "GET")
+        return sendJson(res, {
+          reports: Object.values(reports).map((report) => ({
+            id: report.id,
+            summaryType: report.data.summaryType || "weekly",
+            title: report.data.title,
+            startDate: report.data.startDate,
+            endDate: report.data.endDate,
+            status: report.status,
+            updatedAt: report.updatedAt,
+          })),
+        });
       const body = await readJson(req);
       const id = `mock_${Date.now()}`;
       reports[id] = { id, status: body.status || "draft", data: body.data, updatedAt: Date.now() };
-      return sendJson(res, { report: { id, summaryType: body.data.summaryType || "weekly", title: body.data.title, startDate: body.data.startDate, endDate: body.data.endDate, status: reports[id].status, updatedAt: reports[id].updatedAt } }, 201);
+      return sendJson(
+        res,
+        {
+          report: {
+            id,
+            summaryType: body.data.summaryType || "weekly",
+            title: body.data.title,
+            startDate: body.data.startDate,
+            endDate: body.data.endDate,
+            status: reports[id].status,
+            updatedAt: reports[id].updatedAt,
+          },
+        },
+        201,
+      );
     }
     if (url.pathname.startsWith("/api/report/")) {
       const id = decodeURIComponent(url.pathname.split("/").pop() || "");
@@ -72,11 +104,23 @@ createServer(async (req, res) => {
       report.status = body.status || report.status;
       report.data = body.data || report.data;
       report.updatedAt = Date.now();
-      return sendJson(res, { report: { id, summaryType: report.data.summaryType || "weekly", title: report.data.title, startDate: report.data.startDate, endDate: report.data.endDate, status: report.status, updatedAt: report.updatedAt } });
+      return sendJson(res, {
+        report: {
+          id,
+          summaryType: report.data.summaryType || "weekly",
+          title: report.data.title,
+          startDate: report.data.startDate,
+          endDate: report.data.endDate,
+          status: report.status,
+          updatedAt: report.updatedAt,
+        },
+      });
     }
     if (url.pathname === "/api/week/2026-06-22_2026-06-28/tasks") return sendJson(res, { week: weeks[0], tasks: [] });
     if (url.pathname === "/api/goals") return sendJson(res, { year: "2026", rows: [], updatedAt: 0, updatedBy: null });
-    const path = normalize(url.pathname === "/" || url.pathname.startsWith("/admin") ? "/index.html" : url.pathname).replace(/^[/\\]+/, "");
+    const path = normalize(
+      url.pathname === "/" || url.pathname.startsWith("/admin") ? "/index.html" : url.pathname,
+    ).replace(/^[/\\]+/, "");
     const file = join(root, path);
     if (!file.startsWith(root)) throw new Error("Forbidden");
     const body = await readFile(file);

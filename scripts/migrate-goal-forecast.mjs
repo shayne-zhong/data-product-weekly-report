@@ -73,7 +73,12 @@ for (const [departmentId, goalsData] of entries) {
     const rowId = row.id || "unknown";
     const verdict = isRecoverable(row, cutoffMs);
     if (verdict === "recoverable") {
-      recoverable.push({ id: rowId, name: row.name, oldCurrent: row.current, expectedCurrent: String(row.current || "").trim() });
+      recoverable.push({
+        id: rowId,
+        name: row.name,
+        oldCurrent: row.current,
+        expectedCurrent: String(row.current || "").trim(),
+      });
     } else if (verdict === "post-cutoff") {
       unrecoverable.push({ id: rowId, name: row.name, oldCurrent: row.current, updatedAt: row.updatedAt });
     } else if (verdict === "already-set") {
@@ -100,13 +105,14 @@ for (const [departmentId, deptReport] of Object.entries(report.departments)) {
         unrecoverable: "⊘ 无法恢复",
         noValue: "⊘ 无历史值",
       }[group];
-      const extra = group === "recoverable"
-        ? `  旧 current: "${item.oldCurrent}" → expectedCurrent: "${item.expectedCurrent}"`
-        : group === "alreadySet"
-        ? `  已有 expectedCurrent: "${item.expectedCurrent}"`
-        : group === "unrecoverable"
-        ? `  旧 current: "${item.oldCurrent}"（上线后更新: ${new Date(item.updatedAt).toISOString()}）`
-        : `  旧 current: "${item.oldCurrent}"`;
+      const extra =
+        group === "recoverable"
+          ? `  旧 current: "${item.oldCurrent}" → expectedCurrent: "${item.expectedCurrent}"`
+          : group === "alreadySet"
+            ? `  已有 expectedCurrent: "${item.expectedCurrent}"`
+            : group === "unrecoverable"
+              ? `  旧 current: "${item.oldCurrent}"（上线后更新: ${new Date(item.updatedAt).toISOString()}）`
+              : `  旧 current: "${item.oldCurrent}"`;
       console.log(`  ${label} | ${item.id} | ${item.name}`);
       console.log(`  ${extra}`);
     }
@@ -205,7 +211,9 @@ for (const [departmentId, deptReport] of Object.entries(report.departments)) {
       console.error(`  验证失败：目标 ${item.id} 在回读数据中不存在`);
       failedCount++;
     } else if (String(row.expectedCurrent || "").trim() !== item.expectedCurrent) {
-      console.error(`  验证失败：目标 ${item.id} 的 expectedCurrent 不匹配（期望: "${item.expectedCurrent}"，实际: "${row.expectedCurrent}"）`);
+      console.error(
+        `  验证失败：目标 ${item.id} 的 expectedCurrent 不匹配（期望: "${item.expectedCurrent}"，实际: "${row.expectedCurrent}"）`,
+      );
       failedCount++;
     } else {
       verifiedCount++;

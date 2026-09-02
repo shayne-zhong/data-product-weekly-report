@@ -21,7 +21,7 @@ function listen(server) {
 }
 
 function close(server) {
-  return new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }
 
 test("production server forwards API query parameters", () => {
@@ -36,17 +36,16 @@ test("production server forwards API query parameters", () => {
   });
 });
 
-test("production server schedules Beijing Monday rollover and runs startup catch-up", async () => {
-  const sunday = Date.parse("2026-08-16T23:55:00+08:00");
-  assert.equal(productionServer.millisecondsUntilNextWeeklyRollover(sunday), 10 * 60 * 1000);
-  const mondayAfter = Date.parse("2026-08-17T00:06:00+08:00");
-  assert.equal(productionServer.millisecondsUntilNextWeeklyRollover(mondayAfter), 7 * 24 * 60 * 60 * 1000 - 60 * 1000);
-
+async function assertDaytimeHourlyScheduler(startScheduler) {
+  const beforeWorkday = Date.parse("2026-09-02T07:30:00+08:00");
   const calls = [];
   const timers = [];
-  const scheduler = productionServer.startWeeklyRolloverScheduler({
-    run: async (options) => { calls.push(options); return { rolledTaskCount: 0 }; },
-    now: () => sunday,
+  const scheduler = startScheduler({
+    run: async (options) => {
+      calls.push(options);
+      return { rolledTaskCount: 0 };
+    },
+    now: () => beforeWorkday,
     setTimeoutImpl(callback, delay) {
       const timer = { callback, delay, unref() {} };
       timers.push(timer);
@@ -56,12 +55,26 @@ test("production server schedules Beijing Monday rollover and runs startup catch
     logger: { info() {}, error() {} },
   });
   await scheduler.startup;
-  assert.deepEqual(calls, [{ triggeredAt: sunday, trigger: "server-startup" }]);
-  assert.equal(timers[0].delay, 10 * 60 * 1000);
+  assert.deepEqual(calls, [{ triggeredAt: beforeWorkday, trigger: "server-startup" }]);
+  assert.equal(timers[0].delay, 30 * 60 * 1000);
   await timers[0].callback();
   assert.equal(calls[1].trigger, "server-scheduled");
-  assert.equal(calls[1].triggeredAt, Date.parse("2026-08-17T00:05:00+08:00"));
+  assert.equal(calls[1].triggeredAt, Date.parse("2026-09-02T08:00:00+08:00"));
   scheduler.stop();
+}
+
+test("production server schedules both background jobs hourly during Beijing daytime", async () => {
+  assert.equal(
+    productionServer.millisecondsUntilNextDaytimeHourlyRun(Date.parse("2026-09-02T08:15:00+08:00")),
+    45 * 60 * 1000,
+  );
+  assert.equal(
+    productionServer.millisecondsUntilNextDaytimeHourlyRun(Date.parse("2026-09-02T20:01:00+08:00")),
+    11 * 60 * 60 * 1000 + 59 * 60 * 1000,
+  );
+
+  await assertDaytimeHourlyScheduler(productionServer.startWeeklyRolloverScheduler);
+  await assertDaytimeHourlyScheduler(productionServer.startReportAutoArchiveScheduler);
 });
 
 test("production server serves health, UI, and protected API", async () => {

@@ -97,10 +97,7 @@ test("task range returns every matching week in the signed-in department", async
     query: { startDate: "2098-07-01", endDate: "2098-07-31" },
   });
   assert.equal(response.statusCode, 200);
-  assert.deepEqual(
-    response.body.tasks.map((task) => task.title).sort(),
-    ["Week one", "Week two"],
-  );
+  assert.deepEqual(response.body.tasks.map((task) => task.title).sort(), ["Week one", "Week two"]);
 });
 
 test("task range rejects invalid dates and anonymous access", async () => {

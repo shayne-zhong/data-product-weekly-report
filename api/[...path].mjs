@@ -1,6 +1,11 @@
-import { timingSafeEqual } from "node:crypto";
-
-import { applyTaskStatus, buildEmptyTask, buildWeekId, completedGoalContributionById, normalizeTaskGoalLinks, summarizeTasksForReport } from "../lib/task-core.mjs";
+import {
+  applyTaskStatus,
+  buildEmptyTask,
+  buildWeekId,
+  completedGoalContributionById,
+  normalizeTaskGoalLinks,
+  summarizeTasksForReport,
+} from "../lib/task-core.mjs";
 import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config.mjs";
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
@@ -43,7 +48,13 @@ const jsonHeaders = {
   "Cache-Control": "no-store",
 };
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
-const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, leaderUsername: "", leaderAssignedAt: 0 };
+const defaultDepartment = {
+  id: "data-product",
+  name: "数据产品部",
+  enabled: true,
+  leaderUsername: "",
+  leaderAssignedAt: 0,
+};
 const defaultSessionDurationMinutes = 30;
 const minSessionDurationMinutes = 5;
 const maxSessionDurationMinutes = 43_200;
@@ -62,9 +73,19 @@ const aiProviders = {
   },
 };
 const defaultDepartmentAccounts = [
-  ["钟南海", "zhongnanhai"], ["宋泉辰", "songquanchen"], ["高竹林", "gaozhulin"], ["林徵", "linzheng"],
-  ["黄嘉颖", "huangjiaying"], ["梁思嘉", "liangsijia"], ["杨俊华", "yangjunhua"], ["吴健浩", "wujianhao"],
-  ["张瀚中", "zhanghanzhong"], ["黎带兴", "lidaixing"], ["周勉", "zhoumian"], ["邹晓燕", "zouxiaoyan"], ["李文雅", "liwenya"],
+  ["钟南海", "zhongnanhai"],
+  ["宋泉辰", "songquanchen"],
+  ["高竹林", "gaozhulin"],
+  ["林徵", "linzheng"],
+  ["黄嘉颖", "huangjiaying"],
+  ["梁思嘉", "liangsijia"],
+  ["杨俊华", "yangjunhua"],
+  ["吴健浩", "wujianhao"],
+  ["张瀚中", "zhanghanzhong"],
+  ["黎带兴", "lidaixing"],
+  ["周勉", "zhoumian"],
+  ["邹晓燕", "zouxiaoyan"],
+  ["李文雅", "liwenya"],
 ].map(([name, username]) => ({ name, username }));
 let memoryState = null;
 const stateBaseSnapshots = new WeakMap();
@@ -122,9 +143,7 @@ function validReportSummaryType(value) {
 }
 
 function normalizeModules(list) {
-  const modules = (Array.isArray(list) ? list : [])
-    .map((item) => String(item || "").trim())
-    .filter(Boolean);
+  const modules = (Array.isArray(list) ? list : []).map((item) => String(item || "").trim()).filter(Boolean);
   return [...new Set(modules)].slice(0, 20);
 }
 
@@ -135,7 +154,9 @@ function normalizeAccounts(list, fallbackDepartmentId = defaultDepartment.id) {
       const wecomUserId = String(account?.wecomUserId || account?.wecom_userid || "").trim();
       return {
         name: String(account?.name || "").trim(),
-        username: String(account?.username || "").trim().toLowerCase(),
+        username: String(account?.username || "")
+          .trim()
+          .toLowerCase(),
         departmentId: safeId(account?.departmentId || fallbackDepartmentId).toLowerCase(),
         enabled: account?.enabled !== false,
         role: account?.role === "module_leader" ? "module_leader" : "member",
@@ -162,7 +183,9 @@ function normalizeDepartments(value, fallbackModules = defaultModules) {
       modules: normalizeModules(department?.modules).length
         ? normalizeModules(department.modules)
         : [...fallbackModules],
-      leaderUsername: String(department?.leaderUsername || "").trim().toLowerCase(),
+      leaderUsername: String(department?.leaderUsername || "")
+        .trim()
+        .toLowerCase(),
       leaderAssignedAt: Number(department?.leaderAssignedAt) || 0,
     }))
     .filter((department) => department.id && department.name)
@@ -176,9 +199,7 @@ function normalizeDepartments(value, fallbackModules = defaultModules) {
 
 function validSessionDurationMinutes(value) {
   const minutes = Number(value);
-  return Number.isInteger(minutes)
-    && minutes >= minSessionDurationMinutes
-    && minutes <= maxSessionDurationMinutes;
+  return Number.isInteger(minutes) && minutes >= minSessionDurationMinutes && minutes <= maxSessionDurationMinutes;
 }
 
 function normalizeSessionDurationMinutes(value, fallback = defaultSessionDurationMinutes) {
@@ -187,10 +208,11 @@ function normalizeSessionDurationMinutes(value, fallback = defaultSessionDuratio
 
 function normalizeAiSettings(value = {}) {
   const provider = Object.hasOwn(aiProviders, value.provider) ? value.provider : "deepseek";
-  const model = String(value.model || aiProviders[provider].defaultModel).trim().slice(0, 100);
-  const encryptedApiKey = value.encryptedApiKey && typeof value.encryptedApiKey === "object"
-    ? value.encryptedApiKey
-    : null;
+  const model = String(value.model || aiProviders[provider].defaultModel)
+    .trim()
+    .slice(0, 100);
+  const encryptedApiKey =
+    value.encryptedApiKey && typeof value.encryptedApiKey === "object" ? value.encryptedApiKey : null;
   const apiKeyLast4 = String(value.apiKeyLast4 || "").slice(-4);
   return {
     enabled: value.enabled === true,
@@ -230,7 +252,11 @@ function defaultSettings() {
   return {
     modules: [...defaultModules],
     departments,
-    accounts: defaultDepartmentAccounts.map((account) => ({ ...account, departmentId: defaultDepartment.id, enabled: true })),
+    accounts: defaultDepartmentAccounts.map((account) => ({
+      ...account,
+      departmentId: defaultDepartment.id,
+      enabled: true,
+    })),
     sessionDurationMinutes: defaultSessionDurationMinutes,
     reportArchive: defaultReportArchiveSchedule(),
     ai: normalizeAiSettings(),
@@ -247,9 +273,10 @@ function getSettings(state = {}) {
     .filter((account) => resolvedDepartments.some((department) => department.id === account.departmentId))
     .map((account) => {
       const department = resolvedDepartments.find((item) => item.id === account.departmentId);
-      const managedModules = account.role === "module_leader"
-        ? account.managedModules.filter((moduleName) => department?.modules.includes(moduleName))
-        : [];
+      const managedModules =
+        account.role === "module_leader"
+          ? account.managedModules.filter((moduleName) => department?.modules.includes(moduleName))
+          : [];
       return { ...account, managedModules };
     });
   return {
@@ -309,16 +336,28 @@ function resolveReportSummaryType(reportOrData = {}) {
   const [endYear, endMonth, endDay] = end.split("-").map(Number);
   if (!inferred && startYear && startMonth && startDay === 1 && endYear && endMonth && endDay) {
     const quarterEnd = new Date(startYear, startMonth + 2, 0);
-    if (endYear === quarterEnd.getFullYear() && endMonth === quarterEnd.getMonth() + 1 && endDay === quarterEnd.getDate()) inferred = "quarterly";
+    if (
+      endYear === quarterEnd.getFullYear() &&
+      endMonth === quarterEnd.getMonth() + 1 &&
+      endDay === quarterEnd.getDate()
+    )
+      inferred = "quarterly";
     const monthEnd = new Date(startYear, startMonth, 0);
-    if (!inferred && endYear === monthEnd.getFullYear() && endMonth === monthEnd.getMonth() + 1 && endDay === monthEnd.getDate()) inferred = "monthly";
+    if (
+      !inferred &&
+      endYear === monthEnd.getFullYear() &&
+      endMonth === monthEnd.getMonth() + 1 &&
+      endDay === monthEnd.getDate()
+    )
+      inferred = "monthly";
   }
   if (direct && !(direct === "weekly" && inferred && inferred !== "weekly")) return direct;
   return inferred || "weekly";
 }
 
 function normalizeReportPayload(data = {}, fallbackType = "weekly") {
-  const summaryType = validReportSummaryType(data.summaryType) || validReportSummaryType(fallbackType) || resolveReportSummaryType(data);
+  const summaryType =
+    validReportSummaryType(data.summaryType) || validReportSummaryType(fallbackType) || resolveReportSummaryType(data);
   return { ...data, summaryType };
 }
 
@@ -327,7 +366,18 @@ function departmentRecordKey(departmentId, recordId) {
 }
 
 function emptyState() {
-  return { users: {}, sessions: {}, weeks: {}, tasks: {}, reports: {}, goals: null, goalsByDepartment: {}, settings: defaultSettings(), aiUsage: {}, loginAttempts: {} };
+  return {
+    users: {},
+    sessions: {},
+    weeks: {},
+    tasks: {},
+    reports: {},
+    goals: null,
+    goalsByDepartment: {},
+    settings: defaultSettings(),
+    aiUsage: {},
+    loginAttempts: {},
+  };
 }
 
 function hydrateState(state = {}) {
@@ -347,8 +397,12 @@ function hydrateState(state = {}) {
     migratedWeeks[departmentRecordKey(week.departmentId, week.id)] = week;
   });
   merged.weeks = migratedWeeks;
-  Object.values(merged.tasks).forEach((task) => { task.departmentId ||= fallbackDepartmentId; });
-  Object.values(merged.reports).forEach((report) => { report.departmentId ||= fallbackDepartmentId; });
+  Object.values(merged.tasks).forEach((task) => {
+    task.departmentId ||= fallbackDepartmentId;
+  });
+  Object.values(merged.reports).forEach((report) => {
+    report.departmentId ||= fallbackDepartmentId;
+  });
   merged.goalsByDepartment = { ...(merged.goalsByDepartment || {}) };
   if (merged.goals && !merged.goalsByDepartment[fallbackDepartmentId]) {
     merged.goalsByDepartment[fallbackDepartmentId] = { ...merged.goals, departmentId: fallbackDepartmentId };
@@ -361,15 +415,6 @@ async function loadState() {
   memoryState = state ? hydrateState(state) : emptyState();
   stateBaseSnapshots.set(memoryState, structuredClone(memoryState));
   return memoryState;
-}
-
-function weeklyRolloverAuthorized(req) {
-  const expected = String(process.env.WEEKLY_ROLLOVER_SECRET || "");
-  const provided = String(req.headers?.["x-weekly-rollover-secret"] || "");
-  if (!expected || !provided) return false;
-  const expectedBuffer = Buffer.from(expected);
-  const providedBuffer = Buffer.from(provided);
-  return expectedBuffer.length === providedBuffer.length && timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 async function saveState(state) {
@@ -454,9 +499,12 @@ function publicUser(user, state = null) {
   const settings = state ? getSettings(state) : null;
   const department = settings?.departments.find((item) => item.id === user.departmentId) || null;
   const account = settings?.accounts.find((item) => item.username === user.username) || null;
-  const role = department?.leaderUsername === user.username
-    ? "department_leader"
-    : account?.role === "module_leader" ? "module_leader" : "member";
+  const role =
+    department?.leaderUsername === user.username
+      ? "department_leader"
+      : account?.role === "module_leader"
+        ? "module_leader"
+        : "member";
   return {
     id: user.id,
     username: user.username,
@@ -504,7 +552,8 @@ function currentSession(req, state, now = Date.now()) {
   const settings = getSettings(state);
   const account = settings.accounts.find((item) => item.username === session.username);
   const department = settings.departments.find((item) => item.id === departmentId);
-  if (!user || !account || account.enabled === false || account.departmentId !== departmentId || !department?.enabled) return null;
+  if (!user || !account || account.enabled === false || account.departmentId !== departmentId || !department?.enabled)
+    return null;
   session.departmentId = departmentId;
   return session;
 }
@@ -537,11 +586,15 @@ function listTasksForWeek(state, weekId, departmentId) {
 }
 
 function resolvedTaskOwnerUsername(task, settings, departmentId) {
-  const direct = String(task?.ownerUsername || "").trim().toLowerCase();
+  const direct = String(task?.ownerUsername || "")
+    .trim()
+    .toLowerCase();
   if (direct) return direct;
   const ownerName = String(task?.owner || "").trim();
   if (!ownerName) return "";
-  const matches = settings.accounts.filter((account) => account.departmentId === departmentId && account.name === ownerName);
+  const matches = settings.accounts.filter(
+    (account) => account.departmentId === departmentId && account.name === ownerName,
+  );
   return matches.length === 1 ? matches[0].username : "";
 }
 
@@ -553,11 +606,18 @@ function taskVisibleToActor(task, actor, settings) {
 }
 
 function accountForTaskOwner(input = {}, settings, departmentId) {
-  const direct = String(input.ownerUsername || "").trim().toLowerCase();
-  if (direct) return settings.accounts.find((account) => account.username === direct && account.departmentId === departmentId) || null;
+  const direct = String(input.ownerUsername || "")
+    .trim()
+    .toLowerCase();
+  if (direct)
+    return (
+      settings.accounts.find((account) => account.username === direct && account.departmentId === departmentId) || null
+    );
   const ownerName = String(input.owner || "").trim();
   if (!ownerName) return null;
-  const matches = settings.accounts.filter((account) => account.departmentId === departmentId && account.name === ownerName);
+  const matches = settings.accounts.filter(
+    (account) => account.departmentId === departmentId && account.name === ownerName,
+  );
   return matches.length === 1 ? matches[0] : null;
 }
 
@@ -582,9 +642,9 @@ function canUpdateTask(actor, existing, next, settings) {
   const existingOwnerUsername = resolvedTaskOwnerUsername(existing, settings, actor.departmentId);
   if (actor.role === "member") return next.ownerUsername === actor.username;
   if (actor.managedModules.includes(existing.module) && actor.managedModules.includes(next.module)) return true;
-  return existingOwnerUsername === actor.username
-    && next.ownerUsername === actor.username
-    && existing.module === next.module;
+  return (
+    existingOwnerUsername === actor.username && next.ownerUsername === actor.username && existing.module === next.module
+  );
 }
 
 function reportTitleForDepartment(departmentName, summaryType = "weekly") {
@@ -633,11 +693,12 @@ function reportDataFromSummary({ week, summary, settings }) {
 
 function findReportByPeriod(state, data, departmentId) {
   const summaryType = resolveReportSummaryType(data);
-  return Object.values(state.reports).find((report) =>
-    report.departmentId === departmentId &&
-    resolveReportSummaryType(report) === summaryType &&
-    displayDate(report.data?.startDate || report.startDate) === displayDate(data.startDate) &&
-    displayDate(report.data?.endDate || report.endDate) === displayDate(data.endDate)
+  return Object.values(state.reports).find(
+    (report) =>
+      report.departmentId === departmentId &&
+      resolveReportSummaryType(report) === summaryType &&
+      displayDate(report.data?.startDate || report.startDate) === displayDate(data.startDate) &&
+      displayDate(report.data?.endDate || report.endDate) === displayDate(data.endDate),
   );
 }
 
@@ -648,17 +709,20 @@ function normalizeReportStatus(status, fallback = "draft") {
 async function handleAuth(req, res, state, action, now) {
   if (req.method === "GET" && action === "me") {
     const session = currentSession(req, state, now);
-    return json(res, { user: session ? publicUser(state.users[session.username], state) : null, expiresAt: session?.expiresAt || 0 });
+    return json(res, {
+      user: session ? publicUser(state.users[session.username], state) : null,
+      expiresAt: session?.expiresAt || 0,
+    });
   }
   if (req.method !== "POST") return methodNotAllowed(res);
   const body = await readBody(req);
-  const username = String(body.username || "").trim().toLowerCase();
+  const username = String(body.username || "")
+    .trim()
+    .toLowerCase();
   const password = String(body.password || "");
   const settings = getSettings(state);
   const account = settings.accounts.find((item) => item.username === username);
-  const department = account
-    ? settings.departments.find((item) => item.id === account.departmentId)
-    : null;
+  const department = account ? settings.departments.find((item) => item.id === account.departmentId) : null;
   if (action === "register") {
     if (!account || !department) return json(res, { error: "该用户名未在后台成员账号中配置" }, 403);
     if (!department.enabled) return json(res, { error: "所属部门已停用" }, 403);
@@ -669,7 +733,17 @@ async function handleAuth(req, res, state, action, now) {
     if (state.users[username]) return json(res, { error: "用户名已存在" }, 409);
     const salt = randomId("salt");
     const { hashAlgorithm, passwordHash } = await hashPassword(password, salt);
-    const user = { id: randomId("user"), username, displayName, departmentId: department.id, salt, hashAlgorithm, passwordHash, createdAt: now, updatedAt: now };
+    const user = {
+      id: randomId("user"),
+      username,
+      displayName,
+      departmentId: department.id,
+      salt,
+      hashAlgorithm,
+      passwordHash,
+      createdAt: now,
+      updatedAt: now,
+    };
     state.users[username] = user;
     await saveState(state);
     return json(res, { ok: true, user: publicUser(user, state) }, 201);
@@ -720,7 +794,17 @@ async function handleWeeks(req, res, state, parts, now, actor) {
     if (!body.startDate || !body.endDate) return json(res, { error: "startDate and endDate are required" }, 400);
     const id = buildWeekId(body.startDate, body.endDate);
     const storageKey = departmentRecordKey(departmentId, id);
-    if (!state.weeks[storageKey]) state.weeks[storageKey] = { id, departmentId, startDate: body.startDate, endDate: body.endDate, createdAt: now, updatedAt: now, createdBy: actor, updatedBy: actor };
+    if (!state.weeks[storageKey])
+      state.weeks[storageKey] = {
+        id,
+        departmentId,
+        startDate: body.startDate,
+        endDate: body.endDate,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: actor,
+        updatedBy: actor,
+      };
     await saveState(state);
     return json(res, { week: summarizeWeek(state.weeks[storageKey]) }, 201);
   }
@@ -737,11 +821,7 @@ function validIsoDate(value) {
 function listTasksForPeriod(state, departmentId, startDate, endDate) {
   const weekIds = new Set(
     Object.values(state.weeks || {})
-      .filter((week) =>
-        week.departmentId === departmentId
-        && week.startDate <= endDate
-        && week.endDate >= startDate
-      )
+      .filter((week) => week.departmentId === departmentId && week.startDate <= endDate && week.endDate >= startDate)
       .map((week) => week.id),
   );
   return Object.values(state.tasks || {})
@@ -798,15 +878,25 @@ async function handleWeek(req, res, state, parts, now, actor) {
   }
   if (req.method === "POST" && action === "tasks") {
     const body = await readBody(req);
-    const ownerFieldsPresent = Object.hasOwn(body.task || {}, "owner") || Object.hasOwn(body.task || {}, "ownerUsername");
-    const owner = !ownerFieldsPresent && actor.role === "member"
-      ? { owner: actor.displayName, ownerUsername: actor.username }
-      : normalizeTaskOwner(body.task || {}, settings, departmentId);
+    const ownerFieldsPresent =
+      Object.hasOwn(body.task || {}, "owner") || Object.hasOwn(body.task || {}, "ownerUsername");
+    const owner =
+      !ownerFieldsPresent && actor.role === "member"
+        ? { owner: actor.displayName, ownerUsername: actor.username }
+        : normalizeTaskOwner(body.task || {}, settings, departmentId);
     if (owner.error) return json(res, { error: owner.error }, 400);
-    const draft = buildEmptyTask({ ...body.task, module: body.task?.module || settings.modules[0], ...owner, weekId, now });
+    const draft = buildEmptyTask({
+      ...body.task,
+      module: body.task?.module || settings.modules[0],
+      ...owner,
+      weekId,
+      now,
+    });
     if (!settings.modules.includes(draft.module)) return json(res, { error: "任务模块必须属于当前部门" }, 400);
     if (!canCreateTask(actor, draft)) return json(res, { error: "无权在该范围创建任务" }, 403);
-    const task = body.task?.status ? applyTaskStatus(draft, body.task.status, { blocker: body.task.blocker, now }) : draft;
+    const task = body.task?.status
+      ? applyTaskStatus(draft, body.task.status, { blocker: body.task.blocker, now })
+      : draft;
     task.departmentId = departmentId;
     task.createdBy = actor;
     task.updatedBy = actor;
@@ -843,8 +933,10 @@ async function handleTask(req, res, state, parts, now, actor) {
       });
       return json(res, { artifact }, 201);
     }
-    if (req.method === "GET" && action === "download") return sendArtifact(res, await taskArtifactService.readOriginal(context));
-    if (req.method === "GET" && action === "preview") return sendArtifact(res, await taskArtifactService.readPreview(context), { inline: true });
+    if (req.method === "GET" && action === "download")
+      return sendArtifact(res, await taskArtifactService.readOriginal(context));
+    if (req.method === "GET" && action === "preview")
+      return sendArtifact(res, await taskArtifactService.readPreview(context), { inline: true });
     if (req.method === "DELETE" && !action) {
       await taskArtifactService.remove({ ...context, save: () => saveState(state) });
       return json(res, { ok: true });
@@ -860,10 +952,14 @@ async function handleTask(req, res, state, parts, now, actor) {
   }
   if (req.method === "POST") {
     const body = await readBody(req);
-    const ownerFieldsPresent = Object.hasOwn(body.task || {}, "owner") || Object.hasOwn(body.task || {}, "ownerUsername");
+    const ownerFieldsPresent =
+      Object.hasOwn(body.task || {}, "owner") || Object.hasOwn(body.task || {}, "ownerUsername");
     const owner = ownerFieldsPresent
       ? normalizeTaskOwner(body.task, settings, actor.departmentId)
-      : { owner: existing.owner || "", ownerUsername: resolvedTaskOwnerUsername(existing, settings, actor.departmentId) };
+      : {
+          owner: existing.owner || "",
+          ownerUsername: resolvedTaskOwnerUsername(existing, settings, actor.departmentId),
+        };
     if (owner.error) return json(res, { error: owner.error }, 400);
     const merged = {
       ...existing,
@@ -880,9 +976,10 @@ async function handleTask(req, res, state, parts, now, actor) {
       return json(res, { error: "任务模块必须属于当前部门" }, 400);
     }
     if (!canUpdateTask(actor, existing, merged, settings)) return json(res, { error: "无权修改该任务" }, 403);
-    const task = body.task?.status && body.task.status !== existing.status
-      ? applyTaskStatus(merged, body.task.status, { blocker: body.task.blocker, now })
-      : merged;
+    const task =
+      body.task?.status && body.task.status !== existing.status
+        ? applyTaskStatus(merged, body.task.status, { blocker: body.task.blocker, now })
+        : merged;
     task.updatedBy = actor;
     state.tasks[task.id] = task;
     await saveState(state);
@@ -907,8 +1004,23 @@ async function handleReports(req, res, state, parts, now, actor) {
     if (!data || !Array.isArray(data.modules)) return json(res, { error: "Invalid report data" }, 400);
     data.title ||= reportTitleForDepartment(departmentName, data.summaryType);
     const duplicate = findReportByPeriod(state, data, departmentId);
-    if (duplicate) return json(res, { error: "Report already exists for this period", report: summarizeReport(duplicate, departmentName) }, 409);
-    const report = { id: makeReportId(data), departmentId, summaryType: data.summaryType, status: normalizeReportStatus(body.status, "draft"), createdAt: now, updatedAt: now, createdBy: actor, updatedBy: actor, data };
+    if (duplicate)
+      return json(
+        res,
+        { error: "Report already exists for this period", report: summarizeReport(duplicate, departmentName) },
+        409,
+      );
+    const report = {
+      id: makeReportId(data),
+      departmentId,
+      summaryType: data.summaryType,
+      status: normalizeReportStatus(body.status, "draft"),
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actor,
+      updatedBy: actor,
+      data,
+    };
     state.reports[report.id] = report;
     await saveState(state);
     return json(res, { report: summarizeReport(report, departmentName) }, 201);
@@ -917,7 +1029,8 @@ async function handleReports(req, res, state, parts, now, actor) {
   const action = parts[2];
   const report = state.reports[id];
   if (!report || report.departmentId !== departmentId) return json(res, { error: "Not found" }, 404);
-  if (req.method === "GET") return json(res, { report, lock: lockForActor(report, actor, now), canManage: isReportManager(actor) });
+  if (req.method === "GET")
+    return json(res, { report, lock: lockForActor(report, actor, now), canManage: isReportManager(actor) });
   if (req.method === "POST" && action === "lock") {
     if (report.status === "final") return json(res, { error: "总结已归档，无法编辑" }, 423);
     report.editLock = { user: actor, lockedAt: now, expiresAt: now + 5 * 60 * 1000 };
@@ -942,10 +1055,21 @@ async function handleReports(req, res, state, parts, now, actor) {
   if (req.method === "POST" || req.method === "PATCH") {
     if (report.status === "final") return json(res, { error: "总结已归档，无法编辑" }, 423);
     const body = await readBody(req);
-    if (req.method === "POST" && (!body.data || !Array.isArray(body.data.modules))) return json(res, { error: "Invalid report data" }, 400);
-    const data = body.data ? normalizeReportPayload(body.data, resolveReportSummaryType(report)) : normalizeReportPayload(report.data, resolveReportSummaryType(report));
+    if (req.method === "POST" && (!body.data || !Array.isArray(body.data.modules)))
+      return json(res, { error: "Invalid report data" }, 400);
+    const data = body.data
+      ? normalizeReportPayload(body.data, resolveReportSummaryType(report))
+      : normalizeReportPayload(report.data, resolveReportSummaryType(report));
     data.title ||= reportTitleForDepartment(departmentName, data.summaryType);
-    state.reports[id] = { ...report, summaryType: data.summaryType, status: normalizeReportStatus(body.status, report.status || "draft"), updatedAt: now, updatedBy: actor, data, editLock: { user: actor, lockedAt: report.editLock?.lockedAt || now, expiresAt: now + 5 * 60 * 1000 } };
+    state.reports[id] = {
+      ...report,
+      summaryType: data.summaryType,
+      status: normalizeReportStatus(body.status, report.status || "draft"),
+      updatedAt: now,
+      updatedBy: actor,
+      data,
+      editLock: { user: actor, lockedAt: report.editLock?.lockedAt || now, expiresAt: now + 5 * 60 * 1000 },
+    };
     await saveState(state);
     return json(res, { report: summarizeReport(state.reports[id], departmentName) });
   }
@@ -953,7 +1077,9 @@ async function handleReports(req, res, state, parts, now, actor) {
 }
 
 function artifactContentDisposition(filename, inline = false) {
-  const safeAscii = String(filename || "artifact").replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+  const safeAscii = String(filename || "artifact")
+    .replace(/[^\x20-\x7e]/g, "_")
+    .replace(/["\\]/g, "_");
   return `${inline ? "inline" : "attachment"}; filename="${safeAscii}"; filename*=UTF-8''${encodeURIComponent(filename || "artifact")}`;
 }
 
@@ -969,7 +1095,13 @@ function sendArtifact(res, artifact, { inline = false } = {}) {
 
 async function handleGoals(req, res, state, parts, now, actor) {
   const departmentId = actor.departmentId;
-  const current = state.goalsByDepartment[departmentId] || { departmentId, year: "2026", rows: [], updatedAt: 0, updatedBy: null };
+  const current = state.goalsByDepartment[departmentId] || {
+    departmentId,
+    year: "2026",
+    rows: [],
+    updatedAt: 0,
+    updatedBy: null,
+  };
   if (parts.length !== 1) return json(res, { error: "Not found" }, 404);
   if (req.method === "GET") {
     const normalized = ensureGoalIds(current.rows, () => randomId("goal"));
@@ -979,7 +1111,10 @@ async function handleGoals(req, res, state, parts, now, actor) {
       await saveState(state);
     }
     const totals = completedGoalContributionById(listTasksForDepartment(state, departmentId));
-    return json(res, { ...current, rows: publicGoalRows(current.rows).map((row) => ({ ...row, current: totals[row.id] || 0 })) });
+    return json(res, {
+      ...current,
+      rows: publicGoalRows(current.rows).map((row) => ({ ...row, current: totals[row.id] || 0 })),
+    });
   }
   if (req.method === "POST") {
     const body = await readBody(req);
@@ -995,13 +1130,18 @@ async function handleGoals(req, res, state, parts, now, actor) {
       task.goalContributionNote = first.note || "";
     }
     const totals = completedGoalContributionById(listTasksForDepartment(state, departmentId));
-    const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal"))
-      .map((row) => ({
-        ...row,
-        expectedCurrent: String(row.expectedCurrent || ""),
-        current: totals[row.id] || 0,
-      }));
-    state.goalsByDepartment[departmentId] = { departmentId, year: String(body.year || "2026"), rows, updatedAt: now, updatedBy: actor };
+    const rows = mergeGoalRows(current.rows, body.rows, () => randomId("goal")).map((row) => ({
+      ...row,
+      expectedCurrent: String(row.expectedCurrent || ""),
+      current: totals[row.id] || 0,
+    }));
+    state.goalsByDepartment[departmentId] = {
+      departmentId,
+      year: String(body.year || "2026"),
+      rows,
+      updatedAt: now,
+      updatedBy: actor,
+    };
     await saveState(state);
     return json(res, {
       ...state.goalsByDepartment[departmentId],
@@ -1016,8 +1156,8 @@ async function handleAccounts(req, res, state, actor) {
   const users = Object.values(state.users || {})
     .filter((user) => user.departmentId === actor.departmentId)
     .map((user) => publicUser(user, state));
-  const accounts = getSettings(state).accounts
-    .filter((account) => account.departmentId === actor.departmentId)
+  const accounts = getSettings(state)
+    .accounts.filter((account) => account.departmentId === actor.departmentId)
     .map(({ wecomUserId: _wecomUserId, ...account }) => ({
       ...account,
       user: users.find((user) => user.username === account.username || user.displayName === account.name) || null,
@@ -1032,11 +1172,12 @@ function aiSummaryInstruction(style, summaryType, departmentName) {
     complete: "在保留全部有效事实的前提下润色表达、合并重复项并强化层次。",
   };
   const typeLabel = { weekly: "周总结", monthly: "月总结", quarterly: "季度总结" }[summaryType] || "工作总结";
-  const structureRule = summaryType === "monthly"
-    ? "只按【本月目标】【本月进展】【当前风险】三个标题输出，禁止生成【下月计划】。"
-    : summaryType === "quarterly"
-      ? "只按【本季目标】【本季进展】【当前风险】三个标题输出，禁止生成【下季计划】。"
-      : "保留原文标题、周期、模块名称，以及进展、风险、计划等必要层级。";
+  const structureRule =
+    summaryType === "monthly"
+      ? "只按【本月目标】【本月进展】【当前风险】三个标题输出，禁止生成【下月计划】。"
+      : summaryType === "quarterly"
+        ? "只按【本季目标】【本季进展】【当前风险】三个标题输出，禁止生成【下季计划】。"
+        : "保留原文标题、周期、模块名称，以及进展、风险、计划等必要层级。";
   return `你是${departmentName}负责人助理，负责把${typeLabel}整理成可直接发送给管理层的中文纯文本。\n\n要求：\n1. 严格基于原文，不得补充、猜测或虚构任何数字、结论、人员和进度。\n2. ${styleRules[style] || styleRules.executive}\n3. ${structureRule}\n4. 优先呈现量化成果、完成度、业务影响、阻塞原因和需要管理层关注的事项。\n5. 合并同义或重复事项，修正病句和标点；信息不完整时保持原意，不自行推断。\n6. 输出纯文本，不要Markdown代码块，不要写“以下是总结”等前言，不要解释你的处理过程。\n7. 列表统一使用“1、2、3、”格式；没有内容的风险可写“无”。`;
 }
 
@@ -1075,7 +1216,10 @@ async function requestAiSummary({ sourceText, style, summaryType, departmentName
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const upstreamMessage = String(payload?.error?.message || payload?.message || `HTTP ${response.status}`).slice(0, 240);
+      const upstreamMessage = String(payload?.error?.message || payload?.message || `HTTP ${response.status}`).slice(
+        0,
+        240,
+      );
       throw new Error(`${provider.label} 调用失败：${upstreamMessage}`);
     }
     const text = cleanAiText(payload?.choices?.[0]?.message?.content);
@@ -1117,7 +1261,8 @@ async function handleAi(req, res, state, parts, actor, release = () => {}) {
   const departmentSettings = settingsForDepartment(state, actor.departmentId);
   const ai = normalizeAiSettings(departmentSettings.ai);
   if (!ai.enabled) return json(res, { error: "后台尚未启用AI提炼" }, 503);
-  if (!ai.encryptedApiKey && !aiApiKey(ai.provider)) return json(res, { error: `${aiProviders[ai.provider].label} API Key 未配置` }, 503);
+  if (!ai.encryptedApiKey && !aiApiKey(ai.provider))
+    return json(res, { error: `${aiProviders[ai.provider].label} API Key 未配置` }, 503);
   const body = await readBody(req);
   const sourceText = String(body.sourceText || "").trim();
   if (sourceText.length < 20) return json(res, { error: "周报内容过少，暂时无法提炼" }, 400);
@@ -1129,7 +1274,13 @@ async function handleAi(req, res, state, parts, actor, release = () => {}) {
   await saveState(state);
   release();
   try {
-    const result = await requestAiSummary({ sourceText, style, summaryType, departmentName: departmentSettings.department.name, ai });
+    const result = await requestAiSummary({
+      sourceText,
+      style,
+      summaryType,
+      departmentName: departmentSettings.department.name,
+      ai,
+    });
     return json(res, { result, quota });
   } catch (error) {
     return json(res, { error: error.message || "AI生成失败" }, 502);
@@ -1156,8 +1307,8 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   const departments = Object.hasOwn(body, "departments")
     ? normalizeDepartments(body.departments, current.modules)
     : current.departments;
-  const removedDepartment = current.departments.find((department) =>
-    !departments.some((candidate) => candidate.id === department.id)
+  const removedDepartment = current.departments.find(
+    (department) => !departments.some((candidate) => candidate.id === department.id),
   );
   if (removedDepartment) {
     return json(res, { error: `部门“${removedDepartment.name}”不能删除，请改为停用` }, 400);
@@ -1172,9 +1323,11 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     return json(res, { error: "成员账号必须关联有效部门" }, 400);
   }
   const departmentsWithLeaders = departments.map((department) => {
-    const stillValid = !department.leaderUsername || accounts.some((account) =>
-      account.username === department.leaderUsername && account.departmentId === department.id
-    );
+    const stillValid =
+      !department.leaderUsername ||
+      accounts.some(
+        (account) => account.username === department.leaderUsername && account.departmentId === department.id,
+      );
     const leaderUsername = stillValid ? department.leaderUsername : "";
     const previous = current.departments.find((item) => item.id === department.id);
     const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
@@ -1183,7 +1336,10 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   const invalidModuleLeader = accounts.find((account) => {
     if (account.role !== "module_leader") return false;
     const department = departmentsWithLeaders.find((item) => item.id === account.departmentId);
-    return !account.managedModules.length || account.managedModules.some((moduleName) => !department?.modules.includes(moduleName));
+    return (
+      !account.managedModules.length ||
+      account.managedModules.some((moduleName) => !department?.modules.includes(moduleName))
+    );
   });
   if (invalidModuleLeader) {
     return json(res, { error: "模块负责人至少负责一个模块，且模块必须属于本部门" }, 400);
@@ -1251,7 +1407,9 @@ function resolveLeaderDepartment(state, username) {
 
 async function resetUserPassword(req, res, state, username, now, actor = { role: "admin" }) {
   if (req.method !== "POST") return methodNotAllowed(res);
-  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const normalizedUsername = String(username || "")
+    .trim()
+    .toLowerCase();
   if (actor.role === "leader") {
     const account = getSettings(state).accounts.find((item) => item.username === normalizedUsername);
     if (!account || account.departmentId !== actor.departmentId) return json(res, { error: "Not found" }, 404);
@@ -1284,19 +1442,21 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
   }
   if (parts[1] === "leader" && parts[2] === "accounts" && parts.length === 3) {
     if (req.method !== "GET") return methodNotAllowed(res);
-    const accounts = getSettings(state).accounts
-      .filter((account) => account.departmentId === leader.department.id)
+    const accounts = getSettings(state)
+      .accounts.filter((account) => account.departmentId === leader.department.id)
       .map((account) => ({ ...account, registered: Boolean(state.users?.[account.username]) }));
     return json(res, { accounts });
   }
   if (parts[1] === "leader" && parts[2] === "accounts" && parts[4] === "role") {
     if (req.method !== "POST" && req.method !== "PATCH") return methodNotAllowed(res);
-    const targetUsername = decodeURIComponent(parts[3] || "").trim().toLowerCase();
+    const targetUsername = decodeURIComponent(parts[3] || "")
+      .trim()
+      .toLowerCase();
     if (targetUsername === leader.username) return json(res, { error: "不能修改自己的人员类型" }, 400);
     const settings = getSettings(state);
     const department = settings.departments.find((item) => item.id === leader.department.id);
-    const targetAccount = settings.accounts.find((account) =>
-      account.username === targetUsername && account.departmentId === leader.department.id
+    const targetAccount = settings.accounts.find(
+      (account) => account.username === targetUsername && account.departmentId === leader.department.id,
     );
     if (!targetAccount || department?.leaderUsername === targetUsername) return json(res, { error: "Not found" }, 404);
     const body = await readBody(req);
@@ -1310,9 +1470,9 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
       return json(res, { error: "模块负责人至少负责一个模块" }, 400);
     }
     const managedModules = role === "module_leader" ? requestedModules : [];
-    const accounts = settings.accounts.map((account) => account.username === targetUsername
-      ? { ...account, role, managedModules }
-      : account);
+    const accounts = settings.accounts.map((account) =>
+      account.username === targetUsername ? { ...account, role, managedModules } : account,
+    );
     state.settings = { ...settings, accounts, updatedAt: now };
     await saveState(state);
     return json(res, { account: { username: targetUsername, role, managedModules } });
@@ -1321,8 +1481,8 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
     if (req.method !== "POST") return methodNotAllowed(res);
     const targetUsername = decodeURIComponent(parts[3] || "");
     const settings = getSettings(state);
-    const targetAccount = settings.accounts.find((account) =>
-      account.username === targetUsername && account.departmentId === leader.department.id
+    const targetAccount = settings.accounts.find(
+      (account) => account.username === targetUsername && account.departmentId === leader.department.id,
     );
     if (!targetAccount) return json(res, { error: "Not found" }, 404);
     const body = await readBody(req);
@@ -1331,7 +1491,7 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
       return json(res, { error: "不能停用自己的账号" }, 400);
     }
     const nextAccounts = settings.accounts.map((account) =>
-      account.username === targetUsername ? { ...account, enabled: nextEnabled } : account
+      account.username === targetUsername ? { ...account, enabled: nextEnabled } : account,
     );
     state.settings = { ...settings, accounts: nextAccounts, updatedAt: now };
     if (!nextEnabled) {
@@ -1351,7 +1511,7 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
       const modules = normalizeModules(body.modules);
       if (!modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
       const nextDepartments = settings.departments.map((item) =>
-        item.id === leader.department.id ? { ...item, modules } : item
+        item.id === leader.department.id ? { ...item, modules } : item,
       );
       state.settings = { ...settings, departments: nextDepartments, updatedAt: now };
       await saveState(state);
@@ -1367,7 +1527,9 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   if (action === "login") {
     if (req.method !== "POST") return methodNotAllowed(res);
     const { username, password } = await readBody(req);
-    const normalizedUsername = String(username || "").trim().toLowerCase();
+    const normalizedUsername = String(username || "")
+      .trim()
+      .toLowerCase();
     const attempts = ensureLoginAttemptsBucket(state);
     const throttleKey = loginThrottleKey("admin", normalizedUsername);
     const throttle = loginThrottleStatus(attempts, throttleKey, now);
@@ -1381,14 +1543,22 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     }
 
     const leaderDepartment = resolveLeaderDepartment(state, normalizedUsername);
-    const leaderAccount = leaderDepartment
-      && getSettings(state).accounts.find((account) => account.username === normalizedUsername && account.enabled !== false);
+    const leaderAccount =
+      leaderDepartment &&
+      getSettings(state).accounts.find(
+        (account) => account.username === normalizedUsername && account.enabled !== false,
+      );
     const leaderUser = state.users[normalizedUsername];
-    if (leaderDepartment?.enabled && leaderAccount && leaderUser && await verifyPassword(password, leaderUser)) {
+    if (leaderDepartment?.enabled && leaderAccount && leaderUser && (await verifyPassword(password, leaderUser))) {
       clearLoginFailures(attempts, throttleKey);
       await saveState(state);
       const session = await issueAdminToken({ username: normalizedUsername, role: "leader", now });
-      return json(res, { ...session, role: "leader", departmentId: leaderDepartment.id, departmentName: leaderDepartment.name });
+      return json(res, {
+        ...session,
+        role: "leader",
+        departmentId: leaderDepartment.id,
+        departmentName: leaderDepartment.name,
+      });
     }
 
     registerLoginFailure(attempts, throttleKey, now);
@@ -1422,7 +1592,9 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     }
     if (parts.length === 2) {
       if (req.method !== "GET") return methodNotAllowed(res);
-      return json(res, { tasks: [weeklyRolloverTaskSummary(state, { now }), reportArchiveTaskSummary(state, { now })] });
+      return json(res, {
+        tasks: [weeklyRolloverTaskSummary(state, { now }), reportArchiveTaskSummary(state, { now })],
+      });
     }
   }
   if (action === "settings") return handleSettings(req, res, state, now, { adminAuthorized: true });
@@ -1434,7 +1606,7 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     const body = await readBody(req);
     const ai = normalizeAiSettings({ ...getSettings(state).ai, ...body });
     try {
-      const apiKey = String(body.apiKey || "").trim() || await resolvedAiApiKey(ai);
+      const apiKey = String(body.apiKey || "").trim() || (await resolvedAiApiKey(ai));
       return json(res, await testAiConnection({ provider: ai.provider, model: ai.model, apiKey }));
     } catch (error) {
       return json(res, { error: error.message || "AI 连接测试失败" }, 502);
@@ -1481,9 +1653,12 @@ function applyConfiguredDirectoryMappings(state, departmentId) {
 }
 
 function accountForOpenTask(settings, task, departmentId) {
-  const username = String(task.ownerUsername || "").trim().toLowerCase();
-  return settings.accounts.find((account) =>
-    account.departmentId === departmentId && account.username === username) || null;
+  const username = String(task.ownerUsername || "")
+    .trim()
+    .toLowerCase();
+  return (
+    settings.accounts.find((account) => account.departmentId === departmentId && account.username === username) || null
+  );
 }
 
 async function handleOpenTasks(req, res, state, parts, now) {
@@ -1545,10 +1720,10 @@ async function handleOpenTasks(req, res, state, parts, now) {
 
 function oauthConfigured() {
   return Boolean(
-    workbuddyDepartmentId()
-    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_URL || "").trim()
-    && String(process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN || "").trim()
-    && String(process.env.WECOM_OAUTH_CORP_ID || "").trim(),
+    workbuddyDepartmentId() &&
+    String(process.env.WORKBUDDY_OAUTH_RESOLVER_URL || "").trim() &&
+    String(process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN || "").trim() &&
+    String(process.env.WECOM_OAUTH_CORP_ID || "").trim(),
   );
 }
 
@@ -1595,15 +1770,18 @@ async function handleWecomCallback(req, res, state, now) {
   }
 
   const departmentId = workbuddyDepartmentId();
-  if (String(identity.corp_id || "").trim() !== String(process.env.WECOM_OAUTH_CORP_ID || "").trim()
-    || String(identity.department_id || "").trim() !== departmentId) {
+  if (
+    String(identity.corp_id || "").trim() !== String(process.env.WECOM_OAUTH_CORP_ID || "").trim() ||
+    String(identity.department_id || "").trim() !== departmentId
+  ) {
     return json(res, { error: "WeCom identity is outside the configured enterprise or department" }, 403);
   }
 
   const settings = getSettings(state);
   const mapped = settings.accounts.find((account) => account.wecomUserId === identity.wecom_userid);
-  const exact = settings.accounts.find((account) =>
-    account.departmentId === departmentId && account.username === identity.username);
+  const exact = settings.accounts.find(
+    (account) => account.departmentId === departmentId && account.username === identity.username,
+  );
   if (mapped && mapped.username !== identity.username) {
     return json(res, { code: "WECOM_MAPPING_CONFLICT", error: "WeCom userid is already mapped" }, 409);
   }
@@ -1647,29 +1825,6 @@ export default async function handler(req, res) {
   try {
     const state = await loadState();
     const now = Date.now();
-    if (parts[0] === "internal" && parts[1] === "weekly-rollover") {
-      if (req.method !== "POST") return methodNotAllowed(res);
-      if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
-      const body = await readBody(req);
-      const triggeredAt = Date.parse(String(body.triggeredAt || ""));
-      const result = await executeWeeklyRollover(state, {
-        triggeredAt: Number.isNaN(triggeredAt) ? now : triggeredAt,
-        trigger: "scheduled",
-      });
-      console.info("Weekly task rollover:", JSON.stringify(result));
-      return json(res, result);
-    }
-    if (parts[0] === "internal" && parts[1] === "report-auto-archive") {
-      if (req.method !== "POST") return methodNotAllowed(res);
-      if (!weeklyRolloverAuthorized(req)) return json(res, { error: "Forbidden" }, 403);
-      const body = await readBody(req);
-      const parsed = Date.parse(String(body.triggeredAt || ""));
-      const result = await executeReportAutoArchive(state, {
-        triggeredAt: Number.isNaN(parsed) ? now : parsed,
-        trigger: "scheduled",
-      });
-      return json(res, result);
-    }
     const actor = currentUser(req, state, now);
     if (openTaskRequest) return await handleOpenTasks(req, res, state, parts, now);
     if (wecomCallbackRequest) return await handleWecomCallback(req, res, state, now);
@@ -1688,7 +1843,9 @@ export default async function handler(req, res) {
     return json(res, { error: "Not found" }, 404);
   } catch (error) {
     if (Number.isInteger(error?.statusCode)) return json(res, { error: error.message }, error.statusCode);
-    if (["无效任务状态", "进入阻塞状态必须填写阻塞原因", "完成任务前必须关联年度指标并填写贡献数"].includes(error.message)) {
+    if (
+      ["无效任务状态", "进入阻塞状态必须填写阻塞原因", "完成任务前必须关联年度指标并填写贡献数"].includes(error.message)
+    ) {
       return json(res, { error: error.message }, 400);
     }
     console.error(error);

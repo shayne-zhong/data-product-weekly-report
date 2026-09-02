@@ -69,10 +69,7 @@ test("signed OAuth state expires, rejects unsafe returns, and can be consumed on
   const expired = issueOAuthState({ returnTo: "/" }, { secret, now: 1_000 });
   assert.throws(() => consumeOAuthState({}, expired, { secret, now: 400_001 }), /Expired/);
 
-  assert.throws(
-    () => issueOAuthState({ returnTo: "//evil.example" }, { secret, now: 1_000 }),
-    /return path/,
-  );
+  assert.throws(() => issueOAuthState({ returnTo: "//evil.example" }, { secret, now: 1_000 }), /return path/);
 });
 
 test("identity resolver sends code server-to-server and validates its response", async () => {
@@ -82,12 +79,15 @@ test("identity resolver sends code server-to-server and validates its response",
     token: "resolver-secret",
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
-      return new Response(JSON.stringify({
-        wecom_userid: "wx-zhangsan",
-        username: "zhangsan",
-        corp_id: "corp-1",
-        department_id: "data-product",
-      }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(
+        JSON.stringify({
+          wecom_userid: "wx-zhangsan",
+          username: "zhangsan",
+          corp_id: "corp-1",
+          department_id: "data-product",
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
     },
   });
 
@@ -96,9 +96,13 @@ test("identity resolver sends code server-to-server and validates its response",
   assert.equal(calls[0].options.headers.authorization, "Bearer resolver-secret");
   assert.deepEqual(JSON.parse(calls[0].options.body), { code: "oauth-code" });
 
-  await assert.rejects(() => resolveWorkbuddyIdentity("bad", {
-    url: "https://workbuddy.internal/resolve",
-    token: "resolver-secret",
-    fetchImpl: async () => new Response("bad", { status: 502 }),
-  }), /resolver failed/);
+  await assert.rejects(
+    () =>
+      resolveWorkbuddyIdentity("bad", {
+        url: "https://workbuddy.internal/resolve",
+        token: "resolver-secret",
+        fetchImpl: async () => new Response("bad", { status: 502 }),
+      }),
+    /resolver failed/,
+  );
 });

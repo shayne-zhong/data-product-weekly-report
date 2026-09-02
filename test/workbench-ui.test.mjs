@@ -11,13 +11,24 @@ test("loading a week only fetches its tasks and never triggers rollover", () => 
 });
 
 function aiReportHelpersRuntime() {
-  const source = html.match(/ {4}function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/)?.[0];
+  const source = html.match(
+    / {4}function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/,
+  )?.[0];
   assert.ok(source, "missing executable AI report source/apply helpers");
   const normalizeSource = html.match(/ {4}function normalizeDate\(value\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
-  const typeSource = html.match(/ {4}function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n {4}function completedContributionForGoal)/)?.[0];
+  const typeSource = html.match(
+    / {4}function validReportSummaryType[\s\S]*?(?=\r?\n\r?\n {4}function completedContributionForGoal)/,
+  )?.[0];
   const reportTypes = { weekly: {}, monthly: {}, quarterly: {} };
-  const { normalizeDate, reportSummaryType } = new Function("reportTypes", `${normalizeSource}\n${typeSource}\nreturn { normalizeDate, reportSummaryType };`)(reportTypes);
-  return new Function("reportSummaryType", "normalizeDate", `let aiReportGeneration = 3;\n${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, parseAiReportSections, applyAiReportText, aiReportContextMatches };`)(reportSummaryType, normalizeDate);
+  const { normalizeDate, reportSummaryType } = new Function(
+    "reportTypes",
+    `${normalizeSource}\n${typeSource}\nreturn { normalizeDate, reportSummaryType };`,
+  )(reportTypes);
+  return new Function(
+    "reportSummaryType",
+    "normalizeDate",
+    `let aiReportGeneration = 3;\n${source}\nreturn { reportPeriodsOverlap, selectAiReportSources, aiReportSourceText, parseAiReportSections, applyAiReportText, aiReportContextMatches };`,
+  )(reportSummaryType, normalizeDate);
 }
 
 test("monthly and quarterly AI source selection filters overlap and type with stable ordering", () => {
@@ -31,19 +42,60 @@ test("monthly and quarterly AI source selection filters overlap and type with st
     { id: "old", summaryType: "weekly", startDate: "2026/07/01", endDate: "2026/07/07" },
     { id: "m1", summaryType: "monthly", status: "final", startDate: "2026/07/01", endDate: "2026/07/31" },
   ];
-  assert.deepEqual(selectAiReportSources(reports, { id: "self", summaryType: "monthly", startDate: "2026/08/01", endDate: "2026/08/31" }).map(({ id }) => id), ["w1a", "w1b", "w2", "draft-week"]);
-  assert.deepEqual(selectAiReportSources(reports, { id: "q", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30" }).map(({ id }) => id), ["m1", "self"]);
-  assert.deepEqual(selectAiReportSources(reports, { id: "w", summaryType: "weekly", startDate: "2026/08/01", endDate: "2026/08/07" }), []);
+  assert.deepEqual(
+    selectAiReportSources(reports, {
+      id: "self",
+      summaryType: "monthly",
+      startDate: "2026/08/01",
+      endDate: "2026/08/31",
+    }).map(({ id }) => id),
+    ["w1a", "w1b", "w2", "draft-week"],
+  );
+  assert.deepEqual(
+    selectAiReportSources(reports, {
+      id: "q",
+      summaryType: "quarterly",
+      startDate: "2026/07/01",
+      endDate: "2026/09/30",
+    }).map(({ id }) => id),
+    ["m1", "self"],
+  );
+  assert.deepEqual(
+    selectAiReportSources(reports, { id: "w", summaryType: "weekly", startDate: "2026/08/01", endDate: "2026/08/07" }),
+    [],
+  );
 });
 
 test("quarterly AI sources honor legacy report type inference", () => {
   const { selectAiReportSources } = aiReportHelpersRuntime();
   const reports = [
     { id: "missing-type", status: "final", title: "7月月度总结", startDate: "2026/7/1", endDate: "2026/7/31" },
-    { id: "wrong-weekly", status: "final", summaryType: "weekly", title: "8月月度总结", startDate: "2026/8/1", endDate: "2026/8/31" },
-    { id: "actual-weekly", status: "final", summaryType: "weekly", title: "普通周报", startDate: "2026/8/1", endDate: "2026/8/7" },
+    {
+      id: "wrong-weekly",
+      status: "final",
+      summaryType: "weekly",
+      title: "8月月度总结",
+      startDate: "2026/8/1",
+      endDate: "2026/8/31",
+    },
+    {
+      id: "actual-weekly",
+      status: "final",
+      summaryType: "weekly",
+      title: "普通周报",
+      startDate: "2026/8/1",
+      endDate: "2026/8/7",
+    },
   ];
-  assert.deepEqual(selectAiReportSources(reports, { id: "q3", summaryType: "quarterly", startDate: "2026/7/1", endDate: "2026/9/30" }).map(({ id }) => id), ["missing-type", "wrong-weekly"]);
+  assert.deepEqual(
+    selectAiReportSources(reports, {
+      id: "q3",
+      summaryType: "quarterly",
+      startDate: "2026/7/1",
+      endDate: "2026/9/30",
+    }).map(({ id }) => id),
+    ["missing-type", "wrong-weekly"],
+  );
 });
 
 test("AI source overlap accepts non-padded boundary dates and rejects invalid ranges", () => {
@@ -55,18 +107,30 @@ test("AI source overlap accepts non-padded boundary dates and rejects invalid ra
   assert.equal(reportPeriodsOverlap({ startDate: "2026/2/30", endDate: "2026/3/2" }, target), false);
   assert.equal(reportPeriodsOverlap({ startDate: "invalid", endDate: "2026/8/2" }, target), false);
   assert.equal(reportPeriodsOverlap({ startDate: "2026/8/8", endDate: "2026/8/2" }, target), false);
-  const selected = selectAiReportSources([
-    { id: "late", summaryType: "weekly", status: "final", startDate: "2026/8/10", endDate: "2026/8/16" },
-    { id: "early", summaryType: "weekly", status: "final", startDate: "2026/8/2", endDate: "2026/8/8" },
-    { id: "invalid", summaryType: "weekly", status: "final", startDate: "2026/8/40", endDate: "2026/8/41" },
-  ], target);
-  assert.deepEqual(selected.map(({ id }) => id), ["early", "late"]);
+  const selected = selectAiReportSources(
+    [
+      { id: "late", summaryType: "weekly", status: "final", startDate: "2026/8/10", endDate: "2026/8/16" },
+      { id: "early", summaryType: "weekly", status: "final", startDate: "2026/8/2", endDate: "2026/8/8" },
+      { id: "invalid", summaryType: "weekly", status: "final", startDate: "2026/8/40", endDate: "2026/8/41" },
+    ],
+    target,
+  );
+  assert.deepEqual(
+    selected.map(({ id }) => id),
+    ["early", "late"],
+  );
 });
 
 test("AI source text is structured and includes each source period and title", () => {
   const { aiReportSourceText } = aiReportHelpersRuntime();
   const text = aiReportSourceText([
-    { id: "w1", title: "第31周", startDate: "2026/07/27", endDate: "2026/08/02", data: { modules: [{ title: "经营", sections: [{ title: "本周进展", items: ["完成A", "完成B"] }] }] } },
+    {
+      id: "w1",
+      title: "第31周",
+      startDate: "2026/07/27",
+      endDate: "2026/08/02",
+      data: { modules: [{ title: "经营", sections: [{ title: "本周进展", items: ["完成A", "完成B"] }] }] },
+    },
   ]);
   assert.match(text, /来源 1：第31周/);
   assert.match(text, /周期：2026\/07\/27—2026\/08\/02/);
@@ -77,28 +141,49 @@ test("AI source text is structured and includes each source period and title", (
 test("monthly AI result fills target progress and risk without changing next-month plan", () => {
   const { parseAiReportSections, applyAiReportText } = aiReportHelpersRuntime();
   const text = "【本月目标】\n1、目标A\n【本月进展】\n1、进展A\n【下月计划】\n1、模型越权计划\n【当前风险】\n无";
-  assert.deepEqual(parseAiReportSections(text, "monthly"), { 本月目标: ["1、目标A"], 本月进展: ["1、进展A"], 当前风险: ["无"] });
-  const data = { summaryType: "monthly", modules: [
-    { title: "本月目标", sections: [{ title: "内容", items: ["旧目标"] }] },
-    { title: "本月进展", sections: [{ title: "内容", items: ["旧进展"] }] },
-    { title: "下月计划", sections: [{ title: "内容", items: ["人工计划"] }] },
-    { title: "当前风险", sections: [{ title: "内容", items: ["旧风险"] }] },
-  ] };
+  assert.deepEqual(parseAiReportSections(text, "monthly"), {
+    本月目标: ["1、目标A"],
+    本月进展: ["1、进展A"],
+    当前风险: ["无"],
+  });
+  const data = {
+    summaryType: "monthly",
+    modules: [
+      { title: "本月目标", sections: [{ title: "内容", items: ["旧目标"] }] },
+      { title: "本月进展", sections: [{ title: "内容", items: ["旧进展"] }] },
+      { title: "下月计划", sections: [{ title: "内容", items: ["人工计划"] }] },
+      { title: "当前风险", sections: [{ title: "内容", items: ["旧风险"] }] },
+    ],
+  };
   assert.equal(applyAiReportText(data, text), true);
-  assert.deepEqual(data.modules.map((module) => module.sections[0].items), [["1、目标A"], ["1、进展A"], ["人工计划"], ["无"]]);
+  assert.deepEqual(
+    data.modules.map((module) => module.sections[0].items),
+    [["1、目标A"], ["1、进展A"], ["人工计划"], ["无"]],
+  );
 });
 
 test("quarterly AI result preserves next-quarter plan and rejects readonly context", () => {
   const { applyAiReportText, aiReportContextMatches } = aiReportHelpersRuntime();
-  const data = { summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", modules: [
-    { title: "本季目标", sections: [{ title: "内容", items: ["旧目标"] }] },
-    { title: "本季进展", sections: [{ title: "内容", items: ["旧进展"] }] },
-    { title: "下季计划", sections: [{ title: "内容", items: ["人工计划"] }] },
-    { title: "当前风险", sections: [{ title: "内容", items: ["旧风险"] }] },
-  ] };
+  const data = {
+    summaryType: "quarterly",
+    startDate: "2026/07/01",
+    endDate: "2026/09/30",
+    modules: [
+      { title: "本季目标", sections: [{ title: "内容", items: ["旧目标"] }] },
+      { title: "本季进展", sections: [{ title: "内容", items: ["旧进展"] }] },
+      { title: "下季计划", sections: [{ title: "内容", items: ["人工计划"] }] },
+      { title: "当前风险", sections: [{ title: "内容", items: ["旧风险"] }] },
+    ],
+  };
   assert.equal(applyAiReportText(data, "新内容", { canEdit: false }), false);
   assert.deepEqual(data.modules[2].sections[0].items, ["人工计划"]);
-  const context = { reportId: "r1", summaryType: "quarterly", startDate: "2026/07/01", endDate: "2026/09/30", generation: 3 };
+  const context = {
+    reportId: "r1",
+    summaryType: "quarterly",
+    startDate: "2026/07/01",
+    endDate: "2026/09/30",
+    generation: 3,
+  };
   assert.equal(aiReportContextMatches(context, "r1", data, true), true);
   assert.equal(aiReportContextMatches(context, "r2", data, true), false);
   assert.equal(aiReportContextMatches(context, "r1", { ...data, endDate: "2026/12/31" }, true), false);
@@ -111,14 +196,18 @@ test("monthly and quarterly plan sections do not offer task import", () => {
 });
 
 test("AI report generation token rejects a deferred result from the moment switching starts", async () => {
-  const helperSource = html.match(/ {4}function invalidateAiReportContext[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/)?.[0];
+  const helperSource = html.match(
+    / {4}function invalidateAiReportContext[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/,
+  )?.[0];
   assert.ok(helperSource, "missing executable AI result lifecycle helper");
   const elements = {
     aiReportText: { value: "" },
     copyAiReportBtn: { disabled: true },
     applyAiReportBtn: { disabled: true },
   };
-  const runtime = new Function("$", `${helperSource}
+  const runtime = new Function(
+    "$",
+    `${helperSource}
     let pendingAiReportContext = null;
     let aiReportGeneration = 0;
     let currentReportId = "r1";
@@ -131,14 +220,17 @@ test("AI report generation token rejects a deferred result from the moment switc
       finishSwitch: () => { currentReportId = "r2"; reportData = { summaryType: "monthly", startDate: "2026/9/1", endDate: "2026/9/30", modules: [{ sections: [{ items: ["新草稿"] }] }] }; invalidateAiReportContext(); },
       pending: () => pendingAiReportContext,
       draft: () => reportData.modules[0].sections[0].items,
-    };`) ((id) => elements[id]);
+    };`,
+  )((id) => elements[id]);
   const acceptedContext = runtime.context();
   await runtime.settle(Promise.resolve(), acceptedContext, { result: { text: "当前报告AI结果" } });
   assert.equal(runtime.pending(), acceptedContext);
   assert.equal(elements.applyAiReportBtn.disabled, false);
 
   let release;
-  const waiting = new Promise((resolve) => { release = resolve; });
+  const waiting = new Promise((resolve) => {
+    release = resolve;
+  });
   const context = runtime.context();
   const settling = runtime.settle(waiting, context, { result: { text: "旧报告AI结果" } });
   runtime.beginSwitch();
@@ -159,7 +251,10 @@ test("AI summary UI exposes conditional apply and guards empty sources and stale
   assert.match(html, /await apiJson\(`\/api\/report\/\$\{encodeURIComponent\(source\.id\)\}`\)/);
   assert.match(html, /pendingAiReportContext = null/);
   assert.match(html, /window\.confirm/);
-  assert.match(html, /async function openReport\(reportId\) \{\s*invalidateAiReportContext\(\)[\s\S]*?currentReportId = result\.report\.id;[\s\S]*?invalidateAiReportContext\(\)/);
+  assert.match(
+    html,
+    /async function openReport\(reportId\) \{\s*invalidateAiReportContext\(\)[\s\S]*?currentReportId = result\.report\.id;[\s\S]*?invalidateAiReportContext\(\)/,
+  );
   assert.match(html, /async function loadCurrentReportForType\(\) \{\s*invalidateAiReportContext\(\)/);
   assert.match(html, /async function createReportFromModal\(\) \{\s*invalidateAiReportContext\(\)/);
 });
@@ -177,8 +272,14 @@ function clipboardRuntime({ clipboard, execCommand = () => true, activeElement =
   const document = {
     activeElement,
     body: {
-      appendChild(node) { children.push(node); node.parentNode = this; },
-      removeChild(node) { children.splice(children.indexOf(node), 1); node.parentNode = null; },
+      appendChild(node) {
+        children.push(node);
+        node.parentNode = this;
+      },
+      removeChild(node) {
+        children.splice(children.indexOf(node), 1);
+        node.parentNode = null;
+      },
     },
     createElement(tag) {
       assert.equal(tag, "textarea");
@@ -188,7 +289,11 @@ function clipboardRuntime({ clipboard, execCommand = () => true, activeElement =
   };
   const window = { getSelection: () => selection };
   const navigator = clipboard === undefined ? {} : { clipboard };
-  const copyTextToClipboard = new Function("navigator", "document", "window", `${source}\nreturn copyTextToClipboard;`)(navigator, document, window);
+  const copyTextToClipboard = new Function("navigator", "document", "window", `${source}\nreturn copyTextToClipboard;`)(
+    navigator,
+    document,
+    window,
+  );
   return { copyTextToClipboard, children };
 }
 
@@ -210,7 +315,16 @@ test("clipboard helper falls back after Clipboard API rejection and always clean
     addRange: (range) => restored.push(range),
   };
   const activeElement = { isConnected: true, focus: () => restored.push("focused") };
-  const runtime = clipboardRuntime({ clipboard: { writeText: async () => { throw new Error("denied"); } }, execCommand: (command) => command === "copy", activeElement, selection });
+  const runtime = clipboardRuntime({
+    clipboard: {
+      writeText: async () => {
+        throw new Error("denied");
+      },
+    },
+    execCommand: (command) => command === "copy",
+    activeElement,
+    selection,
+  });
   await runtime.copyTextToClipboard("report");
   assert.equal(runtime.children.length, 0);
   assert.deepEqual(restored, ["cleared", originalRange, "focused"]);
@@ -226,8 +340,17 @@ test("clipboard fallback throw reports a stable error and restores DOM state", a
   const restored = [];
   const selection = { rangeCount: 0, removeAllRanges: () => restored.push("cleared"), addRange: () => {} };
   const activeElement = { isConnected: true, focus: () => restored.push("focused") };
-  const failedRuntime = clipboardRuntime({ execCommand: () => { throw new Error("sensitive DOM failure"); }, activeElement, selection });
-  await assert.rejects(failedRuntime.copyTextToClipboard("report"), (error) => error.message === "复制失败，请手动复制");
+  const failedRuntime = clipboardRuntime({
+    execCommand: () => {
+      throw new Error("sensitive DOM failure");
+    },
+    activeElement,
+    selection,
+  });
+  await assert.rejects(
+    failedRuntime.copyTextToClipboard("report"),
+    (error) => error.message === "复制失败，请手动复制",
+  );
   assert.equal(failedRuntime.children.length, 0);
   assert.deepEqual(restored, ["cleared", "focused"]);
 });
@@ -238,7 +361,10 @@ test("clipboard fallback false and missing APIs report the same stable error", a
   assert.equal(falseRuntime.children.length, 0);
 
   const missingRuntime = clipboardRuntime({ execCommand: null });
-  await assert.rejects(missingRuntime.copyTextToClipboard("report"), (error) => error.message === "复制失败，请手动复制");
+  await assert.rejects(
+    missingRuntime.copyTextToClipboard("report"),
+    (error) => error.message === "复制失败，请手动复制",
+  );
   assert.equal(missingRuntime.children.length, 0);
 });
 
@@ -249,24 +375,33 @@ function inlineReportActionRuntime() {
 }
 
 test("inline report list opens by row and only renders delete for the active saved report", () => {
-  const source = html.match(/ {4}function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function reportHistoryLabel)/)?.[0];
+  const source = html.match(
+    / {4}function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function reportHistoryLabel)/,
+  )?.[0];
   assert.ok(source, "missing inline report renderer");
   assert.doesNotMatch(source, />打开<\/button>/);
   assert.match(source, /isActive && report\.id[\s\S]*data-report-delete/);
   assert.match(source, /data-report-open="\$\{report\.id\}"/);
-  assert.match(html, /function inlineReportClickAction[\s\S]*?event\.stopPropagation\(\)[\s\S]*?type: "delete"[\s\S]*?type: "open"/);
+  assert.match(
+    html,
+    /function inlineReportClickAction[\s\S]*?event\.stopPropagation\(\)[\s\S]*?type: "delete"[\s\S]*?type: "open"/,
+  );
 });
 
 test("inline report item and click decisions keep delete exclusive to the active row", () => {
-  const renderer = html.match(/ {4}function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function reportHistoryLabel)/)?.[0];
+  const renderer = html.match(
+    / {4}function renderInlineReportHistory\(\) \{[\s\S]*?\r?\n {4}\}(?=\r?\n\r?\n {4}function reportHistoryLabel)/,
+  )?.[0];
   assert.match(renderer, /isActive && report\.id/);
   const decide = inlineReportActionRuntime();
   let stopped = false;
   const deleteButton = { dataset: { reportDelete: "active" } };
   const row = { dataset: { reportOpen: "active" } };
   const action = decide({
-    stopPropagation: () => { stopped = true; },
-    target: { closest: (selector) => selector.includes("report-delete") ? deleteButton : row },
+    stopPropagation: () => {
+      stopped = true;
+    },
+    target: { closest: (selector) => (selector.includes("report-delete") ? deleteButton : row) },
   });
   assert.deepEqual(action, { type: "delete", id: "active" });
   assert.equal(stopped, true);
@@ -280,18 +415,34 @@ function goalColumnWidthRuntime(storage = new Map(), setItem = (key, value) => s
     getItem: (key) => storage.get(key) ?? null,
     setItem,
   };
-  return new Function("localStorage", "storageKey", "currentUser", "currentDepartment", `${source}\nreturn { goalTableColumns, normalizeGoalColumnWidths, loadGoalColumnWidths, saveGoalColumnWidths, goalColumnWidthStorageKey, clampGoalColumnWidth, keyboardGoalColumnWidth, updateGoalColumnResizeHandle };`)(
-    localStorage,
-    "dp-workbench",
-    { username: "alice", department: { id: "dept-a" } },
-    () => ({ id: "dept-a" }),
-  );
+  return new Function(
+    "localStorage",
+    "storageKey",
+    "currentUser",
+    "currentDepartment",
+    `${source}\nreturn { goalTableColumns, normalizeGoalColumnWidths, loadGoalColumnWidths, saveGoalColumnWidths, goalColumnWidthStorageKey, clampGoalColumnWidth, keyboardGoalColumnWidth, updateGoalColumnResizeHandle };`,
+  )(localStorage, "dp-workbench", { username: "alice", department: { id: "dept-a" } }, () => ({ id: "dept-a" }));
 }
 
 test("goal column widths recover defaults, clamp bounds, and restore isolated storage", () => {
   const storage = new Map();
   const runtime = goalColumnWidthRuntime(storage);
-  assert.deepEqual(runtime.goalTableColumns.map(({ key }) => key), ["seq", "name", "definition", "owner", "lastYearActual", "target", "expectedCurrent", "current", "progress", "status", "actions"]);
+  assert.deepEqual(
+    runtime.goalTableColumns.map(({ key }) => key),
+    [
+      "seq",
+      "name",
+      "definition",
+      "owner",
+      "lastYearActual",
+      "target",
+      "expectedCurrent",
+      "current",
+      "progress",
+      "status",
+      "actions",
+    ],
+  );
 
   storage.set(runtime.goalColumnWidthStorageKey(), "not-json");
 
@@ -302,12 +453,17 @@ test("goal column widths recover defaults, clamp bounds, and restore isolated st
   assert.equal(restored.owner, 88);
 
   runtime.saveGoalColumnWidths({ owner: 104 });
-  assert.deepEqual(runtime.loadGoalColumnWidths(), { ...Object.fromEntries(runtime.goalTableColumns.map((column) => [column.key, column.defaultWidth])), owner: 104 });
+  assert.deepEqual(runtime.loadGoalColumnWidths(), {
+    ...Object.fromEntries(runtime.goalTableColumns.map((column) => [column.key, column.defaultWidth])),
+    owner: 104,
+  });
   assert.match(runtime.goalColumnWidthStorageKey(), /dept-a-alice$/);
 });
 
 test("goal column keyboard math clamps and storage failures remain non-throwing", () => {
-  const runtime = goalColumnWidthRuntime(new Map(), () => { throw new Error("quota"); });
+  const runtime = goalColumnWidthRuntime(new Map(), () => {
+    throw new Error("quota");
+  });
   assert.equal(runtime.clampGoalColumnWidth("owner", -100), 76);
   assert.equal(runtime.clampGoalColumnWidth("owner", 999), 220);
   assert.equal(runtime.keyboardGoalColumnWidth("owner", 100, "ArrowLeft", false), 92);
@@ -360,12 +516,25 @@ function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
 
 function overdueSaveRuntime(tasks, persistTask, setSyncStatus = () => {}, timers = {}) {
   const blockerFunction = html.match(/ {4}function overdueBlockerText\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
-  const saveFunctions = html.match(/ {4}function taskWithOverdueSaveBarrier[\s\S]*?(?=\r?\n\r?\n {4}function decodeReportEscapes)/)?.[0];
+  const saveFunctions = html.match(
+    / {4}function taskWithOverdueSaveBarrier[\s\S]*?(?=\r?\n\r?\n {4}function decodeReportEscapes)/,
+  )?.[0];
   assert.ok(blockerFunction && saveFunctions, "missing executable overdue save serialization functions");
   const pendingTaskSaves = new Map();
   const deletingTaskIds = new Set();
   const overdueTaskSaveBarriers = new Map();
-  return new Function("tasks", "todayIso", "persistTask", "setSyncStatus", "pendingTaskSaves", "deletingTaskIds", "overdueTaskSaveBarriers", "setTimeout", "clearTimeout", `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, cancelPendingTaskSave, blockOverdueTasksForListMode };`)(
+  return new Function(
+    "tasks",
+    "todayIso",
+    "persistTask",
+    "setSyncStatus",
+    "pendingTaskSaves",
+    "deletingTaskIds",
+    "overdueTaskSaveBarriers",
+    "setTimeout",
+    "clearTimeout",
+    `${blockerFunction}\n${saveFunctions}\nreturn { scheduleSaveTask, flushPendingTaskSave, cancelPendingTaskSave, blockOverdueTasksForListMode };`,
+  )(
     tasks,
     () => "2026-08-04",
     persistTask,
@@ -386,7 +555,9 @@ function goalTaskDisplayRuntime() {
 
 function goalTaskSummaryRuntime() {
   const displaySource = html.match(/ {4}function latestTasksForGoalDisplay\(tasks\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
-  const summarySource = html.match(/ {4}function summarizeGoalTaskDisplay\(tasks, goalId, linksForTask\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  const summarySource = html.match(
+    / {4}function summarizeGoalTaskDisplay\(tasks, goalId, linksForTask\) \{[\s\S]*?\r?\n {4}\}/,
+  )?.[0];
   assert.ok(displaySource, "missing goal task rollover-chain deduplication function");
   assert.ok(summarySource, "missing unified goal task display summary function");
   return new Function(`${displaySource}\n${summarySource}\nreturn summarizeGoalTaskDisplay;`)();
@@ -402,17 +573,61 @@ test("goal task details merge rollover chains and duplicate title module owner r
     { id: "different-owner", title: "指标上线", module: "数据治理", owner: "其他人", updatedAt: 35 },
   ];
 
-  assert.deepEqual(latestTasksForGoalDisplay(tasks).map((task) => task.id), ["rolled-2", "different-owner"]);
+  assert.deepEqual(
+    latestTasksForGoalDisplay(tasks).map((task) => task.id),
+    ["rolled-2", "different-owner"],
+  );
 });
 
 test("goal task count and completed contribution use the deduplicated displayed tasks", () => {
   const summarizeGoalTaskDisplay = goalTaskSummaryRuntime();
   const tasks = [
-    { id: "original", title: "指标上线", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 10, goalLinks: [{ goalId: "g1", contribution: 20 }] },
-    { id: "rolled", sourceTaskId: "original", title: "指标上线", module: "数据治理", owner: "黄嘉颖", status: "进行中", updatedAt: 30, goalLinks: [{ goalId: "g1", contribution: 20 }] },
-    { id: "duplicate", title: " 指标上线 ", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 20, goalLinks: [{ goalId: "g1", contribution: 20 }] },
-    { id: "done", title: "报表上线", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 40, goalLinks: [{ goalId: "g1", contribution: 11 }] },
-    { id: "other-goal", title: "其他指标", module: "数据治理", owner: "黄嘉颖", status: "已完成", updatedAt: 50, goalLinks: [{ goalId: "g2", contribution: 99 }] },
+    {
+      id: "original",
+      title: "指标上线",
+      module: "数据治理",
+      owner: "黄嘉颖",
+      status: "已完成",
+      updatedAt: 10,
+      goalLinks: [{ goalId: "g1", contribution: 20 }],
+    },
+    {
+      id: "rolled",
+      sourceTaskId: "original",
+      title: "指标上线",
+      module: "数据治理",
+      owner: "黄嘉颖",
+      status: "进行中",
+      updatedAt: 30,
+      goalLinks: [{ goalId: "g1", contribution: 20 }],
+    },
+    {
+      id: "duplicate",
+      title: " 指标上线 ",
+      module: "数据治理",
+      owner: "黄嘉颖",
+      status: "已完成",
+      updatedAt: 20,
+      goalLinks: [{ goalId: "g1", contribution: 20 }],
+    },
+    {
+      id: "done",
+      title: "报表上线",
+      module: "数据治理",
+      owner: "黄嘉颖",
+      status: "已完成",
+      updatedAt: 40,
+      goalLinks: [{ goalId: "g1", contribution: 11 }],
+    },
+    {
+      id: "other-goal",
+      title: "其他指标",
+      module: "数据治理",
+      owner: "黄嘉颖",
+      status: "已完成",
+      updatedAt: 50,
+      goalLinks: [{ goalId: "g2", contribution: 99 }],
+    },
   ];
 
   const summary = summarizeGoalTaskDisplay(
@@ -421,7 +636,10 @@ test("goal task count and completed contribution use the deduplicated displayed 
     (task) => task.goalLinks,
   );
 
-  assert.deepEqual(summary.rows.map((task) => task.id), ["rolled", "done"]);
+  assert.deepEqual(
+    summary.rows.map((task) => task.id),
+    ["rolled", "done"],
+  );
   assert.equal(summary.count, 2);
   assert.equal(summary.completedContribution, 11);
 });
@@ -701,7 +919,10 @@ test("overdue task cards are visibly warned without changing their quadrant", ()
 test("entering list mode blocks overdue tasks independently and idempotently", () => {
   assert.match(html, /function overdueBlockerText\(task\)/);
   assert.match(html, /任务已逾期（原计划完成日期：\$\{task\.dueDate\}）/);
-  assert.match(html, /task\.status !== "已完成" && task\.status !== "阻塞" && task\.dueDate && task\.dueDate < todayIso\(\)/);
+  assert.match(
+    html,
+    /task\.status !== "已完成" && task\.status !== "阻塞" && task\.dueDate && task\.dueDate < todayIso\(\)/,
+  );
   assert.match(html, /includes\(overdueText\)/);
   assert.match(html, /enqueuePendingTaskSave\(latestTask, \{ delay: false \}\)/);
   assert.match(html, /await flushPendingTaskSave\(task\.id\)/);
@@ -731,10 +952,14 @@ test("overdue migration continues after failure and updates only successful loca
   ];
   const attempts = [];
   const messages = [];
-  const migrate = overdueMigrationRuntime(tasks, async (task) => {
-    attempts.push(task.id);
-    if (task.id === "fail") throw new Error("save failed");
-  }, (message) => messages.push(message));
+  const migrate = overdueMigrationRuntime(
+    tasks,
+    async (task) => {
+      attempts.push(task.id);
+      if (task.id === "fail") throw new Error("save failed");
+    },
+    (message) => messages.push(message),
+  );
 
   await migrate();
 
@@ -746,27 +971,41 @@ test("overdue migration continues after failure and updates only successful loca
 });
 
 test("pending user edits persist before the final overdue block save", async () => {
-  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "最新编辑" }];
+  const tasks = [
+    { id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "最新编辑" },
+  ];
   const persisted = [];
   const runtime = overdueSaveRuntime(tasks, async (task) => persisted.push({ ...task }));
 
   runtime.scheduleSaveTask(tasks[0]);
   await runtime.blockOverdueTasksForListMode();
 
-  assert.deepEqual(persisted.map((task) => task.status), ["进行中", "阻塞"]);
-  assert.deepEqual(persisted.map((task) => task.description), ["最新编辑", "最新编辑"]);
+  assert.deepEqual(
+    persisted.map((task) => task.status),
+    ["进行中", "阻塞"],
+  );
+  assert.deepEqual(
+    persisted.map((task) => task.description),
+    ["最新编辑", "最新编辑"],
+  );
   assert.equal(tasks[0].status, "阻塞");
   assert.deepEqual(tasks[0], persisted.at(-1));
 });
 
 test("a failed pending edit remains pending and prevents an overdue overwrite", async () => {
-  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "不能丢失" }];
+  const tasks = [
+    { id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "不能丢失" },
+  ];
   const attempts = [];
   const messages = [];
-  const runtime = overdueSaveRuntime(tasks, async (task) => {
-    attempts.push({ ...task });
-    throw new Error("offline");
-  }, (message) => messages.push(message));
+  const runtime = overdueSaveRuntime(
+    tasks,
+    async (task) => {
+      attempts.push({ ...task });
+      throw new Error("offline");
+    },
+    (message) => messages.push(message),
+  );
 
   runtime.scheduleSaveTask(tasks[0]);
   await runtime.blockOverdueTasksForListMode();
@@ -788,7 +1027,9 @@ test("concurrent flushes share one drain through v2 before overdue blocking", as
     writes.push(snapshot);
     if (writes.length <= 2) {
       let resolve;
-      const promise = new Promise((done) => { resolve = done; });
+      const promise = new Promise((done) => {
+        resolve = done;
+      });
       deferred.push({ resolve });
       await promise;
     }
@@ -809,11 +1050,14 @@ test("concurrent flushes share one drain through v2 before overdue blocking", as
   deferred[1].resolve();
   await Promise.all([firstFlush, migration]);
 
-  assert.deepEqual(writes.map((task) => [task.description, task.status]), [
-    ["v1", "进行中"],
-    ["v2", "进行中"],
-    ["v2", "阻塞"],
-  ]);
+  assert.deepEqual(
+    writes.map((task) => [task.description, task.status]),
+    [
+      ["v1", "进行中"],
+      ["v2", "进行中"],
+      ["v2", "阻塞"],
+    ],
+  );
   assert.equal(serverTask.status, "阻塞");
   assert.equal(serverTask.description, "v2");
   assert.deepEqual(tasks[0], serverTask);
@@ -829,46 +1073,63 @@ test("flush-all drains a newly pending second task before overdue migration", as
   let nextTimerId = 0;
   const writes = [];
   const serverTasks = new Map();
-  const runtime = overdueSaveRuntime(tasks, async (task) => {
-    const snapshot = { ...task };
-    writes.push(snapshot);
-    if (snapshot.status !== "阻塞") {
-      let resolve;
-      const promise = new Promise((done) => { resolve = done; });
-      deferredById.set(snapshot.id, { resolve });
-      await promise;
-    }
-    serverTasks.set(snapshot.id, snapshot);
-  }, () => {}, {
-    setTimeout(callback) {
-      nextTimerId += 1;
-      timers.set(nextTimerId, callback);
-      return nextTimerId;
+  const runtime = overdueSaveRuntime(
+    tasks,
+    async (task) => {
+      const snapshot = { ...task };
+      writes.push(snapshot);
+      if (snapshot.status !== "阻塞") {
+        let resolve;
+        const promise = new Promise((done) => {
+          resolve = done;
+        });
+        deferredById.set(snapshot.id, { resolve });
+        await promise;
+      }
+      serverTasks.set(snapshot.id, snapshot);
     },
-    clearTimeout(timerId) {
-      timers.delete(timerId);
+    () => {},
+    {
+      setTimeout(callback) {
+        nextTimerId += 1;
+        timers.set(nextTimerId, callback);
+        return nextTimerId;
+      },
+      clearTimeout(timerId) {
+        timers.delete(timerId);
+      },
     },
-  });
+  );
 
   runtime.scheduleSaveTask(tasks[0]);
   const migration = runtime.blockOverdueTasksForListMode();
   await Promise.resolve();
   runtime.scheduleSaveTask(tasks[1]);
   deferredById.get("a").resolve();
-  for (let index = 0; index < 3 && !deferredById.has("b"); index += 1) await new Promise((resolve) => setImmediate(resolve));
+  for (let index = 0; index < 3 && !deferredById.has("b"); index += 1)
+    await new Promise((resolve) => setImmediate(resolve));
   assert.ok(deferredById.has("b"), "newly pending B must join the active flush-all drain");
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.deepEqual(writes.map((task) => [task.id, task.status]), [["a", "进行中"], ["b", "进行中"]]);
+  assert.deepEqual(
+    writes.map((task) => [task.id, task.status]),
+    [
+      ["a", "进行中"],
+      ["b", "进行中"],
+    ],
+  );
   deferredById.get("b").resolve();
   await migration;
 
-  assert.deepEqual(writes.map((task) => [task.id, task.status]), [
-    ["a", "进行中"],
-    ["b", "进行中"],
-    ["a", "阻塞"],
-    ["b", "阻塞"],
-  ]);
+  assert.deepEqual(
+    writes.map((task) => [task.id, task.status]),
+    [
+      ["a", "进行中"],
+      ["b", "进行中"],
+      ["a", "阻塞"],
+      ["b", "阻塞"],
+    ],
+  );
   assert.equal(serverTasks.get("b").description, "B编辑");
   assert.equal(serverTasks.get("b").status, "阻塞");
   for (const callback of timers.values()) callback();
@@ -886,26 +1147,33 @@ test("edits during overdue migration remain blocked and preserve latest fields",
   const writes = [];
   const serverTasks = new Map();
   let timerId = 0;
-  const runtime = overdueSaveRuntime(tasks, async (task) => {
-    const snapshot = { ...task };
-    writes.push(snapshot);
-    if (deferred.length < 2) {
-      let resolve;
-      const promise = new Promise((done) => { resolve = done; });
-      deferred.push({ resolve });
-      await promise;
-    }
-    serverTasks.set(snapshot.id, snapshot);
-  }, () => {}, {
-    setTimeout(callback) {
-      timerId += 1;
-      timers.set(timerId, callback);
-      return timerId;
+  const runtime = overdueSaveRuntime(
+    tasks,
+    async (task) => {
+      const snapshot = { ...task };
+      writes.push(snapshot);
+      if (deferred.length < 2) {
+        let resolve;
+        const promise = new Promise((done) => {
+          resolve = done;
+        });
+        deferred.push({ resolve });
+        await promise;
+      }
+      serverTasks.set(snapshot.id, snapshot);
     },
-    clearTimeout(id) {
-      timers.delete(id);
+    () => {},
+    {
+      setTimeout(callback) {
+        timerId += 1;
+        timers.set(timerId, callback);
+        return timerId;
+      },
+      clearTimeout(id) {
+        timers.delete(id);
+      },
     },
-  });
+  );
 
   const migration = runtime.blockOverdueTasksForListMode();
   while (deferred.length < 1) await new Promise((resolve) => setImmediate(resolve));
@@ -921,21 +1189,32 @@ test("edits during overdue migration remain blocked and preserve latest fields",
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(writes.length, 3, "only A in-flight edit requires a second serialized write");
-  assert.deepEqual(writes.map((task) => [task.id, task.description, task.status]), [
-    ["a", "A旧", "阻塞"],
-    ["a", "A最新", "阻塞"],
-    ["b", "B最新", "阻塞"],
-  ]);
-  for (const [id, description] of [["a", "A最新"], ["b", "B最新"]]) {
+  assert.deepEqual(
+    writes.map((task) => [task.id, task.description, task.status]),
+    [
+      ["a", "A旧", "阻塞"],
+      ["a", "A最新", "阻塞"],
+      ["b", "B最新", "阻塞"],
+    ],
+  );
+  for (const [id, description] of [
+    ["a", "A最新"],
+    ["b", "B最新"],
+  ]) {
     assert.equal(serverTasks.get(id).status, "阻塞");
     assert.equal(serverTasks.get(id).description, description);
     assert.match(serverTasks.get(id).blocker, /任务已逾期/);
-    assert.deepEqual(tasks.find((task) => task.id === id), serverTasks.get(id));
+    assert.deepEqual(
+      tasks.find((task) => task.id === id),
+      serverTasks.get(id),
+    );
   }
 });
 
 test("failed overdue migration releases its barrier for a later explicit completion", async () => {
-  const tasks = [{ id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "失败前编辑" }];
+  const tasks = [
+    { id: "a", title: "A", status: "进行中", dueDate: "2026-08-01", blocker: "", description: "失败前编辑" },
+  ];
   const writes = [];
   let shouldFail = true;
   const runtime = overdueSaveRuntime(tasks, async (task) => {

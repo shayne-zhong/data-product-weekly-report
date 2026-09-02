@@ -10,7 +10,6 @@ process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
 process.env.ADMIN_SESSION_SECRET = "persistence-api-admin-session-secret-32-bytes";
 process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 6).toString("base64");
-process.env.WEEKLY_ROLLOVER_SECRET = "weekly-rollover-test-secret-32-bytes";
 
 function mockRes() {
   return {
@@ -80,43 +79,32 @@ test.before(async () => {
   defaultToken = loggedIn.body.token;
 });
 
-test("weekly rollover is internal, persistent, and idempotent", async () => {
+test("weekly rollover is Node-scheduled, persistent, and idempotent", async () => {
   const sourceStartDate = "2098-12-29";
   const sourceEndDate = "2099-01-04";
   const targetStartDate = "2099-01-05";
   const targetEndDate = "2099-01-11";
-  const sourceWeek = await api("/weeks", { method: "POST", body: { startDate: sourceStartDate, endDate: sourceEndDate } });
+  const sourceWeek = await api("/weeks", {
+    method: "POST",
+    body: { startDate: sourceStartDate, endDate: sourceEndDate },
+  });
   const sourceTask = await api(`/week/${encodeURIComponent(sourceWeek.body.week.id)}/tasks`, {
     method: "POST",
     body: { task: { title: "定时结转测试", status: "进行中" } },
   });
   assert.equal(sourceTask.statusCode, 201);
 
-  const unauthorized = await api("/internal/weekly-rollover", {
-    method: "POST",
-    token: "",
-    body: { triggeredAt: "2099-01-04T16:05:00.000Z" },
+  const first = await runWeeklyRolloverFromServer({
+    triggeredAt: Date.parse("2099-01-04T16:05:00.000Z"),
+    trigger: "server-scheduled",
   });
-  assert.equal(unauthorized.statusCode, 403);
-
-  const headers = { "x-weekly-rollover-secret": process.env.WEEKLY_ROLLOVER_SECRET };
-  const first = await api("/internal/weekly-rollover", {
-    method: "POST",
-    token: "",
-    headers,
-    body: { triggeredAt: "2099-01-04T16:05:00.000Z" },
-  });
-  const second = await api("/internal/weekly-rollover", {
-    method: "POST",
-    token: "",
-    headers,
-    body: { triggeredAt: "2099-01-04T16:05:00.000Z" },
+  const second = await runWeeklyRolloverFromServer({
+    triggeredAt: Date.parse("2099-01-04T16:05:00.000Z"),
+    trigger: "server-scheduled",
   });
 
-  assert.equal(first.statusCode, 200);
-  assert.equal(first.body.rolledTaskCount, 1);
-  assert.equal(second.statusCode, 200);
-  assert.equal(second.body.rolledTaskCount, 0);
+  assert.equal(first.rolledTaskCount, 1);
+  assert.equal(second.rolledTaskCount, 0);
   const startupCatchup = await runWeeklyRolloverFromServer({
     triggeredAt: Date.parse("2099-01-04T16:05:00.000Z"),
     trigger: "server-startup",
@@ -132,6 +120,11 @@ test("weekly rollover is internal, persistent, and idempotent", async () => {
     body: { sourceWeekId: sourceWeek.body.week.id },
   });
   assert.equal(publicRollover.statusCode, 405);
+});
+
+test("external scheduler HTTP routes are unavailable", async () => {
+  assert.equal((await api("/internal/weekly-rollover", { method: "POST" })).statusCode, 404);
+  assert.equal((await api("/internal/report-auto-archive", { method: "POST" })).statusCode, 404);
 });
 
 test("global admin can inspect and safely restart scheduled rollover", async () => {
@@ -196,7 +189,10 @@ test("global admin can manually catch up only due report archives", async () => 
   });
   const headers = { authorization: `Bearer ${adminLogin.body.token}` };
   const list = await api("/admin/scheduled-tasks", { token: "", headers });
-  assert.deepEqual(list.body.tasks.map((task) => task.id), ["weekly-task-rollover", "report-auto-archive"]);
+  assert.deepEqual(
+    list.body.tasks.map((task) => task.id),
+    ["weekly-task-rollover", "report-auto-archive"],
+  );
 
   const anonymous = await api("/admin/scheduled-tasks/report-auto-archive/run", { method: "POST", token: "" });
   assert.equal(anonymous.statusCode, 401);
@@ -265,8 +261,14 @@ test("tasks persist multiple linked goal contributions after update and reload",
   assert.equal(loaded.statusCode, 200);
   const task = loaded.body.tasks.find((item) => item.id === created.body.task.id);
   assert.ok(task);
-  assert.deepEqual(task.goalLinks.map((link) => link.goalId), ["goal-a", "goal-b", "goal-c"]);
-  assert.deepEqual(task.goalLinks.map((link) => link.contribution), [8, 3, 1]);
+  assert.deepEqual(
+    task.goalLinks.map((link) => link.goalId),
+    ["goal-a", "goal-b", "goal-c"],
+  );
+  assert.deepEqual(
+    task.goalLinks.map((link) => link.contribution),
+    [8, 3, 1],
+  );
 });
 
 test("goals derive current values from completed tasks and deletion clears task links", async () => {
@@ -279,10 +281,19 @@ test("goals derive current values from completed tasks and deletion clears task 
     method: "POST",
     body: { startDate: "2095-01-01", endDate: "2095-01-07" },
   });
-  for (const [status, contribution] of [["已完成", 5], ["进行中", 90]]) {
+  for (const [status, contribution] of [
+    ["已完成", 5],
+    ["进行中", 90],
+  ]) {
     const created = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
       method: "POST",
-      body: { task: { title: `${status}任务`, status: "进行中", goalLinks: [{ goalId, contribution, unit: "项", note: status }] } },
+      body: {
+        task: {
+          title: `${status}任务`,
+          status: "进行中",
+          goalLinks: [{ goalId, contribution, unit: "项", note: status }],
+        },
+      },
     });
     if (status === "已完成") {
       await api(`/task/${encodeURIComponent(created.body.task.id)}`, { method: "POST", body: { task: { status } } });

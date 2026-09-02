@@ -35,10 +35,11 @@ test("downloads private Vercel state through the official Blob API", async () =>
 });
 
 test("rejects a missing Blob payload", async () => {
-  const blobApi = { async get() { return null; } };
+  const blobApi = {
+    async get() {
+      return null;
+    },
+  };
 
-  await assert.rejects(
-    downloadVercelState({ blobApi, token: "secret-token", pathname: "state.json" }),
-    /not found/i,
-  );
+  await assert.rejects(downloadVercelState({ blobApi, token: "secret-token", pathname: "state.json" }), /not found/i);
 });

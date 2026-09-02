@@ -11,9 +11,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "@cloudbase/node-sdk": "4.0.3",
-    "@netlify/blobs": "^9.1.2",
-    "@vercel/blob": "^2.4.1",
+    "@vercel/blob": "^2.8.0",
     "busboy": "^1.6.0"
   },
   "overrides": {

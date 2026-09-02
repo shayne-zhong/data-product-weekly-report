@@ -53,15 +53,13 @@ function safePublicPath(publicRoot, pathname) {
 }
 
 async function serveStatic(req, res, url, publicRoot) {
-  if (!['GET', 'HEAD'].includes(req.method || "GET")) {
+  if (!["GET", "HEAD"].includes(req.method || "GET")) {
     res.writeHead(405, { Allow: "GET, HEAD" });
     return res.end();
   }
 
-  const routeToIndex = url.pathname === "/"
-    || url.pathname === "/admin"
-    || url.pathname.startsWith("/admin/")
-    || !extname(url.pathname);
+  const routeToIndex =
+    url.pathname === "/" || url.pathname === "/admin" || url.pathname.startsWith("/admin/") || !extname(url.pathname);
   const requestedPath = routeToIndex ? "/index.html" : url.pathname;
   const filePath = safePublicPath(publicRoot, requestedPath);
   if (!filePath) {
@@ -122,21 +120,23 @@ export function createProductionServer({
 }
 
 const chinaOffsetMs = 8 * 60 * 60 * 1000;
-const weekMs = 7 * 24 * 60 * 60 * 1000;
 
-export function millisecondsUntilNextWeeklyRollover(now = Date.now()) {
+export function millisecondsUntilNextDaytimeHourlyRun(now = Date.now()) {
   const chinaNow = new Date(now + chinaOffsetMs);
-  const daysSinceMonday = (chinaNow.getUTCDay() + 6) % 7;
-  const mondayStart = Date.UTC(chinaNow.getUTCFullYear(), chinaNow.getUTCMonth(), chinaNow.getUTCDate())
-    - chinaOffsetMs
-    - daysSinceMonday * 24 * 60 * 60 * 1000;
-  let nextRun = mondayStart + 5 * 60 * 1000;
-  if (nextRun <= now) nextRun += weekMs;
-  return nextRun - now;
+  const year = chinaNow.getUTCFullYear();
+  const month = chinaNow.getUTCMonth();
+  const day = chinaNow.getUTCDate();
+  const hour = chinaNow.getUTCHours();
+  let nextRun;
+  if (hour < 8) nextRun = Date.UTC(year, month, day, 8);
+  else if (hour >= 20) nextRun = Date.UTC(year, month, day + 1, 8);
+  else nextRun = Date.UTC(year, month, day, hour + 1);
+  return nextRun - (now + chinaOffsetMs);
 }
 
-export function startWeeklyRolloverScheduler({
-  run = runWeeklyRolloverFromServer,
+function startDaytimeHourlyScheduler({
+  run,
+  label,
   now = Date.now,
   setTimeoutImpl = setTimeout,
   clearTimeoutImpl = clearTimeout,
@@ -147,21 +147,24 @@ export function startWeeklyRolloverScheduler({
   const invoke = async (triggeredAt, trigger) => {
     try {
       const result = await run({ triggeredAt, trigger });
-      logger.info?.("Weekly rollover scheduler:", JSON.stringify({ trigger, ...result }));
+      logger.info?.(`${label}:`, JSON.stringify({ trigger, ...result }));
       return result;
     } catch (error) {
-      logger.error?.("Weekly rollover scheduler failed:", error?.message || error);
+      logger.error?.(`${label} failed:`, error?.message || error);
       return null;
     }
   };
   const scheduleNext = () => {
     if (stopped) return;
     const current = now();
-    const scheduledAt = current + millisecondsUntilNextWeeklyRollover(current);
-    timer = setTimeoutImpl(async () => {
-      await invoke(scheduledAt, "server-scheduled");
-      scheduleNext();
-    }, Math.max(0, scheduledAt - now()));
+    const scheduledAt = current + millisecondsUntilNextDaytimeHourlyRun(current);
+    timer = setTimeoutImpl(
+      async () => {
+        await invoke(scheduledAt, "server-scheduled");
+        scheduleNext();
+      },
+      Math.max(0, scheduledAt - now()),
+    );
     timer?.unref?.();
   };
   const startup = invoke(now(), "server-startup");
@@ -175,31 +178,19 @@ export function startWeeklyRolloverScheduler({
   };
 }
 
-export function startReportAutoArchiveScheduler({
-  run = runReportAutoArchiveFromServer,
-  now = Date.now,
-  setIntervalImpl = setInterval,
-  clearIntervalImpl = clearInterval,
-  logger = console,
-} = {}) {
-  const invoke = async (trigger) => {
-    try {
-      const result = await run({ triggeredAt: now(), trigger });
-      logger.info?.("Report auto archive scheduler:", JSON.stringify(result));
-      return result;
-    } catch (error) {
-      logger.error?.("Report auto archive scheduler failed:", error?.message || error);
-      return null;
-    }
-  };
-  const startup = invoke("server-startup");
-  const timer = setIntervalImpl(() => invoke("server-scheduled"), 5 * 60 * 1000);
-  timer?.unref?.();
-  return { startup, stop: () => clearIntervalImpl(timer) };
+export function startWeeklyRolloverScheduler(options = {}) {
+  return startDaytimeHourlyScheduler({
+    run: runWeeklyRolloverFromServer,
+    label: "Weekly rollover scheduler",
+    ...options,
+  });
 }
 
-const isDirectRun = process.argv[1]
-  && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+export function startReportAutoArchiveScheduler({ run = runReportAutoArchiveFromServer, ...options } = {}) {
+  return startDaytimeHourlyScheduler({ run, label: "Report auto archive scheduler", ...options });
+}
+
+const isDirectRun = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (isDirectRun) {
   const port = Number(process.env.PORT || 3000);
@@ -208,6 +199,9 @@ if (isDirectRun) {
     console.log(`Department workbench listening on port ${port}`);
     const scheduler = startWeeklyRolloverScheduler();
     const reportArchiveScheduler = startReportAutoArchiveScheduler();
-    server.once("close", () => { scheduler.stop(); reportArchiveScheduler.stop(); });
+    server.once("close", () => {
+      scheduler.stop();
+      reportArchiveScheduler.stop();
+    });
   });
 }
