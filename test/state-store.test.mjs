@@ -57,6 +57,15 @@ test("default local state path is stable across process restarts", () => {
   assert.match(defaultLocalStatePath(4321, {}), /data-product-weekly-report-state-v1\.json$/);
 });
 
+test("test fallback state does not collide when a process id is reused", () => {
+  const env = { NODE_TEST_CONTEXT: "child-v8" };
+  const firstRun = defaultLocalStatePath(4321, env, "run-a");
+  const secondRun = defaultLocalStatePath(4321, env, "run-b");
+
+  assert.notEqual(firstRun, secondRun);
+  assert.equal(firstRun, defaultLocalStatePath(4321, env, "run-a"));
+});
+
 test("runtime dependencies only include Vercel Blob", async () => {
   const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
 
