@@ -160,6 +160,25 @@ test("global admin can inspect and safely restart scheduled rollover", async () 
   assert.equal(second.body.result.rolledTaskCount, 0);
 });
 
+test("admin overview returns scoped real metrics without exposing secrets", async () => {
+  const adminLogin = await api("/admin/login", {
+    method: "POST",
+    token: "",
+    body: { username: "Admin", password: "888888" },
+  });
+  const response = await api("/admin/overview", {
+    token: "",
+    headers: { authorization: `Bearer ${adminLogin.body.token}` },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.equal(Number.isInteger(response.body.metrics.departments), true);
+  assert.equal(Number.isInteger(response.body.metrics.tasks), true);
+  assert.equal(Array.isArray(response.body.pending), true);
+  assert.equal(Array.isArray(response.body.scheduled), true);
+  assert.doesNotMatch(JSON.stringify(response.body), /apiKey|password|token/i);
+  assert.equal((await api("/admin/overview", { token: "" })).statusCode, 401);
+});
+
 test("global admin can manually catch up only due report archives", async () => {
   const reportPayload = (title, startDate, endDate) => ({
     status: "draft",

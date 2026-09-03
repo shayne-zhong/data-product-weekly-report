@@ -1569,14 +1569,62 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   const decoded = await verifyAdminToken(bearerToken(req), { now });
   if (!decoded) return json(res, { error: "后台登录已过期，请重新登录" }, 401);
 
+  const overviewPayload = (departmentId = "") => {
+    const settings = getSettings(state);
+    const departments = settings.departments.filter((item) => !departmentId || item.id === departmentId);
+    const departmentIds = new Set(departments.map((item) => item.id));
+    const accounts = settings.accounts.filter((item) => departmentIds.has(item.departmentId));
+    const tasks = Object.values(state.tasks || {}).filter((item) => departmentIds.has(item.departmentId));
+    const reports = Object.values(state.reports || {}).filter((item) => departmentIds.has(item.departmentId));
+    const completedTasks = tasks.filter((item) => item.status === "已完成").length;
+    const pending = [
+      ...departments
+        .filter((item) => !item.leaderUsername)
+        .map((item) => ({ type: "department", label: `${item.name}尚未指定部门负责人`, page: "departments" })),
+      ...accounts
+        .filter((item) => item.role === "module_leader" && !(item.managedModules || []).length)
+        .map((item) => ({ type: "member", label: `${item.name}尚未配置负责模块`, page: "members" })),
+    ];
+    return {
+      updatedAt: now,
+      metrics: {
+        departments: departments.length,
+        activeMembers: accounts.filter((item) => item.enabled !== false).length,
+        tasks: tasks.length,
+        completedTasks,
+        completionRate: tasks.length ? Math.round((completedTasks / tasks.length) * 100) : null,
+        reports: reports.length,
+        archivedReports: reports.filter((item) => item.status === "final").length,
+      },
+      pending,
+    };
+  };
+
   if (decoded.role === "leader") {
     const department = resolveLeaderDepartment(state, decoded.username);
     const stale = department && Number(department.leaderAssignedAt || 0) > Number(decoded.issuedAt || 0);
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
+    if (action === "overview") {
+      if (req.method !== "GET") return methodNotAllowed(res);
+      return json(res, overviewPayload(department.id));
+    }
     if (action === "scheduled-tasks") return json(res, { error: "仅全局管理员可管理定时任务" }, 403);
     return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
+  }
+
+  if (action === "overview") {
+    if (req.method !== "GET") return methodNotAllowed(res);
+    const payload = overviewPayload();
+    const scheduled = [weeklyRolloverTaskSummary(state, { now }), reportArchiveTaskSummary(state, { now })];
+    payload.pending.unshift(
+      ...scheduled
+        .filter((item) => item.status === "failed")
+        .map((item) => ({ type: "task", label: `${item.name}最近一次执行失败`, page: "scheduled-tasks" })),
+    );
+    payload.scheduled = scheduled;
+    return json(res, payload);
   }
 
   if (action === "scheduled-tasks") {

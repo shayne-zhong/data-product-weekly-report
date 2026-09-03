@@ -797,51 +797,45 @@ test("admin uses three top-level groups and six second-level pages", () => {
   assert.match(html, /API 密钥/);
 });
 
-test("admin navigation lives in the global top bar with grouped dropdown menus", () => {
-  assert.match(
-    html,
-    /<header class="topbar">[\s\S]*?<nav class="admin-primary-nav" id="adminTopNav"[\s\S]*?<\/header>/,
-  );
-  assert.match(
-    html,
-    /class="admin-nav-item" data-admin-nav-group="organization"[\s\S]*?data-admin-section="departments"[\s\S]*?data-admin-section="members"/,
-  );
-  assert.match(
-    html,
-    /class="admin-nav-item" data-admin-nav-group="rules"[\s\S]*?data-admin-section="login"[\s\S]*?data-admin-section="archive"/,
-  );
-  assert.match(
-    html,
-    /class="admin-nav-item" data-admin-nav-group="operations"[\s\S]*?data-admin-section="api-key"[\s\S]*?data-admin-section="scheduled-tasks"/,
-  );
-  assert.doesNotMatch(html, /<div class="settings-center">\s*<nav class="settings-nav panel"/);
+test("admin navigation uses the v2 sidebar and persistent page tabs", () => {
+  assert.match(html, /class="admin-shell" id="adminShell"/);
+  assert.match(html, /class="admin-sidebar" id="adminSidebar" aria-label="后台导航"/);
+  assert.match(html, /class="admin-tabs" id="adminTabs" role="tablist"/);
+  assert.match(html, /adminOpenTabs = \["overview"\]/);
+  assert.match(html, /data-admin-close/);
+  assert.match(html, /adminActiveSection === section[\s\S]{0,180}openAdminSection/);
 });
 
-test("admin dropdown supports hover, keyboard focus, touch expansion, and dismissal", () => {
-  assert.match(html, /\.admin-nav-item:hover \.admin-secondary-menu/);
-  assert.match(html, /\.admin-nav-item:focus-within \.admin-secondary-menu/);
-  assert.match(html, /aria-haspopup="menu"/);
-  assert.match(html, /aria-expanded="false"/);
-  assert.match(html, /adminTopNav[\s\S]*?addEventListener\("keydown"[\s\S]*?Escape/);
-  assert.match(html, /document\.addEventListener\("click"[\s\S]*?closeAdminDropdowns/);
+test("admin v2 navigation adapts from full sidebar to icon rail and mobile drawer", () => {
+  assert.match(html, /grid-template-columns:216px minmax\(0,1fr\)/);
+  assert.match(html, /@media\(max-width:1023px\)[\s\S]*grid-template-columns:64px minmax\(0,1fr\)/);
+  assert.match(html, /@media\(max-width:767px\)[\s\S]*\.admin-shell\.nav-open \.admin-sidebar/);
+  assert.match(html, /id="adminMobileNavBtn" aria-label="打开后台导航"/);
 });
 
 test("admin redesign applies the Dongpeng enterprise shell and compact control tokens", () => {
   assert.match(html, /--dp-brand-red:\s*#E21413/);
-  assert.match(html, /--dp-action-gradient:\s*linear-gradient\(148\.66deg,\s*#F96766 0%,\s*#E21413 100%\)/);
+  assert.match(html, /--dp-action-gradient:\s*linear-gradient\(148\.66deg,\s*#C94A4D 0%,\s*#E21413 100%\)/);
   assert.match(html, /\.admin-mode \.topbar\s*\{[^}]*height:\s*64px/);
   assert.match(html, /\.admin-mode :is\(button,input,select\)[^{]*\{[^}]*min-height:\s*36px[^}]*border-radius:\s*4px/);
   assert.match(html, /\.admin-mode \.admin-section\s*\{[^}]*border-radius:\s*8px[^}]*padding:\s*24px/);
 });
 
-test("admin editable lists expose compact column guidance without adding another navigation layer", () => {
+test("admin editable lists retain compact column guidance inside the new workspace", () => {
   assert.match(html, /class="admin-list-guide departments"[\s\S]*部门名称[\s\S]*状态[\s\S]*部门负责人/);
   assert.match(
     html,
     /class="admin-list-guide members"[\s\S]*姓名[\s\S]*账号[\s\S]*所属部门[\s\S]*角色[\s\S]*负责模块[\s\S]*状态/,
   );
-  assert.doesNotMatch(html, /class="admin-sidebar"/);
+  assert.match(html, /class="admin-sidebar"/);
   assert.match(html, /id="adminReloadBtn">放弃更改/);
+});
+
+test("admin overview is the fixed default and reads scoped real data", () => {
+  assert.match(html, /data-admin-panel="overview"/);
+  assert.match(html, /adminActiveSection = "overview"/);
+  assert.match(html, /apiJson\("\/api\/admin\/overview"/);
+  assert.match(html, /metrics\.completionRate == null \? "—"/);
 });
 
 test("scheduled task actions use the due-only catch-up wording and remain separately confirmed", () => {

@@ -13,14 +13,14 @@
   --green:#16a36a;--green-soft:#eaf8f2;--orange:#e58a00;--orange-soft:#fff5e6;
   --red:#e5484d;--red-soft:#fff0f1;--purple:#7a5af8;--purple-soft:#f1efff;
   --shadow:0 10px 30px rgba(20,31,56,.08);--radius:16px;
-  --dp-brand-red:#E21413;--dp-brand-red-subtle:#FFF5F5;--dp-brand-blue:#3B82F6;
-  --dp-text-primary:#303133;--dp-text-secondary:#606266;--dp-text-muted:#909399;
+  --dp-brand-red:#E21413;--dp-brand-red-subtle:#FFF5F5;--dp-brand-blue:#2563EB;
+  --dp-text-primary:#303133;--dp-text-secondary:#606266;--dp-text-muted:#6E7076;
   --dp-workspace-canvas:#F5F7FA;--dp-surface:#FFFFFF;--dp-surface-subtle:#FAFAFA;
-  --dp-border:#EBEEF5;--dp-border-strong:#DCDFE6;--dp-success:#16A34A;
-  --dp-success-subtle:#F0FDF4;--dp-warning:#ED6C02;--dp-warning-subtle:#FFF4E5;
-  --dp-processing:#4590E6;--dp-processing-subtle:#EAF3FF;--dp-error:#E21413;
+  --dp-border:#EBEEF5;--dp-border-strong:#DCDFE6;--dp-success:#15803D;
+  --dp-success-subtle:#F0FDF4;--dp-warning:#C2410C;--dp-warning-subtle:#FFF4E5;
+  --dp-processing:#1D4ED8;--dp-processing-subtle:#EAF3FF;--dp-error:#B91C1C;
   --dp-error-subtle:#FFF1F1;--dp-neutral:#666666;--dp-neutral-subtle:#F5F5F5;
-  --dp-action-gradient:linear-gradient(148.66deg, #F96766 0%, #E21413 100%);
+  --dp-action-gradient:linear-gradient(148.66deg, #C94A4D 0%, #E21413 100%);
 }
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,"PingFang SC","Microsoft YaHei",sans-serif}
 button,input,select,textarea{font:inherit}.hidden{display:none!important}
@@ -195,6 +195,11 @@ body.admin-mode{
 .admin-mode .scheduled-task-card.success{border-left:4px solid var(--dp-success)}.admin-mode .scheduled-task-card.failed{border-left:4px solid var(--dp-error)}.admin-mode .scheduled-task-card.running{border-left:4px solid var(--dp-processing)}
 .admin-mode .scheduled-task-error{border-radius:4px;background:var(--dp-error-subtle);color:var(--dp-error)}
 .admin-mode .admin-savebar{bottom:16px;margin-top:16px;padding:12px 16px;border-radius:8px;border-color:var(--dp-border-strong);background:var(--dp-surface);box-shadow:0 4px 12px rgba(48,49,51,.12)}
+.admin-mode #adminTopNav{display:none!important}.admin-mode #adminView>.page-head{display:none}.admin-mode #adminView{padding:0;max-width:none}.admin-mode #adminManagePanel{margin:-18px -24px -28px;min-height:calc(100vh - 64px);background:#f4f6f8}
+.admin-shell{display:grid;grid-template-columns:216px minmax(0,1fr);min-height:calc(100vh - 64px)}.admin-sidebar{position:sticky;top:64px;align-self:start;height:calc(100vh - 64px);padding:16px 12px;background:#fff;border-right:1px solid var(--dp-border);overflow:auto}.admin-side-group{margin-bottom:18px}.admin-side-label{padding:0 12px 6px;color:#6e7076;font-size:11px;font-weight:700;letter-spacing:.08em}.admin-side-link{display:flex;align-items:center;gap:10px;width:100%;height:40px;padding:0 12px;border:0;border-radius:4px;background:transparent;color:#606266;text-align:left;cursor:pointer}.admin-side-link:hover{background:#f5f7fa;color:#303133}.admin-side-link.active{background:#fff1f0;color:#b91c1c;font-weight:700}.admin-side-icon{width:20px;text-align:center;font-size:14px}.admin-side-link .dirty-dot,.admin-tab .dirty-dot{width:7px;height:7px;margin-left:auto;border-radius:50%;background:#c2410c}.admin-workspace{min-width:0}.admin-tabs{position:sticky;top:64px;z-index:20;display:flex;height:40px;padding-left:12px;background:#fff;border-bottom:1px solid var(--dp-border);overflow-x:auto}.admin-tab{display:flex;align-items:center;gap:8px;min-width:max-content;padding:0 12px;border:0;border-right:1px solid #ebeef5;background:#fff;color:#606266;cursor:pointer}.admin-tab.active{color:#b91c1c;font-weight:700;box-shadow:inset 0 -2px #e21413}.admin-tab-close{font-size:16px;color:#909399}.admin-tab-close:hover{color:#b91c1c}.admin-content{padding:24px}.admin-overview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px}.admin-overview-head h3{margin:0 0 6px}.admin-metrics{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:16px;margin-bottom:16px}.admin-metric{padding:18px;border:1px solid var(--dp-border);border-radius:8px;background:#fff}.admin-metric span{color:#6e7076;font-size:12px}.admin-metric strong{display:block;margin-top:8px;font-size:28px;font-variant-numeric:tabular-nums}.admin-overview-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.admin-overview-card{padding:20px;border:1px solid var(--dp-border);border-radius:8px;background:#fff}.admin-overview-card h4{margin:0 0 12px}.admin-pending-list{display:grid;gap:8px}.admin-pending-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--dp-border)}.admin-pending-item:last-child{border-bottom:0}.admin-empty{padding:24px;color:#6e7076;text-align:center}.admin-overview-error{color:#b91c1c}
+@media(max-width:1023px){.admin-shell{grid-template-columns:64px minmax(0,1fr)}.admin-sidebar{padding:16px 8px}.admin-side-label,.admin-side-link span:not(.admin-side-icon):not(.dirty-dot){display:none}.admin-side-link{justify-content:center;padding:0}.admin-side-link .dirty-dot{position:absolute;margin:0 0 24px 24px}.admin-metrics{grid-template-columns:repeat(2,minmax(140px,1fr))}}
+@media(max-width:767px){.admin-mode #adminManagePanel{margin:-18px -16px -28px}.admin-shell{display:block}.admin-sidebar{position:fixed;z-index:80;top:64px;left:0;width:216px;height:calc(100vh - 64px);padding:16px 12px;transform:translateX(-100%);transition:transform .2s;box-shadow:0 10px 30px rgba(0,0,0,.16)}.admin-shell.nav-open .admin-sidebar{transform:translateX(0)}.admin-side-label,.admin-side-link span:not(.admin-side-icon):not(.dirty-dot){display:block}.admin-side-link{justify-content:flex-start;padding:0 12px}.admin-content{padding:16px}.admin-overview-grid{grid-template-columns:1fr}.admin-metrics{grid-template-columns:1fr 1fr}.admin-mobile-nav{display:inline-flex!important}}
+.admin-mobile-nav{display:none}
 @media(max-width:900px){.admin-mode .topbar{padding-inline:16px}.admin-mode .brand{min-width:auto}.admin-mode .admin-list-guide{display:none}.admin-mode .admin-row,.admin-mode #adminAccountsList .admin-row.role,.admin-mode #leaderAccountsList .admin-row.role{min-width:0;grid-template-columns:1fr}.admin-mode .scheduled-task-card{grid-template-columns:1fr}}
 </style>
 </head>
@@ -476,6 +481,16 @@ body.admin-mode{
         </div>
       </div>
       <div id="adminManagePanel" hidden>
+        <div class="admin-shell" id="adminShell">
+          <aside class="admin-sidebar" id="adminSidebar" aria-label="后台导航"></aside>
+          <div class="admin-workspace">
+            <div class="admin-tabs" id="adminTabs" role="tablist"><button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航">☰</button></div>
+            <div class="admin-content">
+            <section class="admin-section" data-admin-panel="overview">
+              <div class="admin-overview-head"><div><h3>管理概览</h3><p class="subtitle">优先处理影响组织配置和系统运行的问题。</p></div><button class="ghost-btn" id="reloadAdminOverviewBtn">刷新数据</button></div>
+              <div class="admin-metrics" id="adminOverviewMetrics" aria-live="polite"></div>
+              <div class="admin-overview-grid"><section class="admin-overview-card"><h4>待处理事项</h4><div class="admin-pending-list" id="adminPendingList"></div></section><section class="admin-overview-card"><h4>系统状态</h4><div id="adminSystemHealth" class="admin-pending-list"></div></section></div>
+            </section>
         <div class="settings-center">
           <div class="settings-editor">
             <section class="panel admin-section" data-admin-panel="departments">
@@ -540,6 +555,9 @@ body.admin-mode{
           <div class="actions">
             <button class="ghost-btn" id="adminReloadBtn">放弃更改</button>
             <button class="primary-btn" id="adminSaveBtn">保存配置</button>
+          </div>
+        </div>
+            </div>
           </div>
         </div>
       </div>
@@ -930,6 +948,11 @@ body.admin-mode{
       { id: "operations", sections: ["api-key", "scheduled-tasks"] },
     ];
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
+    const adminSectionMeta = {
+      overview: { label: "管理概览", icon: "▦", group: "" }, departments: { label: "部门管理", icon: "◇", group: "组织管理" }, members: { label: "成员管理", icon: "♙", group: "组织管理" },
+      login: { label: "保持登录", icon: "◷", group: "规则配置" }, archive: { label: "归档设置", icon: "▣", group: "规则配置" },
+      "api-key": { label: "API 密钥", icon: "⚿", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "↻", group: "系统运维" },
+    };
     let adminModulesDepartmentId = defaultDepartment.id;
     const adminSessionStorageKey = `${storageKey}-admin-session`;
     let adminSession = JSON.parse(sessionStorage.getItem(adminSessionStorageKey) || "null") || { token: "", expiresAt: 0 };
@@ -937,7 +960,9 @@ body.admin-mode{
     let adminAuthed = Boolean(adminSessionToken && Number(adminSession.expiresAt) > Date.now());
     let adminRole = adminSession.role === "leader" ? "leader" : "admin";
     let adminActiveGroup = "organization";
-    let adminActiveSection = "departments";
+    let adminActiveSection = "overview";
+    let adminOpenTabs = ["overview"];
+    let adminOverview = null;
     let adminLastSectionByGroup = { ...adminGroupDefaults };
     let leaderAccounts = [];
     let leaderModules = [];
@@ -4030,8 +4055,62 @@ body.admin-mode{
         : adminNavigation;
     }
 
+    function adminVisibleSections() {
+      return adminRole === "leader" ? ["overview", "departments", "members"] : Object.keys(adminSectionMeta);
+    }
+
+    async function loadAdminOverview() {
+      adminOverview = await apiJson("/api/admin/overview", { headers: adminRequestHeaders() });
+      renderAdminOverview();
+    }
+
+    function renderAdminOverview() {
+      if (!adminOverview) {
+        $("adminOverviewMetrics").innerHTML = `<div class="admin-empty">正在读取真实数据…</div>`;
+        $("adminPendingList").innerHTML = `<div class="admin-empty">正在检查…</div>`;
+        $("adminSystemHealth").innerHTML = `<div class="admin-empty">正在检查…</div>`;
+        return;
+      }
+      const metrics = adminOverview.metrics || {};
+      const values = [["部门", metrics.departments], ["启用成员", metrics.activeMembers], ["任务完成率", metrics.completionRate == null ? "—" : `${metrics.completionRate}%`], ["已归档总结", metrics.archivedReports]];
+      $("adminOverviewMetrics").innerHTML = values.map(([label, value]) => `<article class="admin-metric"><span>${label}</span><strong>${value ?? "—"}</strong></article>`).join("");
+      $("adminPendingList").innerHTML = (adminOverview.pending || []).map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.label)}</span><button class="ghost-btn" data-admin-jump="${escapeHtml(item.page)}">处理</button></div>`).join("") || `<div class="admin-empty">当前没有待处理事项</div>`;
+      const scheduled = adminOverview.scheduled || [];
+      $("adminSystemHealth").innerHTML = scheduled.map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.name)}</span><span class="status-pill ${item.status === "failed" ? "status-blocked" : item.status === "running" ? "status-processing" : "status-done"}">${escapeHtml(item.statusLabel || item.status || "未运行")}</span></div>`).join("") || `<div class="admin-empty">当前角色无系统运行信息</div>`;
+    }
+
+    function renderAdminShellNavigation() {
+      const visible = adminVisibleSections();
+      adminOpenTabs = adminOpenTabs.filter((id) => visible.includes(id));
+      if (!adminOpenTabs.includes("overview")) adminOpenTabs.unshift("overview");
+      if (!visible.includes(adminActiveSection)) adminActiveSection = "overview";
+      $("adminSidebar").innerHTML = ["", "组织管理", "规则配置", "系统运维"].map((group) => {
+        const ids = visible.filter((id) => adminSectionMeta[id].group === group);
+        if (!ids.length) return "";
+        return `<div class="admin-side-group">${group ? `<div class="admin-side-label">${group}</div>` : ""}${ids.map((id) => `<button class="admin-side-link ${id === adminActiveSection ? "active" : ""}" data-admin-open="${id}" title="${adminSectionMeta[id].label}"><span class="admin-side-icon">${adminSectionMeta[id].icon}</span><span>${adminSectionMeta[id].label}</span><span class="dirty-dot" ${adminDirtySections.has(id) ? "" : "hidden"}></span></button>`).join("")}</div>`;
+      }).join("");
+      $("adminTabs").innerHTML = `<button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航">☰</button>` + adminOpenTabs.map((id) => `<button class="admin-tab ${id === adminActiveSection ? "active" : ""}" role="tab" aria-selected="${id === adminActiveSection}" data-admin-tab="${id}"><span>${adminSectionMeta[id].label}</span><span class="dirty-dot" ${adminDirtySections.has(id) ? "" : "hidden"}></span>${id === "overview" ? "" : `<span class="admin-tab-close" data-admin-close="${id}" role="button" aria-label="关闭${adminSectionMeta[id].label}">×</span>`}</button>`).join("");
+    }
+
+    async function openAdminSection(section) {
+      if (!adminVisibleSections().includes(section)) return;
+      if (!adminOpenTabs.includes(section)) adminOpenTabs.push(section);
+      adminActiveSection = section;
+      const group = adminNavigation.find((item) => item.sections.includes(section));
+      if (group) { adminActiveGroup = group.id; adminLastSectionByGroup[group.id] = section; }
+      $("adminShell").classList.remove("nav-open");
+      if (section === "overview") await loadAdminOverview().catch((error) => { adminOverview = { metrics: {}, pending: [{ label: error.message || "概览读取失败", page: "overview" }] }; renderAdminOverview(); });
+      if (section === "scheduled-tasks") await loadScheduledTasks().catch((error) => setSyncStatus(error.message || "定时任务状态读取失败", "warn"));
+      renderAdmin();
+    }
+
     function renderAdminNavigation() {
       const visibleGroups = adminVisibleGroups();
+      if (adminActiveSection === "overview") {
+        document.querySelectorAll("[data-admin-panel]").forEach((panel) => { panel.hidden = panel.dataset.adminPanel !== "overview"; });
+        renderAdminShellNavigation();
+        return;
+      }
       if (!visibleGroups.some((group) => group.id === adminActiveGroup)) adminActiveGroup = "organization";
       const activeGroup = visibleGroups.find((group) => group.id === adminActiveGroup) || visibleGroups[0];
       if (!activeGroup.sections.includes(adminActiveSection)) {
@@ -4057,6 +4136,7 @@ body.admin-mode{
       document.querySelectorAll("[data-admin-panel]").forEach((panel) => {
         panel.hidden = panel.dataset.adminPanel !== adminActiveSection;
       });
+      renderAdminShellNavigation();
     }
 
     function renderAdmin() {
@@ -4066,8 +4146,13 @@ body.admin-mode{
       $("syncStatus").textContent = adminAuthed ? "后台已登录" : "后台未登录";
       $("syncStatus").className = adminAuthed ? "sync-pill ok" : "sync-pill warn";
       if (!adminAuthed) return;
-      if (adminRole === "leader") return renderLeaderAdmin();
+      if (adminRole === "leader") {
+        renderAdminNavigation();
+        renderAdminOverview();
+        return renderLeaderAdmin();
+      }
       renderAdminNavigation();
+      renderAdminOverview();
       $("adminDepartmentManagementBody").hidden = false;
       $("leaderDepartmentManagementBody").hidden = true;
       $("adminMemberManagementBody").hidden = false;
@@ -5055,11 +5140,13 @@ body.admin-mode{
         adminAuthed = true;
         adminRole = session.role === "leader" ? "leader" : "admin";
         adminActiveGroup = "organization";
-        adminActiveSection = "departments";
+        adminActiveSection = "overview";
+        adminOpenTabs = ["overview"];
         adminLastSectionByGroup = { ...adminGroupDefaults };
         sessionStorage.setItem(adminSessionStorageKey, JSON.stringify(session));
         if (adminRole === "leader") await loadLeaderWorkspace();
         else await loadSettings({ admin: true });
+        await loadAdminOverview();
       } catch (error) {
         adminSession = { token: "", expiresAt: 0 };
         adminSessionToken = "";
@@ -5300,6 +5387,26 @@ body.admin-mode{
       if (event.key !== "Escape") return;
       closeAdminDropdowns();
       document.activeElement?.blur?.();
+    });
+    $("adminShell").addEventListener("click", async (event) => {
+      const close = event.target.closest("[data-admin-close]");
+      if (close) {
+        const section = close.dataset.adminClose;
+        if (adminDirtySections.has(section) && !confirm("该页面有未保存修改，仍要关闭吗？")) return;
+        adminDirtySections.delete(section);
+        const index = adminOpenTabs.indexOf(section);
+        adminOpenTabs = adminOpenTabs.filter((id) => id !== section);
+        if (adminActiveSection === section) await openAdminSection(adminOpenTabs[index] || adminOpenTabs[index - 1] || "overview");
+        else renderAdminShellNavigation();
+        return;
+      }
+      const target = event.target.closest("[data-admin-open],[data-admin-tab],[data-admin-jump]");
+      if (target) return openAdminSection(target.dataset.adminOpen || target.dataset.adminTab || target.dataset.adminJump);
+      if (event.target.closest("#adminMobileNavBtn")) $("adminShell").classList.toggle("nav-open");
+    });
+    $("reloadAdminOverviewBtn").addEventListener("click", async () => {
+      try { await loadAdminOverview(); setSyncStatus("管理概览已刷新", "ok"); }
+      catch (error) { setSyncStatus(error.message || "管理概览读取失败", "warn"); }
     });
     document.addEventListener("click", (event) => {
       if (event.target.closest("#adminTopNav")) return;
@@ -5863,6 +5970,7 @@ body.admin-mode{
         try {
           if (adminAuthed && adminRole === "leader") await loadLeaderWorkspace();
           else await loadSettings({ admin: adminAuthed });
+          if (adminAuthed) await loadAdminOverview();
         } catch {
           adminSession = { token: "", expiresAt: 0 };
           adminSessionToken = "";
