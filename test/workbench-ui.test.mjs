@@ -798,10 +798,22 @@ test("admin uses three top-level groups and six second-level pages", () => {
 });
 
 test("admin navigation lives in the global top bar with grouped dropdown menus", () => {
-  assert.match(html, /<header class="topbar">[\s\S]*?<nav class="admin-primary-nav" id="adminTopNav"[\s\S]*?<\/header>/);
-  assert.match(html, /class="admin-nav-item" data-admin-nav-group="organization"[\s\S]*?data-admin-section="departments"[\s\S]*?data-admin-section="members"/);
-  assert.match(html, /class="admin-nav-item" data-admin-nav-group="rules"[\s\S]*?data-admin-section="login"[\s\S]*?data-admin-section="archive"/);
-  assert.match(html, /class="admin-nav-item" data-admin-nav-group="operations"[\s\S]*?data-admin-section="api-key"[\s\S]*?data-admin-section="scheduled-tasks"/);
+  assert.match(
+    html,
+    /<header class="topbar">[\s\S]*?<nav class="admin-primary-nav" id="adminTopNav"[\s\S]*?<\/header>/,
+  );
+  assert.match(
+    html,
+    /class="admin-nav-item" data-admin-nav-group="organization"[\s\S]*?data-admin-section="departments"[\s\S]*?data-admin-section="members"/,
+  );
+  assert.match(
+    html,
+    /class="admin-nav-item" data-admin-nav-group="rules"[\s\S]*?data-admin-section="login"[\s\S]*?data-admin-section="archive"/,
+  );
+  assert.match(
+    html,
+    /class="admin-nav-item" data-admin-nav-group="operations"[\s\S]*?data-admin-section="api-key"[\s\S]*?data-admin-section="scheduled-tasks"/,
+  );
   assert.doesNotMatch(html, /<div class="settings-center">\s*<nav class="settings-nav panel"/);
 });
 
@@ -824,7 +836,10 @@ test("admin redesign applies the Dongpeng enterprise shell and compact control t
 
 test("admin editable lists expose compact column guidance without adding another navigation layer", () => {
   assert.match(html, /class="admin-list-guide departments"[\s\S]*部门名称[\s\S]*状态[\s\S]*部门负责人/);
-  assert.match(html, /class="admin-list-guide members"[\s\S]*姓名[\s\S]*账号[\s\S]*所属部门[\s\S]*角色[\s\S]*负责模块[\s\S]*状态/);
+  assert.match(
+    html,
+    /class="admin-list-guide members"[\s\S]*姓名[\s\S]*账号[\s\S]*所属部门[\s\S]*角色[\s\S]*负责模块[\s\S]*状态/,
+  );
   assert.doesNotMatch(html, /class="admin-sidebar"/);
   assert.match(html, /id="adminReloadBtn">放弃更改/);
 });
