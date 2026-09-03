@@ -797,6 +797,23 @@ test("admin uses three top-level groups and six second-level pages", () => {
   assert.match(html, /API 密钥/);
 });
 
+test("admin navigation lives in the global top bar with grouped dropdown menus", () => {
+  assert.match(html, /<header class="topbar">[\s\S]*?<nav class="admin-primary-nav" id="adminTopNav"[\s\S]*?<\/header>/);
+  assert.match(html, /class="admin-nav-item" data-admin-nav-group="organization"[\s\S]*?data-admin-section="departments"[\s\S]*?data-admin-section="members"/);
+  assert.match(html, /class="admin-nav-item" data-admin-nav-group="rules"[\s\S]*?data-admin-section="login"[\s\S]*?data-admin-section="archive"/);
+  assert.match(html, /class="admin-nav-item" data-admin-nav-group="operations"[\s\S]*?data-admin-section="api-key"[\s\S]*?data-admin-section="scheduled-tasks"/);
+  assert.doesNotMatch(html, /<div class="settings-center">\s*<nav class="settings-nav panel"/);
+});
+
+test("admin dropdown supports hover, keyboard focus, touch expansion, and dismissal", () => {
+  assert.match(html, /\.admin-nav-item:hover \.admin-secondary-menu/);
+  assert.match(html, /\.admin-nav-item:focus-within \.admin-secondary-menu/);
+  assert.match(html, /aria-haspopup="menu"/);
+  assert.match(html, /aria-expanded="false"/);
+  assert.match(html, /adminTopNav[\s\S]*?addEventListener\("keydown"[\s\S]*?Escape/);
+  assert.match(html, /document\.addEventListener\("click"[\s\S]*?closeAdminDropdowns/);
+});
+
 test("admin navigation maps groups to their default and remembered sections", () => {
   assert.match(html, /organization:\s*"departments"/);
   assert.match(html, /rules:\s*"login"/);
@@ -862,9 +879,9 @@ test("admin tracks unsaved settings by second-level page", () => {
   assert.match(html, /classList\.toggle\("dirty"/);
 });
 
-test("admin navigation becomes horizontally scrollable on narrow screens", () => {
+test("admin navigation remains usable on narrow touch screens", () => {
   assert.match(html, /@media\(max-width:900px\)[\s\S]*\.admin-primary-nav[\s\S]*overflow-x:auto/);
-  assert.match(html, /@media\(max-width:900px\)[\s\S]*\.settings-nav[\s\S]*overflow-x:auto/);
+  assert.match(html, /@media\(hover:none\)[\s\S]*\.admin-nav-item\.expanded \.admin-secondary-menu/);
 });
 
 test("admin warns before leaving with unsaved settings", () => {
