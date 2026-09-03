@@ -814,6 +814,27 @@ test("admin dropdown supports hover, keyboard focus, touch expansion, and dismis
   assert.match(html, /document\.addEventListener\("click"[\s\S]*?closeAdminDropdowns/);
 });
 
+test("admin redesign applies the Dongpeng enterprise shell and compact control tokens", () => {
+  assert.match(html, /--dp-brand-red:\s*#E21413/);
+  assert.match(html, /--dp-action-gradient:\s*linear-gradient\(148\.66deg,\s*#F96766 0%,\s*#E21413 100%\)/);
+  assert.match(html, /\.admin-mode \.topbar\s*\{[^}]*height:\s*64px/);
+  assert.match(html, /\.admin-mode :is\(button,input,select\)[^{]*\{[^}]*min-height:\s*36px[^}]*border-radius:\s*4px/);
+  assert.match(html, /\.admin-mode \.admin-section\s*\{[^}]*border-radius:\s*8px[^}]*padding:\s*24px/);
+});
+
+test("admin editable lists expose compact column guidance without adding another navigation layer", () => {
+  assert.match(html, /class="admin-list-guide departments"[\s\S]*部门名称[\s\S]*状态[\s\S]*部门负责人/);
+  assert.match(html, /class="admin-list-guide members"[\s\S]*姓名[\s\S]*账号[\s\S]*所属部门[\s\S]*角色[\s\S]*负责模块[\s\S]*状态/);
+  assert.doesNotMatch(html, /class="admin-sidebar"/);
+  assert.match(html, /id="adminReloadBtn">放弃更改/);
+});
+
+test("scheduled task actions use the due-only catch-up wording and remain separately confirmed", () => {
+  assert.match(html, /task\.kind === "report-auto-archive" \? "检查并补跑" : "检查并结转"/);
+  assert.match(html, /确认检查并补跑报告自动归档/);
+  assert.match(html, /只会归档已经到期的报告，不会提前归档仍在编辑的报告/);
+});
+
 test("admin navigation maps groups to their default and remembered sections", () => {
   assert.match(html, /organization:\s*"departments"/);
   assert.match(html, /rules:\s*"login"/);

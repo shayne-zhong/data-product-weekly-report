@@ -13,6 +13,14 @@
   --green:#16a36a;--green-soft:#eaf8f2;--orange:#e58a00;--orange-soft:#fff5e6;
   --red:#e5484d;--red-soft:#fff0f1;--purple:#7a5af8;--purple-soft:#f1efff;
   --shadow:0 10px 30px rgba(20,31,56,.08);--radius:16px;
+  --dp-brand-red:#E21413;--dp-brand-red-subtle:#FFF5F5;--dp-brand-blue:#3B82F6;
+  --dp-text-primary:#303133;--dp-text-secondary:#606266;--dp-text-muted:#909399;
+  --dp-workspace-canvas:#F5F7FA;--dp-surface:#FFFFFF;--dp-surface-subtle:#FAFAFA;
+  --dp-border:#EBEEF5;--dp-border-strong:#DCDFE6;--dp-success:#16A34A;
+  --dp-success-subtle:#F0FDF4;--dp-warning:#ED6C02;--dp-warning-subtle:#FFF4E5;
+  --dp-processing:#4590E6;--dp-processing-subtle:#EAF3FF;--dp-error:#E21413;
+  --dp-error-subtle:#FFF1F1;--dp-neutral:#666666;--dp-neutral-subtle:#F5F5F5;
+  --dp-action-gradient:linear-gradient(148.66deg, #F96766 0%, #E21413 100%);
 }
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,"PingFang SC","Microsoft YaHei",sans-serif}
 button,input,select,textarea{font:inherit}.hidden{display:none!important}
@@ -133,6 +141,61 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-ai-card{grid-column:auto}.admin-ai-grid,.ai-toolbar{grid-template-columns:1fr}.admin-savebar{align-items:flex-start;flex-direction:column}}
 .auth-page{min-height:100vh;position:relative;overflow:hidden;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 12% 14%,rgba(49,94,251,.14),transparent 28%),radial-gradient(circle at 88% 84%,rgba(22,163,106,.1),transparent 24%),#edf2f9}.auth-page:before{content:"";position:absolute;width:420px;height:420px;border:1px solid rgba(49,94,251,.14);border-radius:50%;top:-220px;right:-100px}.auth-page:after{content:"";position:absolute;width:220px;height:220px;border-radius:54px;background:rgba(49,94,251,.08);left:-70px;bottom:-100px;transform:rotate(24deg)}.auth-focus-card{position:relative;z-index:1;width:min(430px,100%);padding:34px;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:22px;box-shadow:0 24px 70px rgba(23,50,111,.16);backdrop-filter:blur(12px);animation:auth-card-in .36s ease-out}.auth-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;font-weight:850;color:#17326f}.auth-brand .logo{width:40px;height:40px}.auth-focus-card h2{font-size:28px;line-height:1.2;margin:8px 0;text-wrap:balance}.auth-focus-card>p{color:var(--muted);margin:0 0 25px;text-wrap:pretty}.auth-focus-card .login-kicker{color:var(--primary)}.auth-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:6px}.auth-text-btn,.auth-back{border:0;background:transparent;color:var(--primary);padding:0;cursor:pointer;font-weight:750}.auth-text-btn:hover,.auth-back:hover{text-decoration:underline}.auth-text-btn:focus-visible,.auth-back:focus-visible{outline:3px solid rgba(49,94,251,.24);outline-offset:4px;border-radius:4px}.auth-back{display:inline-flex;margin-bottom:22px;color:#475467}.auth-help-card{text-align:center}.auth-help-icon{width:62px;height:62px;margin:0 auto 18px;border-radius:20px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);font-size:28px;font-weight:850}.login-message.success{color:var(--green)}.auth-duration{color:#475467;font-size:12px;font-weight:700}.auth-register-row{text-align:center;margin-top:18px;color:var(--muted)}.import-state{min-height:150px;padding:28px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#fff;color:var(--muted);text-align:center}.import-state.error{color:var(--red);background:var(--red-soft)}@keyframes auth-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.auth-focus-card{animation:none}}@media(max-width:560px){.auth-page{padding:18px}.auth-focus-card{padding:26px 22px;border-radius:18px}.auth-focus-card h2{font-size:25px}}
 .goal-artifact-cell{min-width:0}
+
+/* Dongpeng enterprise admin redesign: compact, task-focused, no extra navigation layer. */
+body.admin-mode{
+  --bg:var(--dp-workspace-canvas);--panel:var(--dp-surface);--panel-2:var(--dp-surface-subtle);
+  --text:var(--dp-text-primary);--muted:var(--dp-text-secondary);--line:var(--dp-border);
+  --primary:var(--dp-brand-red);--primary-soft:var(--dp-brand-red-subtle);
+  --green:var(--dp-success);--green-soft:var(--dp-success-subtle);
+  --orange:var(--dp-warning);--orange-soft:var(--dp-warning-subtle);
+  --red:var(--dp-error);--red-soft:var(--dp-error-subtle);--radius:8px;
+  background:var(--dp-workspace-canvas);font-family:"HarmonyOS Sans SC","Microsoft YaHei","PingFang SC",sans-serif;
+}
+.admin-mode .topbar{height:64px;padding-inline:24px;background:var(--dp-surface);border-color:var(--dp-border)}
+.admin-mode .brand{min-width:216px}.admin-mode .logo{width:36px;height:36px;border-radius:8px;background:var(--dp-action-gradient);box-shadow:none}
+.admin-mode .main{width:100%;max-width:none;padding:24px}
+.admin-mode :is(button,input,select){min-height:36px;border-radius:4px}
+.admin-mode :is(input,select):focus{border-color:var(--dp-brand-red);outline:none;box-shadow:none}
+.admin-mode :is(.primary-btn,.btn:not(.secondary):not(.ghost):not(.danger)){border-color:transparent;background:var(--dp-action-gradient);color:var(--dp-surface)}
+.admin-mode :is(.ghost-btn,.btn.secondary,.btn.ghost){border-color:var(--dp-border);background:var(--dp-surface);color:var(--dp-text-secondary)}
+.admin-mode :is(.ghost-btn,.btn.secondary,.btn.ghost):hover{border-color:var(--dp-brand-red);color:var(--dp-brand-red)}
+.admin-mode :is(.danger-btn,.btn.danger){border-color:transparent;background:var(--dp-error-subtle);color:var(--dp-error)}
+.admin-mode .admin-primary-nav{gap:4px;margin-left:0}
+.admin-mode .admin-group-button{padding-inline:16px;color:var(--dp-text-secondary);font-weight:500}
+.admin-mode .admin-group-button:hover,.admin-mode .admin-group-button:focus-visible,.admin-mode .admin-group-button.active{color:var(--dp-brand-red);background:var(--dp-surface-subtle)}
+.admin-mode .admin-group-button.active:after{left:16px;right:16px;height:3px;background:var(--dp-brand-red);border-radius:0}
+.admin-mode .admin-secondary-menu{top:64px;min-width:168px;padding:8px;border-color:var(--dp-border);border-radius:4px;box-shadow:0 4px 12px rgba(48,49,51,.12);transform:none;transition:none}
+.admin-mode .admin-secondary-menu button{padding:8px 12px;border-radius:4px;color:var(--dp-text-secondary);font-weight:500}
+.admin-mode .admin-secondary-menu button:hover,.admin-mode .admin-secondary-menu button:focus-visible,.admin-mode .admin-secondary-menu button.active{background:var(--dp-brand-red-subtle);color:var(--dp-brand-red)}
+.admin-mode .admin-secondary-menu button.dirty:after{width:8px;height:8px;background:var(--dp-warning)}
+.admin-mode #adminView>.page-head{margin-bottom:16px}.admin-mode #adminView>.page-head .title-wrap h2{font-size:24px;font-weight:600}
+.admin-mode .admin-login{padding:24px;border-radius:8px;box-shadow:none}
+.admin-mode .settings-editor{min-height:0}
+.admin-mode .admin-section{border-radius:8px;padding:24px;border-color:var(--dp-border);box-shadow:none}
+.admin-mode .admin-section-head{margin-bottom:16px;padding-bottom:0;border-bottom:0}
+.admin-mode .admin-section-head h3{font-size:20px;line-height:1.4;font-weight:600}
+.admin-mode .admin-section-head p{margin-top:4px;color:var(--dp-text-secondary)}
+.admin-mode .admin-list{display:block;overflow-x:auto;border:1px solid var(--dp-border);border-radius:8px;background:var(--dp-surface)}
+.admin-mode .admin-list-guide{display:grid;min-width:720px;min-height:44px;align-items:center;gap:12px;padding:0 12px;border:1px solid var(--dp-border);border-radius:8px 8px 0 0;background:var(--dp-surface-subtle);color:var(--dp-text-secondary);font-weight:500}
+.admin-mode .admin-list-guide+.admin-list{border-top:0;border-radius:0 0 8px 8px}
+.admin-mode .admin-list-guide.departments,#adminDepartmentsList .admin-row.three{grid-template-columns:minmax(220px,1fr) 120px 180px 120px}
+.admin-mode .admin-list-guide.members,#adminAccountsList .admin-row.role{grid-template-columns:minmax(140px,1fr) minmax(140px,1fr) 160px 150px 180px 110px auto}
+.admin-mode .admin-list-guide.leader-members,#leaderAccountsList .admin-row.role{grid-template-columns:minmax(160px,1fr) minmax(150px,1fr) 150px 180px 110px auto}
+.admin-mode .admin-row{min-width:720px;min-height:48px;gap:12px;padding:6px 12px;border:0;border-bottom:1px solid var(--dp-border);border-radius:0;background:var(--dp-surface)}
+.admin-mode .admin-row:last-child{border-bottom:0}.admin-mode .admin-row:hover{background:var(--dp-surface-subtle)}
+.admin-mode .admin-row input,.admin-mode .admin-row select,.admin-mode .admin-ai-grid input,.admin-mode .admin-ai-grid select{height:36px;padding:0 12px;border:1px solid var(--dp-border-strong);border-radius:4px;background:var(--dp-surface)}
+.admin-mode .admin-ai-grid{grid-template-columns:180px minmax(240px,1fr) 180px;gap:16px}
+.admin-mode .admin-ai-key-field{grid-column:1/-1;max-width:720px}
+.admin-mode .ai-ready{min-height:48px;padding:12px 16px;border-radius:4px;background:var(--dp-surface-subtle)}
+.admin-mode .status-pill{min-height:24px;padding:4px 8px;border-radius:4px;font-weight:500}
+.admin-mode .status-processing{background:var(--dp-processing-subtle);color:var(--dp-processing)}
+.admin-mode .scheduled-task-list{gap:16px}
+.admin-mode .scheduled-task-card{grid-template-columns:minmax(220px,.8fr) minmax(360px,1.2fr) auto;gap:16px;padding:16px;border:1px solid var(--dp-border);border-radius:8px;background:var(--dp-surface)}
+.admin-mode .scheduled-task-card.success{border-left:4px solid var(--dp-success)}.admin-mode .scheduled-task-card.failed{border-left:4px solid var(--dp-error)}.admin-mode .scheduled-task-card.running{border-left:4px solid var(--dp-processing)}
+.admin-mode .scheduled-task-error{border-radius:4px;background:var(--dp-error-subtle);color:var(--dp-error)}
+.admin-mode .admin-savebar{bottom:16px;margin-top:16px;padding:12px 16px;border-radius:8px;border-color:var(--dp-border-strong);background:var(--dp-surface);box-shadow:0 4px 12px rgba(48,49,51,.12)}
+@media(max-width:900px){.admin-mode .topbar{padding-inline:16px}.admin-mode .brand{min-width:auto}.admin-mode .admin-list-guide{display:none}.admin-mode .admin-row,.admin-mode #adminAccountsList .admin-row.role,.admin-mode #leaderAccountsList .admin-row.role{min-width:0;grid-template-columns:1fr}.admin-mode .scheduled-task-card{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -417,7 +480,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
           <div class="settings-editor">
             <section class="panel admin-section" data-admin-panel="departments">
               <div id="adminDepartmentManagementBody">
-                <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门、负责人、启停状态和工作模块；已有部门请停用，不直接删除。</p></div><button class="ghost-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
+                <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门、负责人、启停状态和工作模块；已有部门请停用，不直接删除。</p></div><button class="primary-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
+                <div class="admin-list-guide departments"><span>部门名称</span><span>状态</span><span>部门负责人</span><span>部门标识</span></div>
                 <div id="adminDepartmentsList" class="admin-list"></div>
                 <div style="margin:16px 0 14px;"><label class="subtitle" for="adminDepartmentModulesSelect">工作模块所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
                 <div class="admin-section-head"><div><h3>工作模块</h3><p>用于任务筛选、周报模块和导入待办归类。</p></div><button class="ghost-btn" id="addAdminModuleBtn">+ 新增模块</button></div>
@@ -431,11 +495,13 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             </section>
             <section class="panel admin-section" data-admin-panel="members" hidden>
               <div id="adminMemberManagementBody">
-                <div class="admin-section-head"><div><h3>成员管理</h3><p>维护成员账号、所属部门、角色、负责模块和启停状态。</p></div><button class="ghost-btn" id="addAdminAccountBtn">+ 新增成员</button></div>
+                <div class="admin-section-head"><div><h3>成员管理</h3><p>维护成员账号、所属部门、角色、负责模块和启停状态。</p></div><button class="primary-btn" id="addAdminAccountBtn">+ 新增成员</button></div>
+                <div class="admin-list-guide members"><span>姓名</span><span>账号</span><span>所属部门</span><span>角色</span><span>负责模块</span><span>状态</span><span>操作</span></div>
                 <div id="adminAccountsList" class="admin-list"></div>
               </div>
               <div id="leaderMemberManagementBody" hidden>
                 <div class="admin-section-head"><div><h3>成员管理</h3><p>查看并维护本部门成员的角色、负责模块、启停状态和密码。</p></div></div>
+                <div class="admin-list-guide leader-members"><span>姓名</span><span>账号</span><span>角色</span><span>负责模块</span><span>状态</span><span>操作</span></div>
                 <div id="leaderAccountsList" class="admin-list"></div>
               </div>
             </section>
@@ -457,7 +523,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
                 <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-chat" /></div>
                 <div><label>功能状态</label><select id="adminAiEnabled"><option value="false">停用</option><option value="true">启用</option></select></div>
-                <div><label>API 密钥</label><input id="adminAiApiKey" type="password" autocomplete="new-password" placeholder="输入新密钥以配置或替换" /></div>
+                <div class="admin-ai-key-field"><label>API 密钥</label><input id="adminAiApiKey" type="password" autocomplete="new-password" placeholder="输入新密钥以配置或替换" /></div>
               </div>
               <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API 密钥...</div>
               <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="ghost-btn" id="adminAiTestBtn">测试连接</button><button class="danger-btn" id="adminAiClearBtn">清除密钥</button></div>
@@ -472,7 +538,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
         <div class="admin-savebar panel" hidden>
           <span id="adminSaveHint">修改后点击保存配置。</span>
           <div class="actions">
-            <button class="ghost-btn" id="adminReloadBtn">重新加载</button>
+            <button class="ghost-btn" id="adminReloadBtn">放弃更改</button>
             <button class="primary-btn" id="adminSaveBtn">保存配置</button>
           </div>
         </div>
@@ -3933,7 +3999,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
 
     function renderScheduledTasks() {
       const statusLabels = { never: "从未执行", running: "执行中", success: "成功", failed: "失败" };
-      const statusClasses = { never: "status-done", running: "status-normal", success: "status-normal", failed: "status-risk" };
+      const statusClasses = { never: "status-done", running: "status-processing", success: "status-normal", failed: "status-risk" };
       const taskResult = (task) => task.kind === "report-auto-archive"
         ? `归档 ${Number(task.archivedCount || 0)} 份`
         : `结转 ${Number(task.rolledTaskCount || 0)} 项 · ${Number(task.completedDepartmentCount || 0)}/${Number(task.departmentCount || 0)} 个部门`;
@@ -3951,7 +4017,7 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
             ${task.error ? `<div class="scheduled-task-error">${escapeHtml(task.error)}</div>` : ""}
           </div>
           <div class="scheduled-task-action">
-            <button class="primary-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning ? "启动中..." : task.kind === "report-auto-archive" ? "立即补跑" : "重新启动"}</button>
+            <button class="ghost-btn" data-run-scheduled-task="${escapeHtml(task.id)}" ${scheduledTaskRunning || task.status === "running" ? "disabled" : ""}>${scheduledTaskRunning ? "检查中..." : task.kind === "report-auto-archive" ? "检查并补跑" : "检查并结转"}</button>
             <small>${task.trigger?.startsWith("manual:") ? "最近由管理员启动" : "最近由系统调度"}</small>
           </div>
         </article>
@@ -5255,8 +5321,8 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
       const task = scheduledTasks.find((item) => item.id === button.dataset.runScheduledTask);
       const isReportArchive = task?.kind === "report-auto-archive";
       const message = isReportArchive
-        ? "确认立即补跑报告自动归档？只会归档已经到期的报告，不会提前归档仍在编辑的报告。"
-        : "确认立即重新启动周任务结转？已成功结转的部门不会重复创建任务。";
+        ? "确认检查并补跑报告自动归档？只会归档已经到期的报告，不会提前归档仍在编辑的报告。"
+        : "确认检查并结转周任务？已成功结转的部门不会重复创建任务。";
       if (!confirm(message)) return;
       scheduledTaskRunning = true;
       renderScheduledTasks();
