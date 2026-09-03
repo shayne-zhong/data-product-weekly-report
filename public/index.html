@@ -413,6 +413,11 @@ button,input,select,textarea{font:inherit}.hidden{display:none!important}
                 <div class="admin-section-head"><div><h3>工作模块</h3><p>用于任务筛选、周报模块和导入待办归类。</p></div><button class="ghost-btn" id="addAdminModuleBtn">+ 新增模块</button></div>
                 <div id="adminModulesList" class="admin-list"></div>
               </div>
+              <div id="leaderDepartmentManagementBody" hidden>
+                <div class="admin-section-head"><div><h3>工作模块</h3><p id="leaderDepartmentSummary">维护本部门的工作模块。</p></div><button class="ghost-btn" id="addLeaderModuleBtn">+ 新增模块</button></div>
+                <div id="leaderModulesList" class="admin-list"></div>
+                <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="primary-btn" id="saveLeaderModulesBtn">保存修改</button></div>
+              </div>
             </section>
             <section class="panel admin-section" data-admin-panel="members" hidden>
               <div id="adminMemberManagementBody">

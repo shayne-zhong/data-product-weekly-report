@@ -837,6 +837,13 @@ test("a department leader only gets organization management scoped to their depa
   assert.match(html, /data-leader-account-enabled=/);
 });
 
+test("department leader module controls remain mounted in the merged department page", () => {
+  assert.match(
+    html,
+    /data-admin-panel="departments"[\s\S]*id="leaderDepartmentManagementBody"[\s\S]*id="leaderDepartmentSummary"[\s\S]*id="addLeaderModuleBtn"[\s\S]*id="leaderModulesList"[\s\S]*id="saveLeaderModulesBtn"/,
+  );
+});
+
 test("admin merged pages keep the existing controls under the new sections", () => {
   assert.match(html, /data-admin-panel="departments"[\s\S]*id="adminDepartmentsList"[\s\S]*id="adminModulesList"/);
   assert.match(html, /data-admin-panel="members"[\s\S]*id="adminAccountsList"/);
