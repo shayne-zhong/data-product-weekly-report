@@ -880,6 +880,14 @@ test("department rows expose a leader picker and account rows expose an enable t
   assert.match(html, /account\.enabled !== false/);
 });
 
+test("a new member is not inferred to be a department leader before it has an account", () => {
+  const expression = html.match(/const isDepartmentLeader = (.*);/)?.[1];
+  assert.ok(expression, "missing department leader classification");
+  const isDepartmentLeader = new Function("draftDepartments", "account", `return ${expression};`);
+
+  assert.equal(isDepartmentLeader([{ leaderUsername: "" }], { username: "" }), false);
+});
+
 test("account management exposes task roles and multi-module responsibility", () => {
   assert.match(html, /data-admin-account-role="\$\{index\}"/);
   assert.match(html, /data-admin-account-managed-modules="\$\{index\}"/);
