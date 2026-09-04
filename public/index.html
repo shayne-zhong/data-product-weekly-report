@@ -200,10 +200,35 @@ body.admin-mode{
 @media(max-width:1023px){.admin-shell{grid-template-columns:64px minmax(0,1fr)}.admin-sidebar{padding:16px 8px}.admin-side-label,.admin-side-link span:not(.admin-side-icon):not(.dirty-dot){display:none}.admin-side-link{justify-content:center;padding:0}.admin-side-link .dirty-dot{position:absolute;margin:0 0 24px 24px}.admin-metrics{grid-template-columns:repeat(2,minmax(140px,1fr))}}
 @media(max-width:767px){.admin-mode #adminManagePanel{margin:-18px -16px -28px}.admin-shell{display:block}.admin-sidebar{position:fixed;z-index:80;top:64px;left:0;width:216px;height:calc(100vh - 64px);padding:16px 12px;transform:translateX(-100%);transition:transform .2s;box-shadow:0 10px 30px rgba(0,0,0,.16)}.admin-shell.nav-open .admin-sidebar{transform:translateX(0)}.admin-side-label,.admin-side-link span:not(.admin-side-icon):not(.dirty-dot){display:block}.admin-side-link{justify-content:flex-start;padding:0 12px}.admin-content{padding:16px}.admin-overview-grid{grid-template-columns:1fr}.admin-metrics{grid-template-columns:1fr 1fr}.admin-mobile-nav{display:inline-flex!important}}
 .admin-mobile-nav{display:none}
+.admin-nav-mask{display:none}.admin-shell.nav-open .admin-nav-mask{display:none}@media(max-width:767px){.admin-shell.nav-open .admin-nav-mask{display:block;position:fixed;inset:64px 0 0;z-index:70;border:0;border-radius:0;background:rgba(0,0,0,.28)}}
+.admin-record-body [data-remove-admin-account],.admin-record-body #adminDepartmentModulesSelect,.admin-record-body label[for="adminDepartmentModulesSelect"]{display:none}.admin-record-body #adminDepartmentModuleEditor{margin-top:24px}.admin-mode .admin-record-body #adminModulesList .admin-row{grid-template-columns:minmax(0,1fr) auto!important;padding:8px 0}.admin-mode #adminResetPasswordModal{z-index:120}.admin-tab-item{display:flex;flex-shrink:0}.admin-tab-item>.admin-tab-close{border:0;background:#fff;padding:0 8px;cursor:pointer}.admin-side-icon svg{width:18px;height:18px;display:block}.admin-nav-back{display:block;margin-top:24px;width:100%}
+.admin-mode #adminDepartmentManagementBody>.admin-list-guide,.admin-mode #adminMemberManagementBody>.admin-list-guide,.admin-mode #adminDepartmentsList,.admin-mode #adminAccountsList{display:none}
+.admin-record-filters{display:flex;gap:16px;align-items:end;flex-wrap:wrap;margin-bottom:20px}.admin-record-filters label{display:grid;gap:6px;font-size:12px;color:#606266}.admin-record-filters input,.admin-record-filters select{padding:0 12px;border:1px solid #dcdfe6;height:36px;border-radius:4px}.admin-record-filters input{width:240px}.admin-record-table{width:100%;border-collapse:collapse;min-width:640px}.admin-record-table th{height:44px;background:#fafafa;color:#606266;font-size:12px;font-weight:500}.admin-record-table td{height:48px}.admin-record-table th,.admin-record-table td{padding:8px 12px;text-align:left;border-bottom:1px solid #ebeef5}.admin-record-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.admin-record-table tbody tr:hover{background:#fafafa}.admin-record-table .record-view{border:0;background:transparent;color:#2563eb;cursor:pointer}.admin-record-footer{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}.admin-record-footer span:first-child{margin-right:auto;color:#606266}.admin-record-mask{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.28)}.admin-record-drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);z-index:101;display:flex;flex-direction:column;background:#fff;box-shadow:-8px 0 32px rgba(0,0,0,.12)}.admin-record-drawer[hidden],.admin-record-mask[hidden]{display:none!important}.admin-record-head,.admin-record-foot{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #ebeef5}.admin-record-head h3{margin:0}.admin-record-foot{border-bottom:0;border-top:1px solid #ebeef5;justify-content:flex-end}.admin-record-body{padding:24px;overflow:auto;flex:1}.admin-mode .admin-record-body #adminDepartmentsList,.admin-mode .admin-record-body #adminAccountsList{display:block;border:0;overflow:visible}.admin-mode .admin-record-body .admin-row{min-width:0;display:grid;grid-template-columns:1fr!important;gap:16px;padding:0;border:0}.admin-mode .admin-record-body .admin-row[hidden]{display:none!important}.admin-record-field{display:grid;gap:6px;color:#606266;font-size:12px}.admin-record-field select[multiple]{height:112px!important}.admin-record-field>input,.admin-record-field>select{font-size:14px}.admin-record-error{color:#b91c1c;padding:0 24px}.admin-record-help{color:#6e7076;font-size:12px;margin:0 0 20px}
 @media(max-width:900px){.admin-mode .topbar{padding-inline:16px}.admin-mode .brand{min-width:auto}.admin-mode .admin-list-guide{display:none}.admin-mode .admin-row,.admin-mode #adminAccountsList .admin-row.role,.admin-mode #leaderAccountsList .admin-row.role{min-width:0;grid-template-columns:1fr}.admin-mode .scheduled-task-card{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+  <symbol id="i-mark" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="13" y="4" width="7" height="10" rx="1.5" fill="currentColor" opacity=".82"/><rect x="4" y="12" width="7" height="8" rx="1.5" fill="currentColor" opacity=".68"/><path d="M15.5 17h4M15.5 20h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="14" y="12" width="7" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="16" width="7" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-building" viewBox="0 0 24 24"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h3a2 2 0 0 1 2 2v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7h2M9 11h2M9 15h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="7" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-archive" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.7 12.3 21 2M15 8l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-tasks" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8V4Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3 2.5 20h19L12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4m0 3v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5 10 17 19 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
 <main id="loginView" class="auth-page">
     <form id="loginForm" class="auth-focus-card">
       <div class="auth-brand"><span class="logo" aria-hidden="true">▦</span><span>部门工作台</span></div>
@@ -473,8 +498,8 @@ body.admin-mode{
         <h3>后台登录</h3>
         <p class="subtitle">请输入部署环境中配置的后台账号与密码。</p>
         <div class="form-grid">
-          <div><label>账号</label><input id="adminUsername" autocomplete="username" /></div>
-          <div><label>密码</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入后台密码" /></div>
+          <div><label for="adminUsername">账号</label><input id="adminUsername" autocomplete="username" /></div>
+          <div><label for="adminPassword">密码</label><input id="adminPassword" type="password" autocomplete="current-password" placeholder="请输入后台密码" /></div>
         </div>
         <div class="actions" style="justify-content:flex-start;margin-top:12px;">
           <button class="primary-btn" id="adminLoginBtn">登录后台</button>
@@ -482,6 +507,7 @@ body.admin-mode{
       </div>
       <div id="adminManagePanel" hidden>
         <div class="admin-shell" id="adminShell">
+          <button class="admin-nav-mask" id="adminNavMask" aria-label="关闭后台导航" tabindex="-1"></button>
           <aside class="admin-sidebar" id="adminSidebar" aria-label="后台导航"></aside>
           <div class="admin-workspace">
             <div class="admin-tabs" id="adminTabs" role="tablist"><button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航">☰</button></div>
@@ -497,10 +523,13 @@ body.admin-mode{
               <div id="adminDepartmentManagementBody">
                 <div class="admin-section-head"><div><h3>部门管理</h3><p>维护部门、负责人、启停状态和工作模块；已有部门请停用，不直接删除。</p></div><button class="primary-btn" id="addAdminDepartmentBtn">+ 新增部门</button></div>
                 <div class="admin-list-guide departments"><span>部门名称</span><span>状态</span><span>部门负责人</span><span>部门标识</span></div>
+                <div id="adminDepartmentsTable"></div>
                 <div id="adminDepartmentsList" class="admin-list"></div>
+                <div id="adminDepartmentModuleEditor" hidden>
                 <div style="margin:16px 0 14px;"><label class="subtitle" for="adminDepartmentModulesSelect">工作模块所属部门</label><select class="chip-select" id="adminDepartmentModulesSelect" style="width:100%;margin-top:6px;"></select></div>
                 <div class="admin-section-head"><div><h3>工作模块</h3><p>用于任务筛选、周报模块和导入待办归类。</p></div><button class="ghost-btn" id="addAdminModuleBtn">+ 新增模块</button></div>
                 <div id="adminModulesList" class="admin-list"></div>
+                </div>
               </div>
               <div id="leaderDepartmentManagementBody" hidden>
                 <div class="admin-section-head"><div><h3>工作模块</h3><p id="leaderDepartmentSummary">维护本部门的工作模块。</p></div><button class="ghost-btn" id="addLeaderModuleBtn">+ 新增模块</button></div>
@@ -512,6 +541,7 @@ body.admin-mode{
               <div id="adminMemberManagementBody">
                 <div class="admin-section-head"><div><h3>成员管理</h3><p>维护成员账号、所属部门、角色、负责模块和启停状态。</p></div><button class="primary-btn" id="addAdminAccountBtn">+ 新增成员</button></div>
                 <div class="admin-list-guide members"><span>姓名</span><span>账号</span><span>所属部门</span><span>角色</span><span>负责模块</span><span>状态</span><span>操作</span></div>
+                <div id="adminMembersTable"></div>
                 <div id="adminAccountsList" class="admin-list"></div>
               </div>
               <div id="leaderMemberManagementBody" hidden>
@@ -565,6 +595,13 @@ body.admin-mode{
   </main>
 </div>
 
+  <div class="admin-record-mask" id="adminRecordMask" hidden></div>
+  <section id="adminRecordDrawer" class="admin-record-drawer" role="dialog" aria-modal="true" aria-labelledby="adminRecordTitle" hidden>
+    <div class="admin-record-head"><h3 id="adminRecordTitle">编辑记录</h3><button class="ghost-btn" id="adminRecordClose" aria-label="关闭编辑抽屉">关闭</button></div>
+    <div class="admin-record-body" id="adminRecordBody"><p class="admin-record-help">修改暂存为当前页草稿，保存后生效；取消将恢复打开抽屉前的内容。</p></div>
+    <p id="adminRecordError" class="admin-record-error" role="alert"></p>
+    <div class="admin-record-foot"><button class="ghost-btn" id="adminRecordCancel">取消</button><button class="primary-btn" id="adminRecordSave">保存修改</button></div>
+  </section>
   <div class="modal-mask" id="importModal" hidden>
     <section class="modal">
       <div class="modal-head">
@@ -949,9 +986,9 @@ body.admin-mode{
     ];
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
     const adminSectionMeta = {
-      overview: { label: "管理概览", icon: "▦", group: "" }, departments: { label: "部门管理", icon: "◇", group: "组织管理" }, members: { label: "成员管理", icon: "♙", group: "组织管理" },
-      login: { label: "保持登录", icon: "◷", group: "规则配置" }, archive: { label: "归档设置", icon: "▣", group: "规则配置" },
-      "api-key": { label: "API 密钥", icon: "⚿", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "↻", group: "系统运维" },
+      overview: { label: "管理概览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
+      login: { label: "保持登录", icon: "i-clock", group: "规则配置" }, archive: { label: "归档设置", icon: "i-archive", group: "规则配置" },
+      "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" },
     };
     let adminModulesDepartmentId = defaultDepartment.id;
     const adminSessionStorageKey = `${storageKey}-admin-session`;
@@ -963,6 +1000,8 @@ body.admin-mode{
     let adminActiveSection = "overview";
     let adminOpenTabs = ["overview"];
     let adminOverview = null;
+    const adminListFilters = { departments: { query: "", enabled: "all", page: 1, size: 20 }, members: { query: "", enabled: "all", page: 1, size: 20 } };
+    let adminRecordEditor = null;
     let adminLastSectionByGroup = { ...adminGroupDefaults };
     let leaderAccounts = [];
     let leaderModules = [];
@@ -4059,6 +4098,116 @@ body.admin-mode{
       return adminRole === "leader" ? ["overview", "departments", "members"] : Object.keys(adminSectionMeta);
     }
 
+    function adminFilteredPage(records, filter) {
+      const query = String(filter.query || "").trim().toLocaleLowerCase();
+      const matches = records.map((record, index) => ({ record, index })).filter(({ record }) => {
+        const text = String(record.searchText || `${record.name || ""} ${record.username || ""}`).toLocaleLowerCase();
+        return (!query || text.includes(query)) && (filter.enabled === "all" || String(record.enabled !== false) === filter.enabled);
+      });
+      const size = [10, 20, 50].includes(Number(filter.size)) ? Number(filter.size) : Math.max(1, Number(filter.size) || 20);
+      const pages = Math.max(1, Math.ceil(matches.length / size));
+      const page = Math.max(1, Math.min(pages, Number(filter.page) || 1));
+      return { rows: matches.slice((page - 1) * size, page * size), total: matches.length, page, pages, size };
+    }
+
+    function renderAdminRecordTables() {
+      for (const section of ["departments", "members"]) {
+        const isDepartment = section === "departments";
+        const records = (isDepartment ? adminDraftSettings.departments : adminDraftSettings.accounts).map((record) => {
+          const department = isDepartment ? record : adminDraftSettings.departments.find((item) => item.id === record.departmentId);
+          const leader = adminDraftSettings.accounts.find((item) => item.username === department?.leaderUsername);
+          return { ...record, departmentName: department?.name || "—", leaderName: leader?.name || "未指定", searchText: `${record.name} ${record.username || ""} ${department?.name || ""} ${isDepartment ? leader?.name || "" : ""}` };
+        });
+        const filter = adminListFilters[section];
+        const result = adminFilteredPage(records, filter);
+        filter.page = result.page;
+        const host = $(isDepartment ? "adminDepartmentsTable" : "adminMembersTable");
+        const headers = isDepartment ? ["部门名称", "部门负责人", "工作模块", "状态", "成员数", "操作"] : ["姓名 / 账号", "所属部门", "角色", "负责模块", "状态", "操作"];
+        host.innerHTML = `<form class="admin-record-filters" data-admin-filter="${section}"><label>关键词<input name="query" value="${escapeHtml(filter.query)}" placeholder="${isDepartment ? "搜索部门或负责人" : "搜索姓名、账号或部门"}" /></label><label>启用状态<select name="enabled"><option value="all" ${filter.enabled === "all" ? "selected" : ""}>全部</option><option value="true" ${filter.enabled === "true" ? "selected" : ""}>启用</option><option value="false" ${filter.enabled === "false" ? "selected" : ""}>停用</option></select></label><button class="primary-btn" type="submit">查询</button><button class="ghost-btn" type="button" data-admin-filter-reset="${section}">重置</button></form>
+          <div class="table-wrap"><table class="admin-record-table" aria-label="${isDepartment ? "部门" : "成员"}列表"><thead><tr>${headers.map((label) => `<th${label === "成员数" ? ' class="numeric"' : ""}>${label}</th>`).join("")}</tr></thead><tbody>${result.rows.map(({ record, index }) => {
+            const enabled = `<span class="status-pill ${record.enabled !== false ? "status-normal" : "status-done"}">${record.enabled !== false ? "启用" : "停用"}</span>`;
+            const role = adminDraftSettings.departments.some((department) => department.leaderUsername === record.username) ? "部门负责人" : record.role === "module_leader" ? "模块负责人" : "普通用户";
+            const cells = isDepartment ? `<td><strong>${escapeHtml(record.name)}</strong></td><td>${escapeHtml(record.leaderName)}</td><td>${escapeHtml((record.modules || []).join("、"))}</td><td>${enabled}</td><td class="numeric">${adminDraftSettings.accounts.filter((account) => account.departmentId === record.id).length}</td>` : `<td><strong>${escapeHtml(record.name || "未命名")}</strong><div class="subtitle">${escapeHtml(record.username || "尚未设置账号")}</div></td><td>${escapeHtml(record.departmentName)}</td><td>${role}</td><td>${escapeHtml((record.managedModules || []).join("、") || "—")}</td><td>${enabled}</td>`;
+            return `<tr>${cells}<td><button class="record-view" data-admin-edit-section="${section}" data-admin-edit-index="${index}">查看</button></td></tr>`;
+          }).join("") || `<tr><td colspan="6"><div class="admin-empty">${records.length ? "没有匹配的记录，请调整筛选条件。" : "暂无记录，请新增。"}</div></td></tr>`}</tbody></table></div><div class="admin-record-footer"><span>共 ${result.total} 条</span><label>每页 <select data-admin-page-size="${section}" aria-label="每页记录数">${[10,20,50].map((size) => `<option ${size === filter.size ? "selected" : ""}>${size}</option>`).join("")}</select> 条</label><button class="ghost-btn" data-admin-page="${section}" data-page-delta="-1" ${result.page === 1 ? "disabled" : ""}>上一页</button><span>${result.page} / ${result.pages} 页</span><button class="ghost-btn" data-admin-page="${section}" data-page-delta="1" ${result.page === result.pages ? "disabled" : ""}>下一页</button></div>`;
+      }
+    }
+
+    function decorateAdminRecordEditor() {
+      if (!adminRecordEditor) return;
+      const list = adminRecordEditor.list;
+      const labels = adminRecordEditor.section === "departments" ? ["部门名称", "启用状态", "部门负责人", "部门标识"] : ["姓名", "登录账号", "所属部门", "角色", "负责工作模块", "启用状态", "账号操作"];
+      [...list.children].forEach((row, index) => {
+        row.hidden = index !== adminRecordEditor.index;
+        if (row.hidden) return;
+        [...row.children].forEach((control, column) => {
+          if (control.classList.contains("admin-record-field")) return;
+          const label = document.createElement("label");
+          label.className = "admin-record-field";
+          const text = document.createElement("span");
+          text.textContent = labels[column] || "配置";
+          control.before(label);
+          label.append(text, control);
+          if (control.matches("input,select")) control.setAttribute("aria-label", labels[column] || "配置");
+        });
+      });
+    }
+
+    function openAdminRecordEditor(section, index, snapshot = null, wasDirty = adminDirtySections.has(section)) {
+      if (adminRecordEditor || adminRole !== "admin") return;
+      if (section === "departments") { adminModulesDepartmentId = adminDraftSettings.departments[index]?.id; renderAdmin(); }
+      const list = $(section === "departments" ? "adminDepartmentsList" : "adminAccountsList");
+      const placeholder = document.createComment("admin-record-origin");
+      list.before(placeholder);
+      adminRecordEditor = { section, index, list, placeholder, snapshot: snapshot || structuredClone(adminDraftSettings), wasDirty, focus: document.activeElement };
+      $("adminRecordBody").append(list);
+      if (section === "departments") {
+        const moduleEditor = $("adminDepartmentModuleEditor");
+        const modulePlaceholder = document.createComment("admin-module-origin");
+        moduleEditor.before(modulePlaceholder);
+        Object.assign(adminRecordEditor, { moduleEditor, modulePlaceholder });
+        moduleEditor.hidden = false;
+        $("adminRecordBody").append(moduleEditor);
+      }
+      $("adminRecordTitle").textContent = section === "departments" ? "部门详情" : "成员详情";
+      $("adminRecordError").textContent = "";
+      $("adminRecordDrawer").hidden = false;
+      $("adminRecordMask").hidden = false;
+      $("workspaceShell").inert = true;
+      document.body.style.overflow = "hidden";
+      decorateAdminRecordEditor();
+      $("adminRecordClose").focus();
+    }
+
+    function closeAdminRecordEditor(saved = false) {
+      if (!adminRecordEditor) return;
+      const { section, list, placeholder, focus, wasDirty } = adminRecordEditor;
+      if (!saved) {
+        copyAdminSection(adminDraftSettings, adminRecordEditor.snapshot, section);
+        if (!wasDirty) adminDirtySections.delete(section);
+      }
+      placeholder.replaceWith(list);
+      if (adminRecordEditor.moduleEditor) {
+        adminRecordEditor.moduleEditor.hidden = true;
+        adminRecordEditor.modulePlaceholder.replaceWith(adminRecordEditor.moduleEditor);
+      }
+      adminRecordEditor = null;
+      $("adminRecordDrawer").hidden = true;
+      $("adminRecordMask").hidden = true;
+      $("workspaceShell").inert = false;
+      document.body.style.overflow = "";
+      renderAdmin();
+      if (focus?.isConnected) focus.focus();
+      else $(section === "departments" ? "addAdminDepartmentBtn" : "addAdminAccountBtn").focus();
+    }
+
+    function requestCloseAdminRecordEditor() {
+      if (!adminRecordEditor || $("adminRecordSave").disabled) return;
+      const changed = (adminSectionFields[adminRecordEditor.section] || []).some((field) => JSON.stringify(adminDraftSettings[field]) !== JSON.stringify(adminRecordEditor.snapshot[field]));
+      if (changed && !confirm("抽屉内有未保存修改，确定放弃并关闭吗？")) return;
+      closeAdminRecordEditor();
+    }
+
     async function loadAdminOverview() {
       adminOverview = await apiJson("/api/admin/overview", { headers: adminRequestHeaders() });
       renderAdminOverview();
@@ -4072,11 +4221,12 @@ body.admin-mode{
         return;
       }
       const metrics = adminOverview.metrics || {};
-      const values = [["部门", metrics.departments], ["启用成员", metrics.activeMembers], ["任务完成率", metrics.completionRate == null ? "—" : `${metrics.completionRate}%`], ["已归档总结", metrics.archivedReports]];
+      const values = [["部门", metrics.departments], ["启用成员", metrics.activeMembers], ["全部任务完成率", metrics.completionRate == null ? "—" : `${metrics.completionRate}%`], ["累计已归档总结", metrics.archivedReports]];
       $("adminOverviewMetrics").innerHTML = values.map(([label, value]) => `<article class="admin-metric"><span>${label}</span><strong>${value ?? "—"}</strong></article>`).join("");
       $("adminPendingList").innerHTML = (adminOverview.pending || []).map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.label)}</span><button class="ghost-btn" data-admin-jump="${escapeHtml(item.page)}">处理</button></div>`).join("") || `<div class="admin-empty">当前没有待处理事项</div>`;
       const scheduled = adminOverview.scheduled || [];
-      $("adminSystemHealth").innerHTML = scheduled.map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.name)}</span><span class="status-pill ${item.status === "failed" ? "status-blocked" : item.status === "running" ? "status-processing" : "status-done"}">${escapeHtml(item.statusLabel || item.status || "未运行")}</span></div>`).join("") || `<div class="admin-empty">当前角色无系统运行信息</div>`;
+      const statusLabels = { success: "成功", failed: "失败", running: "执行中", never: "尚未执行", idle: "尚未执行" };
+      $("adminSystemHealth").innerHTML = (scheduled.map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.name)}</span><span class="status-pill ${item.status === "failed" ? "status-late" : item.status === "running" ? "status-processing" : "status-done"}">${escapeHtml(statusLabels[item.status] || "尚未执行")}</span></div>`).join("") || `<div class="admin-empty">当前角色无系统运行信息</div>`) + `<p class="subtitle">更新时间：${escapeHtml(new Date(adminOverview.updatedAt || Date.now()).toLocaleString())}</p>`;
     }
 
     function renderAdminShellNavigation() {
@@ -4087,9 +4237,10 @@ body.admin-mode{
       $("adminSidebar").innerHTML = ["", "组织管理", "规则配置", "系统运维"].map((group) => {
         const ids = visible.filter((id) => adminSectionMeta[id].group === group);
         if (!ids.length) return "";
-        return `<div class="admin-side-group">${group ? `<div class="admin-side-label">${group}</div>` : ""}${ids.map((id) => `<button class="admin-side-link ${id === adminActiveSection ? "active" : ""}" data-admin-open="${id}" title="${adminSectionMeta[id].label}"><span class="admin-side-icon">${adminSectionMeta[id].icon}</span><span>${adminSectionMeta[id].label}</span><span class="dirty-dot" ${adminDirtySections.has(id) ? "" : "hidden"}></span></button>`).join("")}</div>`;
+return `<div class="admin-side-group">${group ? `<div class="admin-side-label">${group}</div>` : ""}${ids.map((id) => `<button class="admin-side-link ${id === adminActiveSection ? "active" : ""}" data-admin-open="${id}" title="${adminSectionMeta[id].label}"><span class="admin-side-icon"><svg aria-hidden="true"><use href="#${adminSectionMeta[id].icon}"/></svg></span><span>${adminSectionMeta[id].label}</span><span class="dirty-dot" ${adminDirtySections.has(id) ? "" : "hidden"}></span></button>`).join("")}</div>`;
       }).join("");
-      $("adminTabs").innerHTML = `<button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航">☰</button>` + adminOpenTabs.map((id) => `<button class="admin-tab ${id === adminActiveSection ? "active" : ""}" role="tab" aria-selected="${id === adminActiveSection}" data-admin-tab="${id}"><span>${adminSectionMeta[id].label}</span><span class="dirty-dot" ${adminDirtySections.has(id) ? "" : "hidden"}></span>${id === "overview" ? "" : `<span class="admin-tab-close" data-admin-close="${id}" role="button" aria-label="关闭${adminSectionMeta[id].label}">×</span>`}</button>`).join("");
+      $("adminSidebar").insertAdjacentHTML("beforeend", '<button class="ghost-btn admin-nav-back" data-admin-back>返回工作台</button>');
+      $("adminTabs").innerHTML = `<button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航"><svg width="18" height="18" aria-hidden="true"><use href="#i-menu"/></svg></button>` + adminOpenTabs.map((id) => `<div class="admin-tab-item"><button class="admin-tab ${id === adminActiveSection ? "active" : ""}" role="tab" aria-selected="${id === adminActiveSection}" data-admin-tab="${id}"><span>${adminSectionMeta[id].label}</span><span class="dirty-dot" ${adminDirtySections.has(id) ? "" : "hidden"}></span></button>${id === "overview" ? "" : `<button class="admin-tab-close" data-admin-close="${id}" aria-label="关闭${adminSectionMeta[id].label}"><svg width="14" height="14" aria-hidden="true"><use href="#i-x"/></svg></button>`}</div>`).join("");
     }
 
     async function openAdminSection(section) {
@@ -4213,6 +4364,8 @@ body.admin-mode{
         ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥已配置${ai.apiKeyMask ? ` · ${ai.apiKeyMask}` : ""}`
         : `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥未配置`;
       $("adminAiEnvHint").textContent = "新密钥只在本次输入时可见，保存后由服务端加密存储。";
+      renderAdminRecordTables();
+      decorateAdminRecordEditor();
     }
 
     function renderLeaderAdmin() {
@@ -5161,6 +5314,8 @@ body.admin-mode{
       setSyncStatus("后台登录成功", "ok");
     });
     $("addAdminDepartmentBtn").addEventListener("click", () => {
+      const snapshot = structuredClone(adminDraftSettings);
+      const wasDirty = adminDirtySections.has("departments");
       const name = `新部门${adminDraftSettings.departments.length + 1}`;
       let id = departmentIdFromName(name);
       let suffix = 2;
@@ -5169,6 +5324,7 @@ body.admin-mode{
       adminModulesDepartmentId = id;
       markAdminDirty("departments");
       renderAdmin();
+      openAdminRecordEditor("departments", adminDraftSettings.departments.length - 1, snapshot, wasDirty);
     });
     $("adminDepartmentsList").addEventListener("input", (event) => {
       const nameIndex = event.target.dataset.adminDepartmentName;
@@ -5193,9 +5349,12 @@ body.admin-mode{
       renderAdmin();
     });
     $("addAdminAccountBtn").addEventListener("click", () => {
+      const snapshot = structuredClone(adminDraftSettings);
+      const wasDirty = adminDirtySections.has("members");
       adminDraftSettings.accounts.push({ name: "", username: "", departmentId: adminDraftSettings.departments[0]?.id || defaultDepartment.id });
       markAdminDirty("members");
       renderAdmin();
+      openAdminRecordEditor("members", adminDraftSettings.accounts.length - 1, snapshot, wasDirty);
     });
     $("adminReloadBtn").addEventListener("click", () => reloadAdminSection());
     $("adminSaveBtn").addEventListener("click", () => saveAdminSettings().catch((error) => {
@@ -5389,10 +5548,19 @@ body.admin-mode{
       document.activeElement?.blur?.();
     });
     $("adminShell").addEventListener("click", async (event) => {
+      if (event.target.closest("#adminNavMask")) { $("adminShell").classList.remove("nav-open"); return; }
+      if (event.target.closest("[data-admin-back]")) { $("backFromAdminBtn").click(); return; }
+      const edit = event.target.closest("[data-admin-edit-section]");
+      if (edit) return openAdminRecordEditor(edit.dataset.adminEditSection, Number(edit.dataset.adminEditIndex));
+      const resetFilter = event.target.closest("[data-admin-filter-reset]");
+      if (resetFilter) { Object.assign(adminListFilters[resetFilter.dataset.adminFilterReset], { query: "", enabled: "all", page: 1 }); renderAdminRecordTables(); return; }
+      const pageButton = event.target.closest("[data-admin-page]");
+      if (pageButton) { adminListFilters[pageButton.dataset.adminPage].page += Number(pageButton.dataset.pageDelta); renderAdminRecordTables(); return; }
       const close = event.target.closest("[data-admin-close]");
       if (close) {
         const section = close.dataset.adminClose;
         if (adminDirtySections.has(section) && !confirm("该页面有未保存修改，仍要关闭吗？")) return;
+        if (adminDirtySections.has(section)) copyAdminSection(adminDraftSettings, adminPersistedSettings, section);
         adminDirtySections.delete(section);
         const index = adminOpenTabs.indexOf(section);
         adminOpenTabs = adminOpenTabs.filter((id) => id !== section);
@@ -5403,6 +5571,51 @@ body.admin-mode{
       const target = event.target.closest("[data-admin-open],[data-admin-tab],[data-admin-jump]");
       if (target) return openAdminSection(target.dataset.adminOpen || target.dataset.adminTab || target.dataset.adminJump);
       if (event.target.closest("#adminMobileNavBtn")) $("adminShell").classList.toggle("nav-open");
+    });
+    $("adminShell").addEventListener("submit", (event) => {
+      const form = event.target.closest("[data-admin-filter]");
+      if (!form) return;
+      event.preventDefault();
+      Object.assign(adminListFilters[form.dataset.adminFilter], { query: form.elements.query.value, enabled: form.elements.enabled.value, page: 1 });
+      renderAdminRecordTables();
+    });
+    $("adminShell").addEventListener("change", (event) => {
+      if (!event.target.dataset.adminPageSize) return;
+      Object.assign(adminListFilters[event.target.dataset.adminPageSize], { size: Number(event.target.value), page: 1 });
+      renderAdminRecordTables();
+    });
+    for (const id of ["adminRecordClose", "adminRecordMask"]) $(id).addEventListener("click", requestCloseAdminRecordEditor);
+    $("adminRecordCancel").addEventListener("click", () => {
+      if ($("adminRecordSave").disabled) return;
+      closeAdminRecordEditor();
+    });
+    $("adminRecordSave").addEventListener("click", async () => {
+      if (!adminRecordEditor || $("adminRecordSave").disabled) return;
+      const button = $("adminRecordSave");
+      button.disabled = true;
+      button.textContent = "保存中…";
+      $("adminRecordError").textContent = "";
+      try {
+        const { section, index } = adminRecordEditor;
+        const record = (section === "departments" ? adminDraftSettings.departments : adminDraftSettings.accounts)[index];
+        if (!record?.name?.trim()) throw new Error("请填写名称。");
+        if (section === "members" && !record.username?.trim()) throw new Error("请填写登录账号。");
+        if (section === "members" && adminDraftSettings.accounts.some((item, itemIndex) => itemIndex !== index && item.username.trim().toLowerCase() === record.username.trim().toLowerCase())) throw new Error("登录账号已存在，请使用不同账号。");
+        await saveAdminSettings(section);
+        closeAdminRecordEditor(true);
+      } catch (error) {
+        $("adminRecordError").textContent = error.message || "保存失败，请重试。";
+      } finally {
+        button.disabled = false;
+        button.textContent = "保存修改";
+      }
+    });
+    $("adminRecordDrawer").addEventListener("keydown", (event) => {
+      if (event.key === "Escape") { event.preventDefault(); requestCloseAdminRecordEditor(); return; }
+      if (event.key !== "Tab") return;
+      const controls = [...$("adminRecordDrawer").querySelectorAll("button:not(:disabled),input:not(:disabled),select:not(:disabled)")].filter((node) => node.getClientRects().length);
+      if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); }
+      else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
     });
     $("reloadAdminOverviewBtn").addEventListener("click", async () => {
       try { await loadAdminOverview(); setSyncStatus("管理概览已刷新", "ok"); }

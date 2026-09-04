@@ -4,6 +4,28 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
+test("admin record filtering keeps source indices and clamps pagination", () => {
+  const source = html.match(/ {4}function adminFilteredPage\([\s\S]*?\r?\n {4}\}/)?.[0];
+  assert.ok(source, "missing adminFilteredPage");
+  const filter = new Function(`${source}; return adminFilteredPage;`)();
+  const rows = [
+    { name: "甲", enabled: true },
+    { name: "乙", enabled: false },
+    { name: "甲二", enabled: true },
+  ];
+  const result = filter(rows, { query: "甲", enabled: "true", page: 9, size: 1 });
+  assert.equal(result.total, 2);
+  assert.equal(result.page, 2);
+  assert.equal(result.rows[0].index, 2);
+  assert.equal(filter(rows, { query: "不存在", enabled: "all", page: 1, size: 20 }).total, 0);
+});
+
+test("admin drawer restores cancelled drafts and reports save errors locally", () => {
+  assert.match(html, /id="adminRecordDrawer"[\s\S]*aria-modal="true"/);
+  assert.match(html, /copyAdminSection\(adminDraftSettings, adminRecordEditor\.snapshot/);
+  assert.match(html, /adminRecordError[\s\S]*textContent = error\.message/);
+});
+
 test("loading a week only fetches its tasks and never triggers rollover", () => {
   const source = html.match(/ {4}async function loadWeek\(weekId\) \{[\s\S]*?\r?\n {4}\}/)?.[0] || "";
   assert.ok(source, "missing loadWeek");
