@@ -3464,6 +3464,7 @@ body.admin-mode{
 
     function renderReportEditor() {
       normalizeReportData();
+      const summaryType = reportData.summaryType || "weekly";
       $("reportTitleText").textContent = reportData.title || reportTypes[reportData.summaryType || "weekly"]?.title || reportTypes.weekly.title;
       $("reportPeriodLabel").textContent = reportTypes[reportData.summaryType || "weekly"]?.dateLabel || "汇报周期";
       $("weekStart").value = reportData.startDate || "";

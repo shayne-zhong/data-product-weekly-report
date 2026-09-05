@@ -217,6 +217,15 @@ test("monthly and quarterly plan sections do not offer task import", () => {
   assert.match(html, /reportSectionAllowsTaskImport\(summaryType, section\.title\)/);
 });
 
+test("report editor defines its summary type before deciding task imports", () => {
+  const editorSource = html.match(
+    / {4}function renderReportEditor\(\) \{[\s\S]*?(?=\r?\n\r?\n {4}function reportSectionAllowsTaskImport)/,
+  )?.[0];
+  assert.ok(editorSource, "missing report editor");
+  assert.match(editorSource, /const summaryType = reportData\.summaryType \|\| "weekly";/);
+  assert.match(editorSource, /reportSectionAllowsTaskImport\(summaryType, section\.title\)/);
+});
+
 test("AI report generation token rejects a deferred result from the moment switching starts", async () => {
   const helperSource = html.match(
     / {4}function invalidateAiReportContext[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/,
