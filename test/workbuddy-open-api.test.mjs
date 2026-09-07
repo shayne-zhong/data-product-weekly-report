@@ -196,8 +196,14 @@ test("incremental query returns the exact contract ordered by updated_at", async
   assert.equal(response.statusCode, 200);
   const rows = response.body.tasks.filter((task) => [validTaskId, invalidTaskId].includes(task.task_id));
   assert.equal(rows.length, 2);
-  assert.equal(response.body.tasks.some((task) => task.task_id === previousWeekTaskId), false);
-  assert.equal(response.body.tasks.some((task) => task.task_id === nextWeekTaskId), false);
+  assert.equal(
+    response.body.tasks.some((task) => task.task_id === previousWeekTaskId),
+    false,
+  );
+  assert.equal(
+    response.body.tasks.some((task) => task.task_id === nextWeekTaskId),
+    false,
+  );
   assert.deepEqual(Object.keys(rows[0]), [
     "task_id",
     "title",
