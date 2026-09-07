@@ -18,7 +18,7 @@ import { createArtifactStore } from "../lib/artifact-store.mjs";
 import { convertOfficeToPdf } from "../lib/artifact-preview.mjs";
 import { createTaskArtifactService } from "../lib/task-artifact-service.mjs";
 import { parseSingleFile } from "../lib/multipart-file.mjs";
-import { projectOpenTask, reconcileOpenTasks } from "../lib/open-task-sync.mjs";
+import { projectOpenTask, reconcileOpenTasks, resolveOpenTaskAssignee } from "../lib/open-task-sync.mjs";
 import {
   effectiveWorkbuddyConfig,
   publicWorkbuddyConfig,
@@ -1903,15 +1903,6 @@ function applyConfiguredDirectoryMappings(state, departmentId) {
   return !alreadyApplied;
 }
 
-function accountForOpenTask(settings, task, departmentId) {
-  const username = String(task.ownerUsername || "")
-    .trim()
-    .toLowerCase();
-  return (
-    settings.accounts.find((account) => account.departmentId === departmentId && account.username === username) || null
-  );
-}
-
 function appendWebsiteTaskEvent(state, task, action, result, now, message) {
   appendSyncEvent(
     state,
@@ -2057,7 +2048,7 @@ async function handleOpenTasks(req, res, state, parts, now) {
             Number(task.openUpdatedAt) > updatedSince,
         )
         .sort((left, right) => left.openUpdatedAt - right.openUpdatedAt)
-        .map((task) => projectOpenTask(task, accountForOpenTask(settings, task, departmentId)));
+        .map((task) => projectOpenTask(task, resolveOpenTaskAssignee(task, settings.accounts, departmentId)));
     } catch (error) {
       state.workbuddy ||= {};
       state.workbuddy.status ||= {};

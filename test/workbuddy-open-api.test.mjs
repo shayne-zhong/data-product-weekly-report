@@ -208,11 +208,15 @@ test("incremental query returns the exact contract ordered by updated_at", async
     "task_id",
     "title",
     "description",
+    "assignee_name",
+    "assignee_username",
     "assignee_userid",
     "status",
     "due_date",
     "updated_at",
   ]);
+  assert.equal(rows[0].assignee_name, "钟南海");
+  assert.equal(rows[0].assignee_username, "zhongnanhai");
   assert.equal(rows[0].assignee_userid, null);
   assert.equal(rows[0].updated_at < rows[1].updated_at, true);
 
