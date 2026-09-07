@@ -133,13 +133,15 @@ Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
 Content-Type: application/json
 
 {
-  "event_id": "wb-task_123-created-1",
+  "event_id": "8b7fcf95-2fb0-4b36-95ef-48bd0c52ad5a",
   "task_id": "task_123",
-  "action": "created",
+  "action": "create",
   "result": "success",
-  "wecom_todo_id": "wecom_todo_456",
-  "attempt": 1,
-  "message": "created",
+  "todo_id": "wecom_todo_456",
+  "duration_ms": 320,
+  "operator_userid": "zhangsan",
+  "result_message": "created",
+  "retry_count": 0,
   "occurred_at": 1787968800123
 }
 ```
@@ -150,28 +152,32 @@ Content-Type: application/json
 | --- | --- | --- |
 | `event_id` | 是 | WorkBuddy 生成的全局唯一幂等键，建议由任务 ID、动作和本次执行序号组成 |
 | `task_id` | 是 | 网站任务 ID |
-| `action` | 是 | `created`、`updated`、`recreated`、`skipped`、`failed`、`retry_scheduled` |
-| `result` | 是 | `success`、`failed`、`skipped`、`retrying` |
-| `wecom_todo_id` | 否 | 企微原生待办 ID；创建成功后建议传入 |
-| `attempt` | 否 | 当前尝试次数，网站限制为 0–100 |
-| `message` | 否 | 简短、安全的结果说明；不得包含 Token、授权 code、请求头或堆栈 |
+| `action` | 是 | `create`、`update`、`finish`、`delete`、`writeback` |
+| `result` | 是 | `success`、`failure`、`retry`、`skipped`、`conflict`、`rejected` |
+| `todo_id` | 否 | 企微原生待办 ID；创建成功后建议传入 |
+| `duration_ms` | 否 | 执行耗时，非负整数 |
+| `operator_userid` | 否 | 完成回写操作者的企微 userid |
+| `result_message` | 否 | 简短、安全的结果说明；不得包含 Token、授权 code、请求头或堆栈 |
+| `retry_count` | 否 | 当前重试次数，网站限制为 0–100 |
 | `occurred_at` | 是 | Unix 毫秒整数，必须在网站当前时间前后 24 小时内 |
+
+接口首期每次只接受一个 JSON 对象，传入数组返回 400。为兼容 8 月 29 日版本，网站继续接受 `wecom_todo_id`、`message`、`attempt` 字段，以及动作 `created`、`updated`、`recreated`、`skipped`、`failed`、`retry_scheduled` 和结果 `failed`、`retrying`。兼容值不会被错误折叠，后台保留调用方原始语义。
 
 ### 200 响应与幂等
 
 首次写入：
 
 ```json
-{"log_id":"sync_123","duplicate":false}
+{"accepted":true,"log_id":"sync_123","duplicate":false}
 ```
 
 同一个 `event_id` 重复提交时仍返回 200，并返回第一次写入的同一个 `log_id`：
 
 ```json
-{"log_id":"sync_123","duplicate":true}
+{"accepted":true,"log_id":"sync_123","duplicate":true}
 ```
 
-WorkBuddy 只有在 5xx 或网络失败时重试；400 表示字段或时间不合法，401 表示 Token 错误，503 表示网站集成已停用或开放接口配置不完整。
+2xx 表示网站已接收。4xx 表示字段、鉴权或配置问题，WorkBuddy 不自动重试；只有 5xx 或网络失败时，WorkBuddy 才使用同一 `event_id` 在 5 秒、30 秒、120 秒后最多重试 3 次。结果回传失败不阻塞增量拉取、企微待办更新或完成回写。本期继续复用 Bearer Token，不增加 HMAC。
 
 ## 6. 账号与企微 userid 初始化
 
@@ -290,3 +296,4 @@ WORKBUDDY_DIRECTORY_BATCH_ID=<可选，通讯录批次 ID>
 7. WorkBuddy 创建企微待办后调用 `POST /api/open/sync-events`，确认首次返回 `duplicate:false`；原样重放后确认 `duplicate:true` 且 `log_id` 不变。
 8. 从企微应用发起 OAuth，确认 `/wecom/callback` 建立会话；重复使用同一 state，确认 400。
 9. 全局管理员在后台“企微任务同步”查看运行概览、映射和双源日志，确认失败信息不含 Token、授权 code、请求头或堆栈。
+10. 本期下行通道仅为 5 分钟轮询，不开放 3902 端口，也不监听网站出站 webhook。

@@ -45,7 +45,7 @@
 4. `lib/state-store.mjs` 在存在 Blob Token 时使用 Vercel Blob；Node 生产环境可通过显式 `STATE_PATH` 使用本地持久化 JSON，非生产环境默认使用临时目录 JSON。
 5. API 返回 JSON，浏览器更新页面状态和视图。
 
-WorkBuddy 仅通过内网 Node 服务访问 `GET /api/open/tasks?updated_since=`、`PUT /api/open/tasks/:task_id/status`、`POST /api/open/sync-events` 和 `/wecom/callback`。三个开放接口使用同一部门级 Bearer Token，OAuth 使用独立解析凭证；普通员工会话不能替代开放接口 Token。`POST /api/open/sync-events` 只记录 WorkBuddy 对企微待办的真实执行结果，不修改网站任务。任务的 `openUpdatedAt`、全局 `openTaskClock`、账号 `wecomUserId`、通讯录批次、已消费 OAuth state、加密后台配置和同步日志均随现有 JSON 状态持久化。后台 `/api/admin/workbuddy/*` 只允许全局管理员访问，提供掩码配置、映射、运行概览和日志查询；前端入口位于后台“企微任务同步”。持久化后台配置优先于环境变量，显式停用优先于两者；网站不控制 WorkBuddy 的轮询间隔或重试策略。当前不增加其他部署入口的企微根路径适配。
+WorkBuddy 仅通过内网 Node 服务访问 `GET /api/open/tasks?updated_since=`、`PUT /api/open/tasks/:task_id/status`、`POST /api/open/sync-events` 和 `/wecom/callback`。三个开放接口使用同一部门级 Bearer Token，OAuth 使用独立解析凭证；普通员工会话不能替代开放接口 Token。`POST /api/open/sync-events` 单条接收 WorkBuddy 对企微待办的真实执行结果，只写日志和概览，不修改网站任务；本期不增加 HMAC、不开放 3902 端口或网站出站 webhook。任务的 `openUpdatedAt`、全局 `openTaskClock`、账号 `wecomUserId`、通讯录批次、已消费 OAuth state、加密后台配置和同步日志均随现有 JSON 状态持久化。后台 `/api/admin/workbuddy/*` 只允许全局管理员访问，提供掩码配置、映射、运行概览和日志查询；前端入口位于后台“企微任务同步”。持久化后台配置优先于环境变量，显式停用优先于两者；网站不控制 WorkBuddy 的 5 分钟轮询或 5/30/120 秒、最多三次的结果回传重试。当前不增加其他部署入口的企微根路径适配。
 
 周任务结转仅由直接运行的 Node 服务调度：服务启动时补偿检查，并在北京时间每日 08:00–20:00 的整点每小时检查。执行结果以“部门 + 源周 + 目标周”持久化防重；Vercel 不运行定时任务，也不暴露外部调度入口。
 
