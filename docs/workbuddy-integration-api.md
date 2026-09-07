@@ -47,6 +47,8 @@ Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
       "task_id": "task_123",
       "title": "准备月度经营分析",
       "description": "补齐指标口径说明",
+      "assignee_name": "张三",
+      "assignee_username": "zhangsan",
       "assignee_userid": "zhangsan",
       "status": "进行中",
       "due_date": "2026-09-01",
@@ -63,6 +65,8 @@ Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
 | `task_id` | string | 网站任务稳定 ID |
 | `title` | string | 标题 |
 | `description` | string | 描述，无内容时为空字符串 |
+| `assignee_name` | string/null | 负责人显示姓名，无负责人时为 `null` |
+| `assignee_username` | string/null | 负责人网站账号，无法唯一解析时为 `null` |
 | `assignee_userid` | string/null | 负责人企微 `userid`，未映射时为 `null` |
 | `status` | string | `待开始`、`进行中`、`阻塞`、`已完成` |
 | `due_date` | string/null | `YYYY-MM-DD`，无截止日期时为 `null` |
@@ -72,8 +76,10 @@ Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
 
 1. 成功处理整批任务后，保存本批最大 `updated_at`。
 2. 下一次请求把该最大值原样作为 `updated_since`。
-3. `assignee_userid` 为 `null` 时暂不创建或转交企微待办，映射补齐后该任务会以新的 `updated_at` 再次返回。
+3. `assignee_name` 和 `assignee_username` 用于识别负责人；只有 `assignee_userid` 可以作为企微待办参与人。`assignee_userid` 为 `null` 时暂不创建或转交企微待办，映射补齐后该任务会以新的 `updated_at` 再次返回。
 4. WorkBuddy 按 `task_id` 幂等创建或更新企微待办。
+
+历史任务缺少网站账号时，网站只在负责人姓名与本部门一个账号精确匹配时补全 `assignee_username` 和 `assignee_userid`；零个或多个同名账号时保持为空，不做猜测。
 
 ### 错误码
 

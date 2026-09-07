@@ -29,7 +29,7 @@
 ## 主要模块映射
 
 - 任务与指标贡献：`lib/task-core.mjs`、`lib/workbench-utils.mjs` 及对应任务测试；指标当前值由已完成待办的 `goalLinks` 贡献数汇总。
-- WorkBuddy 企微待办：`lib/open-task-sync.mjs` 负责秒级严格递增时间戳、增量投影和映射变化对账；`lib/workbuddy-auth.mjs` 负责 Bearer Token、通讯录映射、OAuth state 和身份解析；`lib/workbuddy-config.mjs` 负责环境变量与后台加密配置的优先级、安全投影和校验；`lib/workbuddy-sync-log.mjs` 负责双源日志脱敏、幂等、游标查询及 30 天/5000 条保留；统一 API 负责部门过滤、完成规则复用、会话创建和管理员运维接口。
+- WorkBuddy 企微待办：`lib/open-task-sync.mjs` 负责秒级严格递增时间戳、增量投影、负责人解析和映射变化对账；负责人优先按本部门网站账号精确解析，历史任务仅允许按本部门唯一同名账号兜底。`lib/workbuddy-auth.mjs` 负责 Bearer Token、通讯录映射、OAuth state 和身份解析；`lib/workbuddy-config.mjs` 负责环境变量与后台加密配置的优先级、安全投影和校验；`lib/workbuddy-sync-log.mjs` 负责双源日志脱敏、幂等、游标查询及 30 天/5000 条保留；统一 API 负责部门过滤、完成规则复用、会话创建和管理员运维接口。
 - 周任务结转：`lib/weekly-rollover.mjs` 负责北京时间周窗口、按部门持久化防重和任务复制；`server.mjs` 是唯一自动调度器，提供启动补偿及北京时间 08:00–20:00 的整点小时检查，浏览器加载周数据不触发结转。
 - 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
