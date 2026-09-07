@@ -131,6 +131,15 @@
 5. 日志保留 30 天且最多保留 5000 条，写入和读取时自动清理；达到上限时优先删除最旧日志。
 6. 日志支持按时间、结果、动作、任务和员工筛选，并以稳定游标分页，每页最多 100 条。
 
+#### 生产结果回传契约
+
+1. `POST /api/open/sync-events` 首期只接收单条 JSON 事件，不接受数组；回传失败不得阻塞 WorkBuddy 的任务同步主链路。
+2. 正式字段使用 `event_id`、`action`、`result`、`task_id`、`todo_id`、`occurred_at`，并可选接收 `duration_ms`、`operator_userid`、`result_message`、`retry_count`；为兼容已实现版本，同时接受 `wecom_todo_id`、`message`、`attempt` 别名。
+3. 正式动作枚举为 `create`、`update`、`finish`、`delete`、`writeback`；正式结果枚举为 `success`、`failure`、`retry`、`skipped`、`conflict`、`rejected`。已发布的动作和结果枚举继续兼容，日志保留调用方原始语义。
+4. 接口继续复用任务开放 API Bearer Token，本期不增加 HMAC；`event_id` 作为幂等键，重复事件返回 200 且不重复写入。
+5. 2xx 表示接收成功；4xx 表示请求或鉴权错误，WorkBuddy 不自动重试；5xx 可按 5 秒、30 秒、120 秒最多重试 3 次，并始终复用同一 `event_id`。
+6. `task_id` 对任务级动作必填；结果回传只写同步日志和运行概览，不得修改任务、映射或生产配置，也不得携带标题、描述等任务敏感内容。
+
 #### 生产配置
 
 1. 全局管理员可启用或停用集成，并管理任务接口 Token、OAuth 身份解析 Token、OAuth 身份解析地址、企业 ID 和集成部门。
