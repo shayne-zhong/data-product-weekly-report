@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import handler from "../api/[...path].mjs";
+import { weeklyRolloverWindow } from "../lib/weekly-rollover.mjs";
 
 process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
@@ -33,6 +34,8 @@ let userToken = "";
 let validTaskId = "";
 let invalidTaskId = "";
 let otherDepartmentTaskId = "";
+let previousWeekTaskId = "";
+let nextWeekTaskId = "";
 
 async function api(path, { method = "GET", body, user = true, bearer = "", headers: extraHeaders = {} } = {}) {
   const url = new URL(path, "http://workbench.internal");
@@ -49,6 +52,10 @@ async function api(path, { method = "GET", body, user = true, bearer = "", heade
 }
 
 test.before(async () => {
+  const now = Date.now();
+  const currentWindow = weeklyRolloverWindow(now);
+  const previousWindow = weeklyRolloverWindow(now - 7 * 24 * 60 * 60 * 1000);
+  const nextWindow = weeklyRolloverWindow(now + 7 * 24 * 60 * 60 * 1000);
   const adminLogin = await api("/admin/login", {
     method: "POST",
     user: false,
@@ -88,7 +95,7 @@ test.before(async () => {
 
   const week = await api("/weeks", {
     method: "POST",
-    body: { startDate: "2097-01-07", endDate: "2097-01-13" },
+    body: { startDate: currentWindow.targetStartDate, endDate: currentWindow.targetEndDate },
   });
   assert.equal(week.statusCode, 201);
 
@@ -99,7 +106,7 @@ test.before(async () => {
         title: "准备经营月报",
         description: "补齐指标说明",
         status: "进行中",
-        dueDate: "2097-01-12",
+        dueDate: currentWindow.targetEndDate,
         goalLinks: [{ goalId: "goal-1", contribution: 5 }],
       },
     },
@@ -113,6 +120,23 @@ test.before(async () => {
   });
   assert.equal(invalid.statusCode, 201);
   invalidTaskId = invalid.body.task.id;
+
+  for (const [window, title, assignId] of [
+    [previousWindow, "上周任务", (id) => (previousWeekTaskId = id)],
+    [nextWindow, "下周任务", (id) => (nextWeekTaskId = id)],
+  ]) {
+    const adjacentWeek = await api("/weeks", {
+      method: "POST",
+      body: { startDate: window.targetStartDate, endDate: window.targetEndDate },
+    });
+    assert.equal(adjacentWeek.statusCode, 201);
+    const adjacentTask = await api(`/week/${encodeURIComponent(adjacentWeek.body.week.id)}/tasks`, {
+      method: "POST",
+      body: { task: { title, status: "进行中", goalLinks: [{ goalId: `${title}-goal`, contribution: 1 }] } },
+    });
+    assert.equal(adjacentTask.statusCode, 201);
+    assignId(adjacentTask.body.task.id);
+  }
 
   const otherRegistered = await api("/auth/register", {
     method: "POST",
@@ -131,7 +155,7 @@ test.before(async () => {
     method: "POST",
     user: false,
     headers: otherHeaders,
-    body: { startDate: "2097-01-07", endDate: "2097-01-13" },
+    body: { startDate: currentWindow.targetStartDate, endDate: currentWindow.targetEndDate },
   });
   assert.equal(otherWeek.statusCode, 201);
   const otherTask = await api(`/week/${encodeURIComponent(otherWeek.body.week.id)}/tasks`, {
@@ -172,6 +196,14 @@ test("incremental query returns the exact contract ordered by updated_at", async
   assert.equal(response.statusCode, 200);
   const rows = response.body.tasks.filter((task) => [validTaskId, invalidTaskId].includes(task.task_id));
   assert.equal(rows.length, 2);
+  assert.equal(
+    response.body.tasks.some((task) => task.task_id === previousWeekTaskId),
+    false,
+  );
+  assert.equal(
+    response.body.tasks.some((task) => task.task_id === nextWeekTaskId),
+    false,
+  );
   assert.deepEqual(Object.keys(rows[0]), [
     "task_id",
     "title",
