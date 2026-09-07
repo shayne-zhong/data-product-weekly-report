@@ -24,11 +24,7 @@ import {
   publicWorkbuddyConfig,
   validateWorkbuddyConfigPatch,
 } from "../lib/workbuddy-config.mjs";
-import {
-  appendSyncEvent,
-  querySyncEvents,
-  summarizeSyncEvents,
-} from "../lib/workbuddy-sync-log.mjs";
+import { appendSyncEvent, querySyncEvents, summarizeSyncEvents } from "../lib/workbuddy-sync-log.mjs";
 import {
   applyDirectoryMappings,
   bindWecomUserId,
@@ -1534,8 +1530,8 @@ async function handleLeaderAdmin(req, res, state, parts, now, leader) {
 
 function workbuddyMappings(state) {
   const config = publicWorkbuddyConfig(state);
-  return getSettings(state).accounts
-    .filter((account) => account.departmentId === config.departmentId)
+  return getSettings(state)
+    .accounts.filter((account) => account.departmentId === config.departmentId)
     .map((account) => ({
       username: account.username,
       displayName: account.name || account.username,
@@ -1617,41 +1613,36 @@ async function handleWorkbuddyAdminConfig(req, res, state, now, admin) {
 
   let effective;
   try {
-    effective = await effectiveWorkbuddyConfig(
-      { ...state, workbuddy: next },
-      { decrypt: decryptSecret },
-    );
+    effective = await effectiveWorkbuddyConfig({ ...state, workbuddy: next }, { decrypt: decryptSecret });
   } catch (error) {
     return json(res, { error: error.message }, 400);
   }
   if (effective.openApiToken && effective.openApiToken === effective.oauthResolverToken) {
     return json(res, { error: "WorkBuddy tokens must be different" }, 400);
   }
-  const department = getSettings(state).departments.find((item) => (
-    item.id === effective.departmentId && item.enabled
-  ));
+  const department = getSettings(state).departments.find((item) => item.id === effective.departmentId && item.enabled);
   if (effective.enabled && (!department || !effective.openApiToken)) {
     return json(res, { error: "启用同步前必须配置有效部门和 Open API Token" }, 400);
   }
-  const oauthValues = [
-    effective.oauthResolverUrl,
-    effective.oauthResolverToken,
-    effective.corpId,
-  ];
+  const oauthValues = [effective.oauthResolverUrl, effective.oauthResolverToken, effective.corpId];
   if (oauthValues.some(Boolean) && !oauthValues.every(Boolean)) {
     return json(res, { error: "OAuth 地址、Token 和企业 ID 必须同时配置" }, 400);
   }
 
   state.workbuddy = next;
   if (changedFields.length) {
-    appendSyncEvent(state, {
-      source: "website",
-      action: "config_changed",
-      result: "success",
-      username: admin.username,
-      message: `Changed fields: ${[...new Set(changedFields)].join(", ")}`,
-      occurredAt: now,
-    }, { now });
+    appendSyncEvent(
+      state,
+      {
+        source: "website",
+        action: "config_changed",
+        result: "success",
+        username: admin.username,
+        message: `Changed fields: ${[...new Set(changedFields)].join(", ")}`,
+        occurredAt: now,
+      },
+      { now },
+    );
   }
   await saveState(state);
   return json(res, workbuddyAdminPayload(state, now));
@@ -1659,15 +1650,16 @@ async function handleWorkbuddyAdminConfig(req, res, state, now, admin) {
 
 async function handleWorkbuddyMappingUpdate(req, res, state, username, now, admin) {
   const body = await readBody(req);
-  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const normalizedUsername = String(username || "")
+    .trim()
+    .toLowerCase();
   const wecomUserId = String(body.wecom_userid || "").trim();
   const config = publicWorkbuddyConfig(state);
   const settings = getSettings(state);
   const accounts = structuredClone(settings.accounts);
-  const account = accounts.find((candidate) => (
-    candidate.departmentId === config.departmentId
-    && candidate.username === normalizedUsername
-  ));
+  const account = accounts.find(
+    (candidate) => candidate.departmentId === config.departmentId && candidate.username === normalizedUsername,
+  );
   if (!account) return json(res, { error: "Website account not found" }, 404);
   if (String(account.wecomUserId || "") === wecomUserId) {
     return json(res, { mapping: workbuddyMappings(state).find((row) => row.username === normalizedUsername) });
@@ -1685,15 +1677,19 @@ async function handleWorkbuddyMappingUpdate(req, res, state, username, now, admi
   account.wecomMappedBy = admin.username;
   state.settings = { ...settings, accounts, updatedAt: now };
   reconcileOpenTasks(state, { departmentId: config.departmentId, now });
-  appendSyncEvent(state, {
-    source: "website",
-    action: "mapping_changed",
-    result: "success",
-    username: account.username,
-    displayName: account.name,
-    message: wecomUserId ? "WeCom userid mapped" : "WeCom userid unmapped",
-    occurredAt: now,
-  }, { now });
+  appendSyncEvent(
+    state,
+    {
+      source: "website",
+      action: "mapping_changed",
+      result: "success",
+      username: account.username,
+      displayName: account.name,
+      message: wecomUserId ? "WeCom userid mapped" : "WeCom userid unmapped",
+      occurredAt: now,
+    },
+    { now },
+  );
   await saveState(state);
   return json(res, {
     mapping: workbuddyMappings(state).find((row) => row.username === normalizedUsername),
@@ -1801,30 +1797,26 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
       return handleWorkbuddyAdminConfig(req, res, state, now, decoded);
     }
     if (parts[2] === "mappings" && parts[3] && req.method === "PATCH") {
-      return handleWorkbuddyMappingUpdate(
-        req,
-        res,
-        state,
-        decodeURIComponent(parts[3]),
-        now,
-        decoded,
-      );
+      return handleWorkbuddyMappingUpdate(req, res, state, decodeURIComponent(parts[3]), now, decoded);
     }
     if (parts[2] === "mappings" && req.method === "GET") {
       return json(res, { mappings: workbuddyMappings(state) });
     }
     if (parts[2] === "logs" && req.method === "GET") {
       try {
-        return json(res, querySyncEvents(state, {
-          source: String(req.query.source || "").trim(),
-          result: String(req.query.result || "").trim(),
-          action: String(req.query.action || "").trim(),
-          keyword: String(req.query.keyword || "").trim(),
-          since: req.query.since,
-          before: String(req.query.before || "").trim(),
-          limit: req.query.limit,
-          now,
-        }));
+        return json(
+          res,
+          querySyncEvents(state, {
+            source: String(req.query.source || "").trim(),
+            result: String(req.query.result || "").trim(),
+            action: String(req.query.action || "").trim(),
+            keyword: String(req.query.keyword || "").trim(),
+            since: req.query.since,
+            before: String(req.query.before || "").trim(),
+            limit: req.query.limit,
+            now,
+          }),
+        );
       } catch (error) {
         return json(res, { error: error.message }, 400);
       }
@@ -1920,17 +1912,21 @@ function accountForOpenTask(settings, task, departmentId) {
 }
 
 function appendWebsiteTaskEvent(state, task, action, result, now, message) {
-  appendSyncEvent(state, {
-    source: "website",
-    action,
-    result,
-    taskId: task?.id,
-    taskTitle: task?.title,
-    username: task?.ownerUsername,
-    displayName: task?.owner,
-    message,
-    occurredAt: now,
-  }, { now });
+  appendSyncEvent(
+    state,
+    {
+      source: "website",
+      action,
+      result,
+      taskId: task?.id,
+      taskTitle: task?.title,
+      username: task?.ownerUsername,
+      displayName: task?.owner,
+      message,
+      occurredAt: now,
+    },
+    { now },
+  );
   state.workbuddy.status ||= {};
   state.workbuddy.status.lastWritebackAt = now;
 }
@@ -1980,10 +1976,7 @@ function normalizedWorkbuddyEvent(body, state, now) {
   if (!Number.isSafeInteger(retryCount) || retryCount < 0 || retryCount > 100) {
     throw new Error("retry_count must be an integer from 0 to 100");
   }
-  if (
-    !Number.isSafeInteger(occurredAt)
-    || Math.abs(now - occurredAt) > 24 * 60 * 60 * 1_000
-  ) {
+  if (!Number.isSafeInteger(occurredAt) || Math.abs(now - occurredAt) > 24 * 60 * 60 * 1_000) {
     throw new Error("occurred_at is outside the accepted window");
   }
   const task = state.tasks[taskId];
@@ -2063,13 +2056,17 @@ async function handleOpenTasks(req, res, state, parts, now) {
       state.workbuddy.status ||= {};
       state.workbuddy.status.lastPollAt = now;
       state.workbuddy.status.lastPollCount = 0;
-      appendSyncEvent(state, {
-        source: "website",
-        action: "poll_failed",
-        result: "failed",
-        message: error.message || "Task polling failed",
-        occurredAt: now,
-      }, { now });
+      appendSyncEvent(
+        state,
+        {
+          source: "website",
+          action: "poll_failed",
+          result: "failed",
+          message: error.message || "Task polling failed",
+          occurredAt: now,
+        },
+        { now },
+      );
       await saveState(state);
       throw error;
     }
@@ -2083,13 +2080,17 @@ async function handleOpenTasks(req, res, state, parts, now) {
       updatedSince,
     );
     if (tasks.length) {
-      appendSyncEvent(state, {
-        source: "website",
-        action: "polled",
-        result: "success",
-        message: `${tasks.length} task(s) returned`,
-        occurredAt: now,
-      }, { now });
+      appendSyncEvent(
+        state,
+        {
+          source: "website",
+          action: "polled",
+          result: "success",
+          message: `${tasks.length} task(s) returned`,
+          occurredAt: now,
+        },
+        { now },
+      );
     }
     await saveState(state);
     return json(res, { tasks });
@@ -2104,14 +2105,7 @@ async function handleOpenTasks(req, res, state, parts, now) {
     const existing = state.tasks[taskId];
     if (!existing || existing.departmentId !== departmentId) return json(res, { error: "Task not found" }, 404);
     if (existing.status === "已完成") {
-      appendWebsiteTaskEvent(
-        state,
-        existing,
-        "writeback_terminal",
-        "skipped",
-        now,
-        "Task was already terminal",
-      );
+      appendWebsiteTaskEvent(state, existing, "writeback_terminal", "skipped", now, "Task was already terminal");
       await saveState(state);
       return json(res, { code: "TASK_ALREADY_TERMINAL", error: "Task is already terminal" }, 409);
     }
@@ -2141,14 +2135,7 @@ async function handleOpenTasks(req, res, state, parts, now) {
     };
     state.tasks[taskId] = task;
     reconcileOpenTasks(state, { departmentId, now });
-    appendWebsiteTaskEvent(
-      state,
-      task,
-      "writeback_completed",
-      "success",
-      now,
-      "Task completed from WeCom",
-    );
+    appendWebsiteTaskEvent(state, task, "writeback_completed", "success", now, "Task completed from WeCom");
     await saveState(state);
     return json(res, { task_id: task.id, status: task.status, updated_at: task.openUpdatedAt });
   }
@@ -2159,11 +2146,7 @@ async function handleOpenTasks(req, res, state, parts, now) {
 
 function oauthConfigured(config) {
   return Boolean(
-    config.enabled
-    && config.departmentId
-    && config.oauthResolverUrl
-    && config.oauthResolverToken
-    && config.corpId,
+    config.enabled && config.departmentId && config.oauthResolverUrl && config.oauthResolverToken && config.corpId,
   );
 }
 
@@ -2182,15 +2165,19 @@ function oauthSessionCookie(token, expiresAt, now, req) {
 }
 
 function appendOAuthEvent(state, action, result, now, { identity, account, message } = {}) {
-  appendSyncEvent(state, {
-    source: "website",
-    action,
-    result,
-    username: account?.username || String(identity?.username || ""),
-    displayName: account?.name || "",
-    message,
-    occurredAt: now,
-  }, { now });
+  appendSyncEvent(
+    state,
+    {
+      source: "website",
+      action,
+      result,
+      username: account?.username || String(identity?.username || ""),
+      displayName: account?.name || "",
+      message,
+      occurredAt: now,
+    },
+    { now },
+  );
 }
 
 async function handleWecomCallback(req, res, state, now) {
@@ -2227,8 +2214,10 @@ async function handleWecomCallback(req, res, state, now) {
   }
 
   const departmentId = config.departmentId;
-  if (String(identity.corp_id || "").trim() !== config.corpId
-    || String(identity.department_id || "").trim() !== departmentId) {
+  if (
+    String(identity.corp_id || "").trim() !== config.corpId ||
+    String(identity.department_id || "").trim() !== departmentId
+  ) {
     appendOAuthEvent(state, "oauth_rejected", "failed", now, {
       identity,
       message: "Identity was outside the configured scope",
@@ -2304,11 +2293,12 @@ export default async function handler(req, res) {
   const openSyncEventRequest = parts[0] === "open" && parts[1] === "sync-events";
   const wecomCallbackRequest = parts[0] === "wecom" && parts[1] === "callback";
   const workbuddyAdminRequest = parts[0] === "admin" && parts[1] === "workbuddy";
-  const mutating = !["GET", "HEAD"].includes(req.method)
-    || openTaskRequest
-    || openSyncEventRequest
-    || wecomCallbackRequest
-    || workbuddyAdminRequest;
+  const mutating =
+    !["GET", "HEAD"].includes(req.method) ||
+    openTaskRequest ||
+    openSyncEventRequest ||
+    wecomCallbackRequest ||
+    workbuddyAdminRequest;
   const release = mutating ? await mutationLock.acquire() : () => {};
   try {
     const state = await loadState();

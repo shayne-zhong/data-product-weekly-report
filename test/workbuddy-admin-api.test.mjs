@@ -78,11 +78,9 @@ test.before(async () => {
     method: "PATCH",
     headers: adminHeaders,
     body: {
-      departments: settings.departments.map((department) => (
-        department.id === "data-product"
-          ? { ...department, leaderUsername: "zhongnanhai" }
-          : department
-      )),
+      departments: settings.departments.map((department) =>
+        department.id === "data-product" ? { ...department, leaderUsername: "zhongnanhai" } : department,
+      ),
       accounts: settings.accounts,
     },
   });
@@ -164,15 +162,9 @@ test("saved tokens take effect immediately and are returned only as masks", asyn
     source: "admin",
     mask: "•••• 6789",
   });
-  assert.equal(
-    (await openApi("/open/tasks?updated_since=0", activeOpenToken)).statusCode,
-    401,
-  );
+  assert.equal((await openApi("/open/tasks?updated_since=0", activeOpenToken)).statusCode, 401);
   activeOpenToken = "new-open-token-value-123456789";
-  assert.equal(
-    (await openApi("/open/tasks?updated_since=0", activeOpenToken)).statusCode,
-    200,
-  );
+  assert.equal((await openApi("/open/tasks?updated_since=0", activeOpenToken)).statusCode, 200);
 });
 
 test("mapping edit is unique, audited, and restamps assigned tasks", async () => {
@@ -192,17 +184,12 @@ test("mapping edit is unique, audited, and restamps assigned tasks", async () =>
     "wx-zhongnanhai",
   );
   const allAfterMapping = await openApi("/open/tasks?updated_since=0", activeOpenToken);
-  assert.equal(
-    allAfterMapping.body.tasks.find((task) => task.task_id === taskId)?.assignee_userid,
-    "wx-zhongnanhai",
+  assert.equal(allAfterMapping.body.tasks.find((task) => task.task_id === taskId)?.assignee_userid, "wx-zhongnanhai");
+  const after = await openApi(`/open/tasks?updated_since=${checkpoint}`, activeOpenToken);
+  assert.ok(
+    after.body.tasks.some((task) => task.task_id === taskId && task.assignee_userid === "wx-zhongnanhai"),
+    JSON.stringify(after.body),
   );
-  const after = await openApi(
-    `/open/tasks?updated_since=${checkpoint}`,
-    activeOpenToken,
-  );
-  assert.ok(after.body.tasks.some((task) => (
-    task.task_id === taskId && task.assignee_userid === "wx-zhongnanhai"
-  )), JSON.stringify(after.body));
 
   const conflict = await api("/admin/workbuddy/mappings/songquanchen", {
     method: "PATCH",

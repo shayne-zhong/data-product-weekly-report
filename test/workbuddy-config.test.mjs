@@ -34,13 +34,16 @@ test("admin overrides environment while explicit disable wins", async () => {
 });
 
 test("public projection exposes masks and sources but no secret", () => {
-  const config = publicWorkbuddyConfig({
-    workbuddy: {
-      openApiToken: { encrypted: { ciphertext: "secret" }, last4: "1234" },
+  const config = publicWorkbuddyConfig(
+    {
+      workbuddy: {
+        openApiToken: { encrypted: { ciphertext: "secret" }, last4: "1234" },
+      },
     },
-  }, {
-    env: { WORKBUDDY_OAUTH_RESOLVER_TOKEN: "environment-oauth-token-5678" },
-  });
+    {
+      env: { WORKBUDDY_OAUTH_RESOLVER_TOKEN: "environment-oauth-token-5678" },
+    },
+  );
 
   assert.deepEqual(config.openApiToken, {
     configured: true,
@@ -56,16 +59,14 @@ test("public projection exposes masks and sources but no secret", () => {
 });
 
 test("patch validation rejects short identical tokens and invalid URLs", () => {
+  assert.throws(() => validateWorkbuddyConfigPatch({ open_api_token: "short" }), /24/);
   assert.throws(
-    () => validateWorkbuddyConfigPatch({ open_api_token: "short" }),
-    /24/,
+    () =>
+      validateWorkbuddyConfigPatch({
+        open_api_token: "same-token-value-123456789",
+        oauth_resolver_token: "same-token-value-123456789",
+      }),
+    /different/,
   );
-  assert.throws(() => validateWorkbuddyConfigPatch({
-    open_api_token: "same-token-value-123456789",
-    oauth_resolver_token: "same-token-value-123456789",
-  }), /different/);
-  assert.throws(
-    () => validateWorkbuddyConfigPatch({ oauth_resolver_url: "file:///tmp/a" }),
-    /http/,
-  );
+  assert.throws(() => validateWorkbuddyConfigPatch({ oauth_resolver_url: "file:///tmp/a" }), /http/);
 });

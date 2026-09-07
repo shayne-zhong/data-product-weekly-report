@@ -202,7 +202,10 @@ test("an invalid WorkBuddy token cannot create a result log", async () => {
   assert.equal(response.statusCode, 401);
 
   const logs = await api("/admin/workbuddy/logs?limit=100", { headers: adminHeaders });
-  assert.equal(logs.body.events.some((row) => row.externalEventId === eventId), false);
+  assert.equal(
+    logs.body.events.some((row) => row.externalEventId === eventId),
+    false,
+  );
 });
 
 test("event ingestion rejects invalid actions and timestamps outside 24 hours", async () => {
@@ -264,15 +267,33 @@ test("an authenticated polling failure writes one safe failure event", async () 
 });
 
 test("writeback 200, 409, and 422 create distinct safe events", async () => {
-  assert.equal((await openApi(`/open/tasks/${validTaskId}/status`, {
-    method: "PUT", body: { status: "completed" },
-  })).statusCode, 200);
-  assert.equal((await openApi(`/open/tasks/${validTaskId}/status`, {
-    method: "PUT", body: { status: "completed" },
-  })).statusCode, 409);
-  assert.equal((await openApi(`/open/tasks/${invalidTaskId}/status`, {
-    method: "PUT", body: { status: "completed" },
-  })).statusCode, 422);
+  assert.equal(
+    (
+      await openApi(`/open/tasks/${validTaskId}/status`, {
+        method: "PUT",
+        body: { status: "completed" },
+      })
+    ).statusCode,
+    200,
+  );
+  assert.equal(
+    (
+      await openApi(`/open/tasks/${validTaskId}/status`, {
+        method: "PUT",
+        body: { status: "completed" },
+      })
+    ).statusCode,
+    409,
+  );
+  assert.equal(
+    (
+      await openApi(`/open/tasks/${invalidTaskId}/status`, {
+        method: "PUT",
+        body: { status: "completed" },
+      })
+    ).statusCode,
+    422,
+  );
 
   const logs = await api("/admin/workbuddy/logs?keyword=任务", { headers: adminHeaders });
   const actions = new Set(logs.body.events.map((row) => row.action));

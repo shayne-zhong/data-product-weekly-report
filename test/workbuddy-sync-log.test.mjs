@@ -1,31 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  appendSyncEvent,
-  pruneSyncEvents,
-  querySyncEvents,
-  summarizeSyncEvents,
-} from "../lib/workbuddy-sync-log.mjs";
+import { appendSyncEvent, pruneSyncEvents, querySyncEvents, summarizeSyncEvents } from "../lib/workbuddy-sync-log.mjs";
 
 test("duplicate external event IDs return the original row", () => {
   const state = {};
-  const first = appendSyncEvent(state, {
-    externalEventId: "evt-1",
-    source: "workbuddy",
-    action: "created",
-    result: "success",
-    taskId: "task-1",
-    occurredAt: 1_000,
-  }, { now: 2_000, idFactory: () => "sync-1" });
-  const duplicate = appendSyncEvent(state, {
-    externalEventId: "evt-1",
-    source: "workbuddy",
-    action: "created",
-    result: "success",
-    taskId: "task-1",
-    occurredAt: 1_000,
-  }, { now: 3_000, idFactory: () => "sync-2" });
+  const first = appendSyncEvent(
+    state,
+    {
+      externalEventId: "evt-1",
+      source: "workbuddy",
+      action: "created",
+      result: "success",
+      taskId: "task-1",
+      occurredAt: 1_000,
+    },
+    { now: 2_000, idFactory: () => "sync-1" },
+  );
+  const duplicate = appendSyncEvent(
+    state,
+    {
+      externalEventId: "evt-1",
+      source: "workbuddy",
+      action: "created",
+      result: "success",
+      taskId: "task-1",
+      occurredAt: 1_000,
+    },
+    { now: 3_000, idFactory: () => "sync-2" },
+  );
 
   assert.equal(first.duplicate, false);
   assert.equal(duplicate.duplicate, true);
@@ -35,13 +38,17 @@ test("duplicate external event IDs return the original row", () => {
 
 test("messages remove credentials, headers, newlines, and excess length", () => {
   const state = {};
-  const { event } = appendSyncEvent(state, {
-    source: "website",
-    action: "poll_failed",
-    result: "failed",
-    occurredAt: 1_000,
-    message: `Authorization: Bearer secret-token-value\ncode=oauth-code ${"x".repeat(800)}`,
-  }, { now: 2_000, idFactory: () => "sync-1" });
+  const { event } = appendSyncEvent(
+    state,
+    {
+      source: "website",
+      action: "poll_failed",
+      result: "failed",
+      occurredAt: 1_000,
+      message: `Authorization: Bearer secret-token-value\ncode=oauth-code ${"x".repeat(800)}`,
+    },
+    { now: 2_000, idFactory: () => "sync-1" },
+  );
 
   assert.doesNotMatch(event.message, /secret-token-value|oauth-code|Authorization|\n/);
   assert.ok(event.message.length <= 500);
@@ -72,25 +79,50 @@ test("retention removes rows older than 30 days and caps the newest 5000", () =>
 });
 
 test("queries use stable cursor ordering and filters", () => {
-  const state = { workbuddy: { syncEvents: [
-    {
-      id: "b", occurredAt: 2_000, result: "failed", action: "updated",
-      source: "workbuddy", username: "zhangsan", taskTitle: "经营分析",
+  const state = {
+    workbuddy: {
+      syncEvents: [
+        {
+          id: "b",
+          occurredAt: 2_000,
+          result: "failed",
+          action: "updated",
+          source: "workbuddy",
+          username: "zhangsan",
+          taskTitle: "经营分析",
+        },
+        {
+          id: "a",
+          occurredAt: 2_000,
+          result: "success",
+          action: "created",
+          source: "workbuddy",
+          username: "lisi",
+          taskTitle: "数据治理",
+        },
+        {
+          id: "c",
+          occurredAt: 1_000,
+          result: "failed",
+          action: "created",
+          source: "workbuddy",
+          username: "zhangsan",
+          taskTitle: "月报",
+        },
+      ],
     },
-    {
-      id: "a", occurredAt: 2_000, result: "success", action: "created",
-      source: "workbuddy", username: "lisi", taskTitle: "数据治理",
-    },
-    {
-      id: "c", occurredAt: 1_000, result: "failed", action: "created",
-      source: "workbuddy", username: "zhangsan", taskTitle: "月报",
-    },
-  ] } };
+  };
 
   const first = querySyncEvents(state, {
-    result: "failed", keyword: "ZHANGSAN", limit: 1, now: 3_000,
+    result: "failed",
+    keyword: "ZHANGSAN",
+    limit: 1,
+    now: 3_000,
   });
-  assert.deepEqual(first.events.map((row) => row.id), ["b"]);
+  assert.deepEqual(
+    first.events.map((row) => row.id),
+    ["b"],
+  );
   const second = querySyncEvents(state, {
     result: "failed",
     keyword: "ZHANGSAN",
@@ -98,7 +130,10 @@ test("queries use stable cursor ordering and filters", () => {
     before: first.nextBefore,
     now: 3_000,
   });
-  assert.deepEqual(second.events.map((row) => row.id), ["c"]);
+  assert.deepEqual(
+    second.events.map((row) => row.id),
+    ["c"],
+  );
   assert.equal(second.nextBefore, "");
   assert.deepEqual(summarizeSyncEvents(state, { now: 3_000 }), {
     success: 1,
@@ -109,32 +144,43 @@ test("queries use stable cursor ordering and filters", () => {
 });
 
 test("queries can limit rows by an absolute start timestamp", () => {
-  const state = { workbuddy: { syncEvents: [
-    { id: "new", occurredAt: 2_000, result: "success", action: "created" },
-    { id: "old", occurredAt: 1_000, result: "success", action: "created" },
-  ] } };
+  const state = {
+    workbuddy: {
+      syncEvents: [
+        { id: "new", occurredAt: 2_000, result: "success", action: "created" },
+        { id: "old", occurredAt: 1_000, result: "success", action: "created" },
+      ],
+    },
+  };
 
   const result = querySyncEvents(state, { since: 1_500, now: 3_000 });
 
-  assert.deepEqual(result.events.map((event) => event.id), ["new"]);
+  assert.deepEqual(
+    result.events.map((event) => event.id),
+    ["new"],
+  );
 });
 
 test("production events preserve optional metrics and sanitize operator messages", () => {
   const state = {};
   const now = 2_000;
-  const appended = appendSyncEvent(state, {
-    externalEventId: "event-production-1",
-    source: "workbuddy",
-    action: "create",
-    result: "failure",
-    taskId: "task-1",
-    wecomTodoId: "todo-1",
-    durationMs: 320,
-    operatorUserId: "zhangsan",
-    attempt: 2,
-    message: "token=secret\nfailed",
-    occurredAt: now,
-  }, { now, idFactory: () => "sync-production-1" });
+  const appended = appendSyncEvent(
+    state,
+    {
+      externalEventId: "event-production-1",
+      source: "workbuddy",
+      action: "create",
+      result: "failure",
+      taskId: "task-1",
+      wecomTodoId: "todo-1",
+      durationMs: 320,
+      operatorUserId: "zhangsan",
+      attempt: 2,
+      message: "token=secret\nfailed",
+      occurredAt: now,
+    },
+    { now, idFactory: () => "sync-production-1" },
+  );
 
   assert.equal(appended.event.durationMs, 320);
   assert.equal(appended.event.operatorUserId, "zhangsan");
