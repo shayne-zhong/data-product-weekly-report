@@ -37,6 +37,7 @@ import {
   completeWeeklyRolloverExecution,
   failWeeklyRolloverExecution,
   startWeeklyRolloverExecution,
+  weeklyRolloverWindow,
   weeklyRolloverTaskSummary,
 } from "../lib/weekly-rollover.mjs";
 import {
@@ -2047,8 +2048,14 @@ async function handleOpenTasks(req, res, state, parts, now) {
       applyConfiguredDirectoryMappings(state, departmentId);
       reconcileOpenTasks(state, { departmentId, now });
       const settings = getSettings(state);
+      const currentWeekId = weeklyRolloverWindow(now).targetWeekId;
       tasks = Object.values(state.tasks || {})
-        .filter((task) => task.departmentId === departmentId && Number(task.openUpdatedAt) > updatedSince)
+        .filter(
+          (task) =>
+            task.departmentId === departmentId &&
+            task.weekId === currentWeekId &&
+            Number(task.openUpdatedAt) > updatedSince,
+        )
         .sort((left, right) => left.openUpdatedAt - right.openUpdatedAt)
         .map((task) => projectOpenTask(task, accountForOpenTask(settings, task, departmentId)));
     } catch (error) {
