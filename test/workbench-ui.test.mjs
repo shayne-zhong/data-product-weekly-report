@@ -902,6 +902,18 @@ test("WorkBuddy token fields never hydrate from returned masks or local storage"
   assert.match(html, /type="password"[^>]+id="workbuddyOauthToken"/);
 });
 
+test("WorkBuddy production result fields have readable admin labels", () => {
+  assert.match(html, /create:\s*"待办创建"/);
+  assert.match(html, /finish:\s*"待办完成"/);
+  assert.match(html, /writeback:\s*"完成回写"/);
+  assert.match(html, /failure:\s*"失败"/);
+  assert.match(html, /conflict:\s*"冲突"/);
+  assert.match(html, /operatorUserId/);
+  assert.match(html, /durationMs/);
+  assert.match(html, /option value="failure">失败<\/option>/);
+  assert.match(html, /option value="create">企微待办创建<\/option>/);
+});
+
 test("department rows expose a leader picker and account rows expose an enable toggle", () => {
   assert.match(html, /data-admin-department-leader="\$\{index\}"/);
   assert.match(html, /department\.leaderUsername/);
