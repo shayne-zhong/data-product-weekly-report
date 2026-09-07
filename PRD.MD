@@ -69,7 +69,7 @@
 #### 增量任务查询
 
 1. 提供 `GET /api/open/tasks?updated_since=`，仅接受独立的部门级 Bearer Token，不复用员工会话或 OAuth 凭证。
-2. `updated_since` 和返回的 `updated_at` 均为非负 Unix 秒整数；查询返回 `updated_at > updated_since` 的当前任务，并按 `updated_at` 升序排列。
+2. `updated_since` 和返回的 `updated_at` 均为非负 Unix 秒整数；查询仅返回北京时间当前周（周一至周日）且 `updated_at > updated_since` 的任务，并按 `updated_at` 升序排列。当前周口径必须与周任务自动结转一致，所有任务状态均可返回。
 3. 每条任务返回 `task_id`、`title`、`description`、`assignee_userid`、`status`、`due_date` 和 `updated_at`。
 4. 系统为开放接口维护严格递增的秒级更新时间；同一秒发生多次任务变化时仍不得产生相同的 `updated_at`。
 5. 新建、标题或描述修改、负责人转交、状态变化、截止日期变化及负责人企微映射变化，都必须推进对应任务的开放接口更新时间。
@@ -105,7 +105,7 @@
 
 验收标准：
 
-1. `GET /api/open/tasks?updated_since=` 只返回数据产品部且更新时间大于查询值的当前任务，并包含约定字段。
+1. `GET /api/open/tasks?updated_since=` 只返回数据产品部、属于北京时间当前周且更新时间大于查询值的任务，并包含约定字段；历史任务不再出现在查询结果中，但已有企微待办仍可通过状态接口完成回写。
 2. 连续任务变化获得严格递增的秒级 `updated_at`；WorkBuddy 保存最大值后能继续增量查询而不遗漏。
 3. WorkBuddy 首次完成回写成功；重复回写终态返回 409，且任务和贡献数不重复变化。
 4. 不满足现有年度指标贡献规则的任务回写完成时返回 422，任务保持未完成。
