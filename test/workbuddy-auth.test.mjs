@@ -11,12 +11,10 @@ import {
 } from "../lib/workbuddy-auth.mjs";
 
 test("WorkBuddy bearer token validation requires an exact configured value", () => {
-  const env = { WORKBUDDY_OPEN_API_TOKEN: "open-secret" };
-
-  assert.equal(workbuddyTokenValid("Bearer open-secret", env), true);
-  assert.equal(workbuddyTokenValid("Bearer wrong", env), false);
-  assert.equal(workbuddyTokenValid("open-secret", env), false);
-  assert.equal(workbuddyTokenValid("Bearer open-secret", {}), false);
+  assert.equal(workbuddyTokenValid("Bearer open-secret", "open-secret"), true);
+  assert.equal(workbuddyTokenValid("Bearer wrong", "open-secret"), false);
+  assert.equal(workbuddyTokenValid("open-secret", "open-secret"), false);
+  assert.equal(workbuddyTokenValid("Bearer open-secret", ""), false);
 });
 
 test("binding uses an exact account and enforces one-to-one userid mapping", () => {

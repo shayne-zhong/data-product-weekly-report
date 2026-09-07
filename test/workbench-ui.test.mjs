@@ -882,6 +882,38 @@ test("admin navigation maps groups to their default and remembered sections", ()
   assert.match(html, /adminLastSectionByGroup\[adminActiveGroup\]/);
 });
 
+test("global admin exposes a WorkBuddy operations panel with no leader access", () => {
+  assert.match(html, /data-admin-section="workbuddy"/);
+  assert.match(html, /data-admin-panel="workbuddy"/);
+  assert.match(html, /adminRole !== "admin"/);
+  assert.match(html, /\/api\/admin\/workbuddy\/config/);
+  assert.match(html, /\/api\/admin\/workbuddy\/mappings/);
+  assert.match(html, /\/api\/admin\/workbuddy\/logs/);
+  assert.match(html, /id="workbuddyOverview"/);
+  assert.match(html, /id="workbuddyMappings"/);
+  assert.match(html, /id="workbuddyLogs"/);
+});
+
+test("WorkBuddy token fields never hydrate from returned masks or local storage", () => {
+  assert.match(html, /\$\("workbuddyOpenToken"\)\.value = ""/);
+  assert.match(html, /\$\("workbuddyOauthToken"\)\.value = ""/);
+  assert.doesNotMatch(html, /localStorage\.setItem\([^\n]*workbuddy/i);
+  assert.match(html, /type="password"[^>]+id="workbuddyOpenToken"/);
+  assert.match(html, /type="password"[^>]+id="workbuddyOauthToken"/);
+});
+
+test("WorkBuddy production result fields have readable admin labels", () => {
+  assert.match(html, /create:\s*"待办创建"/);
+  assert.match(html, /finish:\s*"待办完成"/);
+  assert.match(html, /writeback:\s*"完成回写"/);
+  assert.match(html, /failure:\s*"失败"/);
+  assert.match(html, /conflict:\s*"冲突"/);
+  assert.match(html, /operatorUserId/);
+  assert.match(html, /durationMs/);
+  assert.match(html, /option value="failure">失败<\/option>/);
+  assert.match(html, /option value="create">企微待办创建<\/option>/);
+});
+
 test("department rows expose a leader picker and account rows expose an enable toggle", () => {
   assert.match(html, /data-admin-department-leader="\$\{index\}"/);
   assert.match(html, /department\.leaderUsername/);

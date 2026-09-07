@@ -66,8 +66,14 @@ function resolverResponse(overrides = {}) {
 }
 
 let taskId = "";
+let adminHeaders;
 
 test.before(async () => {
+  const adminLogin = await api("/admin/login", {
+    method: "POST",
+    body: { username: "Admin", password: "888888" },
+  });
+  adminHeaders = { authorization: `Bearer ${adminLogin.body.token}` };
   const registered = await api("/auth/register", {
     method: "POST",
     body: { username: "zhongnanhai", password: "12345678", displayName: "钟南海" },
@@ -117,6 +123,10 @@ test("OAuth callback auto-fills an exact registered account and creates a reusab
     });
     assert.equal(tasks.body.tasks.find((task) => task.task_id === taskId).assignee_userid, "wx-zhongnanhai");
 
+    const logs = await api("/admin/workbuddy/logs?action=oauth_mapped", { headers: adminHeaders });
+    assert.equal(logs.body.events.at(0).username, "zhongnanhai");
+    assert.doesNotMatch(JSON.stringify(logs.body), /valid-code|resolver-secret/);
+
     const replay = await api(`/wecom/callback?code=valid-code&state=${encodeURIComponent(state)}`);
     assert.equal(replay.statusCode, 400);
   } finally {
@@ -139,6 +149,10 @@ test("OAuth callback rejects mapping conflicts and unrecognized identities", asy
     globalThis.fetch = async () => resolverResponse({ corp_id: "another-corp" });
     const wrongCorp = await api(`/wecom/callback?code=wrong-corp&state=${encodeURIComponent(oauthState())}`);
     assert.equal(wrongCorp.statusCode, 403);
+
+    const logs = await api("/admin/workbuddy/logs?action=oauth_rejected", { headers: adminHeaders });
+    assert.ok(logs.body.events.length >= 3);
+    assert.doesNotMatch(JSON.stringify(logs.body), /wrong-corp|resolver-secret|code=/);
   } finally {
     globalThis.fetch = originalFetch;
   }

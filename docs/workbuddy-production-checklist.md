@@ -3,6 +3,7 @@
 ## 一、合并与镜像
 
 - [ ] 生产代码包含 PR #6 的合并提交 `97a611e` 或更新版本。
+- [ ] 生产代码包含企微同步后台和结果回传契约的 PR #9 合并版本。
 - [ ] 执行 `npm ci`、`npm test`、`npm run build`。
 - [ ] 使用仓库 `Dockerfile` 构建镜像；容器内端口默认为 `3000`。
 - [ ] 挂载或配置现有持久化服务，确保服务重启后任务、水位、账号映射和 OAuth state 不丢失。
@@ -33,6 +34,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 - [ ] 409 视为任务已终态，不重试；422 记录业务拒绝，不重试。
 - [ ] OAuth 身份解析接口校验 `WORKBUDDY_OAUTH_RESOLVER_TOKEN`，返回 `wecom_userid`、`username`、`corp_id`、`department_id`。
 - [ ] 生产使用部门专属机器人，授权成员范围覆盖数据产品部。
+- [ ] 下行同步固定为 5 分钟轮询；本期不监听 webhook，不开放 3902 端口。
+- [ ] 结果回传每次发送一个对象，使用与任务接口相同的 Bearer Token。
+- [ ] 结果回传 4xx 不重试；5xx 或网络失败按 5 秒、30 秒、120 秒最多重试 3 次，并复用同一 `event_id`。
 
 ## 四、部署后冒烟验证
 
@@ -51,6 +55,10 @@ Invoke-RestMethod -Uri '<BASE_URL>/api/open/tasks?updated_since=0' -Headers @{ A
 - [ ] 修改网站任务后，以此前最大 `updated_at` 查询能取得该任务。
 - [ ] 完成一个满足指标规则的任务返回 200；重复完成返回 409。
 - [ ] 完成一个不满足指标规则的任务返回 422，网站状态不变。
+- [ ] 首次回传一条 `sync-events` 正式事件返回 `accepted:true`、`duplicate:false`。
+- [ ] 原样重放同一 `event_id` 返回 `duplicate:true`，后台仍只有一条日志。
+- [ ] 数组、非法枚举和越界时间返回 400；错误 Token 返回 401 且不写日志。
+- [ ] 全局管理员可在“企微任务同步”查看掩码配置、userid 映射和结果日志。
 
 ## 五、剩余外部联调门槛
 
