@@ -1942,16 +1942,43 @@ const workbuddyEventActions = new Set([
   "skipped",
   "failed",
   "retry_scheduled",
+  "create",
+  "update",
+  "finish",
+  "delete",
+  "writeback",
 ]);
-const workbuddyEventResults = new Set(["success", "failed", "skipped", "retrying"]);
+const workbuddyEventResults = new Set([
+  "success",
+  "failed",
+  "skipped",
+  "retrying",
+  "failure",
+  "retry",
+  "conflict",
+  "rejected",
+]);
 
 function normalizedWorkbuddyEvent(body, state, now) {
+  if (!body || Array.isArray(body) || typeof body !== "object") {
+    throw new Error("sync event body must be one object");
+  }
   const externalEventId = String(body.event_id || "").trim();
   const taskId = String(body.task_id || "").trim();
   const occurredAt = Number(body.occurred_at);
+  const todoId = body.todo_id ?? body.wecom_todo_id ?? "";
+  const resultMessage = body.result_message ?? body.message ?? "";
+  const retryCount = Number(body.retry_count ?? body.attempt ?? 0);
+  const durationMs = Number(body.duration_ms ?? 0);
   if (!externalEventId || !taskId) throw new Error("event_id and task_id are required");
   if (!workbuddyEventActions.has(body.action) || !workbuddyEventResults.has(body.result)) {
     throw new Error("Invalid sync event action or result");
+  }
+  if (!Number.isSafeInteger(durationMs) || durationMs < 0) {
+    throw new Error("duration_ms must be a nonnegative integer");
+  }
+  if (!Number.isSafeInteger(retryCount) || retryCount < 0 || retryCount > 100) {
+    throw new Error("retry_count must be an integer from 0 to 100");
   }
   if (
     !Number.isSafeInteger(occurredAt)
@@ -1969,9 +1996,11 @@ function normalizedWorkbuddyEvent(body, state, now) {
     taskTitle: task?.title || "",
     username: task?.ownerUsername || "",
     displayName: task?.owner || "",
-    wecomTodoId: String(body.wecom_todo_id || ""),
-    attempt: Number(body.attempt) || 0,
-    message: body.message,
+    wecomTodoId: String(todoId),
+    durationMs,
+    operatorUserId: String(body.operator_userid || ""),
+    attempt: retryCount,
+    message: resultMessage,
     occurredAt,
   };
 }
@@ -1999,7 +2028,11 @@ async function handleWorkbuddySyncEvents(req, res, state, now) {
     state.workbuddy.status.lastResultReportedAt = now;
     await saveState(state);
   }
-  return json(res, { log_id: appended.event.id, duplicate: appended.duplicate });
+  return json(res, {
+    accepted: true,
+    log_id: appended.event.id,
+    duplicate: appended.duplicate,
+  });
 }
 
 async function handleOpenTasks(req, res, state, parts, now) {

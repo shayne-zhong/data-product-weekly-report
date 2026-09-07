@@ -131,6 +131,80 @@ test("WorkBuddy reports one real WeCom result idempotently without changing the 
   assert.deepEqual(after.body, before.body);
 });
 
+test("WorkBuddy accepts the formal production result schema", async () => {
+  const payload = {
+    event_id: "event-formal-1",
+    task_id: validTaskId,
+    action: "create",
+    result: "success",
+    todo_id: "todo-formal-1",
+    duration_ms: 250,
+    operator_userid: "zhongnanhai",
+    result_message: "created",
+    retry_count: 0,
+    occurred_at: Date.now(),
+  };
+
+  const response = await openApi("/open/sync-events", { method: "POST", body: payload });
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.accepted, true);
+  assert.equal(response.body.duplicate, false);
+
+  const logs = await api("/admin/workbuddy/logs?keyword=zhongnanhai", { headers: adminHeaders });
+  const event = logs.body.events.find((row) => row.externalEventId === payload.event_id);
+  assert.equal(event.wecomTodoId, "todo-formal-1");
+  assert.equal(event.durationMs, 250);
+  assert.equal(event.operatorUserId, "zhongnanhai");
+  assert.equal(event.message, "created");
+});
+
+test("event ingestion rejects arrays and invalid production counters", async () => {
+  const payload = {
+    event_id: "event-shape-1",
+    task_id: validTaskId,
+    action: "create",
+    result: "success",
+    occurred_at: Date.now(),
+  };
+  const arrayResponse = await openApi("/open/sync-events", {
+    method: "POST",
+    body: [payload],
+  });
+  assert.equal(arrayResponse.statusCode, 400);
+  assert.match(arrayResponse.body.error, /one object/);
+  const durationResponse = await openApi("/open/sync-events", {
+    method: "POST",
+    body: { ...payload, event_id: "bad-duration", duration_ms: -1 },
+  });
+  assert.equal(durationResponse.statusCode, 400);
+  assert.match(durationResponse.body.error, /duration_ms/);
+  const retryResponse = await openApi("/open/sync-events", {
+    method: "POST",
+    body: { ...payload, event_id: "bad-retry", retry_count: 101 },
+  });
+  assert.equal(retryResponse.statusCode, 400);
+  assert.match(retryResponse.body.error, /retry_count/);
+});
+
+test("an invalid WorkBuddy token cannot create a result log", async () => {
+  const eventId = "event-unauthorized-1";
+  const response = await api("/open/sync-events", {
+    method: "POST",
+    headers: { authorization: "Bearer wrong-token" },
+    body: {
+      event_id: eventId,
+      task_id: validTaskId,
+      action: "create",
+      result: "success",
+      occurred_at: Date.now(),
+    },
+  });
+  assert.equal(response.statusCode, 401);
+
+  const logs = await api("/admin/workbuddy/logs?limit=100", { headers: adminHeaders });
+  assert.equal(logs.body.events.some((row) => row.externalEventId === eventId), false);
+});
+
 test("event ingestion rejects invalid actions and timestamps outside 24 hours", async () => {
   const invalidAction = await openApi("/open/sync-events", {
     method: "POST",
