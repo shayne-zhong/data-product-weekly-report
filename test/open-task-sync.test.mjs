@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  nextOpenTaskTimestamp,
-  projectOpenTask,
-  reconcileOpenTasks,
-} from "../lib/open-task-sync.mjs";
+import { nextOpenTaskTimestamp, projectOpenTask, reconcileOpenTasks } from "../lib/open-task-sync.mjs";
 
 function fixtureState() {
   return {

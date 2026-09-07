@@ -3,12 +3,12 @@
 ## 产品流程
 
 1. 管理员访问 `/admin`，选择 DeepSeek 或 Kimi、填写模型并启用 AI 周报提炼。
-2. API Key 通过 Netlify 环境变量配置，不在浏览器、后台配置数据或周报数据中保存。
+2. API Key 通过 Node 或 Vercel 环境变量配置，不在浏览器、后台配置数据或周报数据中保存。
 3. 已登录用户在周报管理页点击“AI提炼周报”。
 4. 系统把当前固定模板文本提交给服务端，由服务端调用模型。
 5. AI 结果仅作为候选文本展示，用户复核后手动复制；不会覆盖原周报或自动归档。
 
-## Netlify 环境变量
+## 服务端环境变量
 
 - DeepSeek：`DEEPSEEK_API_KEY`
 - Kimi：`MOONSHOT_API_KEY`，也兼容 `KIMI_API_KEY`

@@ -20,10 +20,21 @@ function mockRes() {
     statusCode: 200,
     headers: {},
     body: null,
-    setHeader(key, value) { this.headers[key] = value; },
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
-    end(body) { this.body = body; return this; },
+    setHeader(key, value) {
+      this.headers[key] = value;
+    },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+    end(body) {
+      this.body = body;
+      return this;
+    },
   };
 }
 
@@ -43,7 +54,9 @@ async function jsonApi(route, { method = "GET", body, authToken = token, headers
 
 async function multipartApi(route, { filename, mimeType, content, authToken = token }) {
   const boundary = `artifact-${randomUUID()}`;
-  const prefix = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`);
+  const prefix = Buffer.from(
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`,
+  );
   const suffix = Buffer.from(`\r\n--${boundary}--\r\n`);
   const req = Readable.from(Buffer.concat([prefix, content, suffix]));
   req.method = "POST";
@@ -60,21 +73,41 @@ async function multipartApi(route, { filename, mimeType, content, authToken = to
 test.before(async () => {
   const settings = await jsonApi("/settings", { authToken: "" });
   const username = `artifact${randomUUID().replaceAll("-", "").slice(0, 10)}`;
-  const adminLogin = await jsonApi("/admin/login", { method: "POST", authToken: "", body: { username: "Admin", password: "888888" } });
+  const adminLogin = await jsonApi("/admin/login", {
+    method: "POST",
+    authToken: "",
+    body: { username: "Admin", password: "888888" },
+  });
   const saved = await jsonApi("/admin/settings", {
     method: "POST",
     authToken: "",
     headers: { authorization: `Bearer ${adminLogin.body.token}` },
     body: {
       departments: settings.body.settings.departments,
-      accounts: [...settings.body.settings.accounts, { name: "张三", username, departmentId: settings.body.settings.departments[0].id }],
+      accounts: [
+        ...settings.body.settings.accounts,
+        { name: "张三", username, departmentId: settings.body.settings.departments[0].id },
+      ],
       sessionDurationMinutes: settings.body.settings.sessionDurationMinutes,
       ai: settings.body.settings.ai,
     },
   });
   assert.equal(saved.statusCode, 200);
-  assert.equal((await jsonApi("/auth/register", { method: "POST", authToken: "", body: { username, password: "12345678", displayName: "张三" } })).statusCode, 201);
-  const login = await jsonApi("/auth/login", { method: "POST", authToken: "", body: { username, password: "12345678" } });
+  assert.equal(
+    (
+      await jsonApi("/auth/register", {
+        method: "POST",
+        authToken: "",
+        body: { username, password: "12345678", displayName: "张三" },
+      })
+    ).statusCode,
+    201,
+  );
+  const login = await jsonApi("/auth/login", {
+    method: "POST",
+    authToken: "",
+    body: { username, password: "12345678" },
+  });
   token = login.body.token;
 });
 

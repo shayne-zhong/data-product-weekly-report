@@ -30,7 +30,10 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {} } = {}) {
+async function api(
+  path,
+  { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {} } = {},
+) {
   const resolvedAdminToken = adminToken || (admin ? await adminSessionToken() : "");
   const resolvedPath = admin && path === "/settings" ? "/admin/settings" : path;
   const req = {
@@ -97,7 +100,7 @@ async function setupLeader(prefix, { password = "12345678" } = {}) {
   const afterRegister = await api("/settings", { admin: true });
   const withLeader = await saveSettings({
     departments: afterRegister.body.settings.departments.map((item) =>
-      item.id === departmentId ? { ...item, leaderUsername: username } : item
+      item.id === departmentId ? { ...item, leaderUsername: username } : item,
     ),
     accounts: afterRegister.body.settings.accounts,
     sessionDurationMinutes: afterRegister.body.settings.sessionDurationMinutes,
@@ -112,17 +115,14 @@ test("assigning a leader to a department round-trips through settings", async ()
   const departmentId = current.body.settings.departments[0].id;
   const saved = await saveSettings({
     departments: current.body.settings.departments,
-    accounts: [
-      ...current.body.settings.accounts,
-      { name: "候选负责人", username: leaderUsername, departmentId },
-    ],
+    accounts: [...current.body.settings.accounts, { name: "候选负责人", username: leaderUsername, departmentId }],
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
   assert.equal(saved.statusCode, 200);
 
   const withLeader = await saveSettings({
     departments: current.body.settings.departments.map((department) =>
-      department.id === departmentId ? { ...department, leaderUsername } : department
+      department.id === departmentId ? { ...department, leaderUsername } : department,
     ),
     accounts: saved.body.settings.accounts,
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
@@ -152,7 +152,7 @@ test("a leaderUsername that doesn't belong to the department is silently cleared
 
   const attempted = await saveSettings({
     departments: departments.map((department) =>
-      department.id === "data-product" ? { ...department, leaderUsername: outsiderUsername } : department
+      department.id === "data-product" ? { ...department, leaderUsername: outsiderUsername } : department,
     ),
     accounts: withOutsider.body.settings.accounts,
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
@@ -168,15 +168,12 @@ test("re-saving settings without touching leaderUsername does not restamp leader
   const departmentId = current.body.settings.departments[0].id;
   const withAccount = await saveSettings({
     departments: current.body.settings.departments,
-    accounts: [
-      ...current.body.settings.accounts,
-      { name: "稳定负责人", username: leaderUsername, departmentId },
-    ],
+    accounts: [...current.body.settings.accounts, { name: "稳定负责人", username: leaderUsername, departmentId }],
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
   const withLeader = await saveSettings({
     departments: current.body.settings.departments.map((department) =>
-      department.id === departmentId ? { ...department, leaderUsername } : department
+      department.id === departmentId ? { ...department, leaderUsername } : department,
     ),
     accounts: withAccount.body.settings.accounts,
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
@@ -198,10 +195,7 @@ test("disabling an account invalidates its session and blocks future login", asy
   const departmentId = current.body.settings.departments[0].id;
   await saveSettings({
     departments: current.body.settings.departments,
-    accounts: [
-      ...current.body.settings.accounts,
-      { name: "待停用账号", username, departmentId },
-    ],
+    accounts: [...current.body.settings.accounts, { name: "待停用账号", username, departmentId }],
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
   const registered = await api("/auth/register", {
@@ -219,7 +213,7 @@ test("disabling an account invalidates its session and blocks future login", asy
   const disabled = await saveSettings({
     departments: withAccounts.body.settings.departments,
     accounts: withAccounts.body.settings.accounts.map((account) =>
-      account.username === username ? { ...account, enabled: false } : account
+      account.username === username ? { ...account, enabled: false } : account,
     ),
     sessionDurationMinutes: withAccounts.body.settings.sessionDurationMinutes,
   });
@@ -266,7 +260,10 @@ test("a registered member who is not a leader cannot log in through /admin/login
   const current = await api("/settings", { admin: true });
   await saveSettings({
     departments: current.body.settings.departments,
-    accounts: [...current.body.settings.accounts, { name: "普通成员", username, departmentId: current.body.settings.departments[0].id }],
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "普通成员", username, departmentId: current.body.settings.departments[0].id },
+    ],
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
   const registered = await api("/auth/register", { method: "POST", body: { username, password: "12345678" } });
@@ -342,10 +339,16 @@ test("a leader can view, reset passwords for, and toggle their own department's 
   const current = await api("/settings", { admin: true });
   await saveSettings({
     departments: current.body.settings.departments,
-    accounts: [...current.body.settings.accounts, { name: "普通成员", username: memberUsername, departmentId: leader.departmentId }],
+    accounts: [
+      ...current.body.settings.accounts,
+      { name: "普通成员", username: memberUsername, departmentId: leader.departmentId },
+    ],
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
-  const registered = await api("/auth/register", { method: "POST", body: { username: memberUsername, password: "12345678" } });
+  const registered = await api("/auth/register", {
+    method: "POST",
+    body: { username: memberUsername, password: "12345678" },
+  });
   assert.equal(registered.statusCode, 201);
 
   const list = await api("/admin/leader/accounts", { adminToken: token, includeSyncKey: false });
@@ -353,7 +356,10 @@ test("a leader can view, reset passwords for, and toggle their own department's 
   assert.ok(list.body.accounts.some((account) => account.username === memberUsername));
   assert.ok(list.body.accounts.every((account) => account.departmentId === leader.departmentId));
 
-  const memberLogin = await api("/auth/login", { method: "POST", body: { username: memberUsername, password: "12345678" } });
+  const memberLogin = await api("/auth/login", {
+    method: "POST",
+    body: { username: memberUsername, password: "12345678" },
+  });
   assert.equal(memberLogin.statusCode, 200);
 
   const disabled = await api(`/admin/leader/accounts/${memberUsername}/enabled`, {
@@ -381,7 +387,10 @@ test("a leader can view, reset passwords for, and toggle their own department's 
     body: { password: "new-password-1" },
   });
   assert.equal(reset.statusCode, 200);
-  const loginWithNewPassword = await api("/auth/login", { method: "POST", body: { username: memberUsername, password: "new-password-1" } });
+  const loginWithNewPassword = await api("/auth/login", {
+    method: "POST",
+    body: { username: memberUsername, password: "new-password-1" },
+  });
   assert.equal(loginWithNewPassword.statusCode, 200);
 });
 
@@ -463,7 +472,7 @@ test("unassigning a leader immediately invalidates their still-live token", asyn
   const current = await api("/settings", { admin: true });
   await saveSettings({
     departments: current.body.settings.departments.map((department) =>
-      department.id === leader.departmentId ? { ...department, leaderUsername: "" } : department
+      department.id === leader.departmentId ? { ...department, leaderUsername: "" } : department,
     ),
     accounts: current.body.settings.accounts,
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
@@ -480,7 +489,7 @@ test("disabling the leader's department immediately invalidates their still-live
   const current = await api("/settings", { admin: true });
   await saveSettings({
     departments: current.body.settings.departments.map((department) =>
-      department.id === leader.departmentId ? { ...department, enabled: false } : department
+      department.id === leader.departmentId ? { ...department, enabled: false } : department,
     ),
     accounts: current.body.settings.accounts,
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
@@ -502,16 +511,19 @@ test("reassigning the same username's leadership to a different department inval
   const newDepartment = { id: newDepartmentId, name: "重新分配部门", enabled: true, modules: ["新项目"] };
   const moved = await saveSettings({
     departments: [...current.body.settings.departments, newDepartment].map((department) =>
-      department.id === newDepartmentId ? { ...department, leaderUsername: leader.username } : department
+      department.id === newDepartmentId ? { ...department, leaderUsername: leader.username } : department,
     ),
     accounts: current.body.settings.accounts.map((account) =>
-      account.username === leader.username ? { ...account, departmentId: newDepartmentId } : account
+      account.username === leader.username ? { ...account, departmentId: newDepartmentId } : account,
     ),
     sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
   });
   assert.equal(moved.statusCode, 200);
   assert.equal(moved.body.settings.departments.find((item) => item.id === leader.departmentId).leaderUsername, "");
-  assert.equal(moved.body.settings.departments.find((item) => item.id === newDepartmentId).leaderUsername, leader.username);
+  assert.equal(
+    moved.body.settings.departments.find((item) => item.id === newDepartmentId).leaderUsername,
+    leader.username,
+  );
 
   const staleCheck = await api("/admin/leader/accounts", { adminToken: token, includeSyncKey: false });
   assert.equal(staleCheck.statusCode, 401);

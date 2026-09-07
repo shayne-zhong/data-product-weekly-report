@@ -39,7 +39,10 @@ function signPayloadForTest(payload) {
 }
 
 test("a legacy token minted before the role claim existed still decodes as admin", async () => {
-  const legacyPayload = Buffer.from(JSON.stringify({ username: "admin", issuedAt: 1_000, expiresAt: 61_000 }), "utf8").toString("base64url");
+  const legacyPayload = Buffer.from(
+    JSON.stringify({ username: "admin", issuedAt: 1_000, expiresAt: 61_000 }),
+    "utf8",
+  ).toString("base64url");
   const legacyToken = `${legacyPayload}.${signPayloadForTest(legacyPayload)}`;
 
   const decoded = await verifyAdminToken(legacyToken, { now: 2_000, env });

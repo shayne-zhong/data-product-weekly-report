@@ -3,16 +3,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: [
-      "node_modules/**",
-      "build/**",
-      "coverage/**",
-      "state/**",
-      "docs/**",
-      "public/**",
-      ".netlify/**",
-      ".vercel/**",
-    ],
+    ignores: ["node_modules/**", "build/**", "coverage/**", "state/**", "docs/**", "public/**", ".vercel/**"],
   },
   js.configs.recommended,
   {

@@ -67,10 +67,7 @@ test.before(async () => {
         ...current.body.settings.departments,
         { id: "other", name: "其他部门", enabled: true, modules: ["其他模块"] },
       ],
-      accounts: [
-        ...current.body.settings.accounts,
-        { name: "其他员工", username: "otheruser", departmentId: "other" },
-      ],
+      accounts: [...current.body.settings.accounts, { name: "其他员工", username: "otheruser", departmentId: "other" }],
     },
   });
   assert.equal(saved.statusCode, 200);
@@ -156,8 +153,14 @@ test.before(async () => {
 test("incremental query requires bearer authentication and a nonnegative integer", async () => {
   assert.equal((await api("/open/tasks?updated_since=0", { user: false })).statusCode, 401);
   assert.equal((await api("/open/tasks", { user: false, bearer: "workbuddy-open-secret" })).statusCode, 400);
-  assert.equal((await api("/open/tasks?updated_since=-1", { user: false, bearer: "workbuddy-open-secret" })).statusCode, 400);
-  assert.equal((await api("/open/tasks?updated_since=1.5", { user: false, bearer: "workbuddy-open-secret" })).statusCode, 400);
+  assert.equal(
+    (await api("/open/tasks?updated_since=-1", { user: false, bearer: "workbuddy-open-secret" })).statusCode,
+    400,
+  );
+  assert.equal(
+    (await api("/open/tasks?updated_since=1.5", { user: false, bearer: "workbuddy-open-secret" })).statusCode,
+    400,
+  );
 });
 
 test("incremental query returns the exact contract ordered by updated_at", async () => {
@@ -204,7 +207,10 @@ test("a website task edit appears after the saved incremental checkpoint", async
     bearer: "workbuddy-open-secret",
   });
   assert.equal(after.statusCode, 200);
-  assert.deepEqual(after.body.tasks.map((task) => task.task_id), [validTaskId]);
+  assert.deepEqual(
+    after.body.tasks.map((task) => task.task_id),
+    [validTaskId],
+  );
   assert.equal(after.body.tasks[0].title, "准备经营月报 V2");
 });
 
@@ -223,7 +229,10 @@ test("configured directory mapping is applied once and hidden from ordinary acco
     });
     const assigned = response.body.tasks.filter((task) => [validTaskId, invalidTaskId].includes(task.task_id));
     assert.equal(assigned.length, 2);
-    assert.equal(assigned.every((task) => task.assignee_userid === "wx-zhongnanhai"), true);
+    assert.equal(
+      assigned.every((task) => task.assignee_userid === "wx-zhongnanhai"),
+      true,
+    );
 
     const accounts = await api("/accounts");
     assert.equal(accounts.statusCode, 200);
@@ -259,7 +268,10 @@ test("completion writeback succeeds once and terminal retry returns 409 without 
     user: false,
     bearer: "workbuddy-open-secret",
   });
-  assert.equal(noRestamp.body.tasks.some((task) => task.task_id === validTaskId), false);
+  assert.equal(
+    noRestamp.body.tasks.some((task) => task.task_id === validTaskId),
+    false,
+  );
 });
 
 test("completion writeback preserves domain rules and rejects unsupported statuses", async () => {

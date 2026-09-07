@@ -33,7 +33,10 @@ function mockRes() {
   };
 }
 
-async function api(path, { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {} } = {}) {
+async function api(
+  path,
+  { method = "GET", body, token = "", admin = false, adminToken = "", includeSyncKey = true, headers = {} } = {},
+) {
   const resolvedAdminToken = adminToken || (admin ? await adminSessionToken() : "");
   const resolvedPath = admin && path === "/settings" ? "/admin/settings" : path;
   const req = {
@@ -110,7 +113,13 @@ test("admin settings encrypt, mask, test, and clear AI API keys", async () => {
   assert.equal((await readFile(defaultLocalStatePath(), "utf8")).includes(apiKey), false);
 
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => ({ ok: false, status: 401, async json() { return { error: { message: "invalid key" } }; } });
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 401,
+    async json() {
+      return { error: { message: "invalid key" } };
+    },
+  });
   try {
     const tested = await api("/admin/ai/test", {
       method: "POST",
@@ -192,10 +201,7 @@ test("admin resets a member password and invalidates existing sessions", async (
     admin: true,
     includeSyncKey: false,
   });
-  assert.equal(
-    adminSettings.body.settings.accounts.find((account) => account.username === username)?.registered,
-    true,
-  );
+  assert.equal(adminSettings.body.settings.accounts.find((account) => account.username === username)?.registered, true);
   const oldLogin = await api("/auth/login", {
     method: "POST",
     includeSyncKey: false,
@@ -311,11 +317,15 @@ test("admin settings require existing departments to be disabled instead of remo
   });
   assert.equal(saved.statusCode, 200);
 
-  const removed = await api("/settings", { method: "POST", admin: true, body: {
-    departments: withExtra.filter((department) => department.id !== extraDepartment.id),
-    accounts: current.body.settings.accounts,
-    sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
-  } });
+  const removed = await api("/settings", {
+    method: "POST",
+    admin: true,
+    body: {
+      departments: withExtra.filter((department) => department.id !== extraDepartment.id),
+      accounts: current.body.settings.accounts,
+      sessionDurationMinutes: current.body.settings.sessionDurationMinutes,
+    },
+  });
 
   assert.equal(removed.statusCode, 400);
   assert.match(removed.body.error, /停用|删除/);
@@ -521,8 +531,14 @@ test("departments cannot read or update each other's workbench data", async () =
   assert.equal(financeUser.statusCode, 200);
 
   const financeSettings = await api("/settings", { token: financeUser.body.token });
-  assert.deepEqual(financeSettings.body.settings.departments.map((department) => department.id), ["finance"]);
-  assert.deepEqual(financeSettings.body.settings.accounts.map((account) => account.username), [financeUsername]);
+  assert.deepEqual(
+    financeSettings.body.settings.departments.map((department) => department.id),
+    ["finance"],
+  );
+  assert.deepEqual(
+    financeSettings.body.settings.accounts.map((account) => account.username),
+    [financeUsername],
+  );
 
   const suffix = randomUUID().replaceAll("-", "").slice(0, 8);
   const startDate = `2097-01-${suffix}`;
@@ -541,7 +557,10 @@ test("departments cannot read or update each other's workbench data", async () =
   assert.equal(dataTask.statusCode, 201);
 
   const financeWeeksBefore = await api("/weeks", { token: financeUser.body.token });
-  assert.equal(financeWeeksBefore.body.weeks.some((week) => week.id === dataWeek.body.week.id), false);
+  assert.equal(
+    financeWeeksBefore.body.weeks.some((week) => week.id === dataWeek.body.week.id),
+    false,
+  );
 
   const financeWeek = await api("/weeks", {
     method: "POST",

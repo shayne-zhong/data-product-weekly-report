@@ -14,8 +14,14 @@ function mockRes() {
     statusCode: 200,
     body: null,
     setHeader() {},
-    status(code) { this.statusCode = code; return this; },
-    json(body) { this.body = body; return this; },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
   };
 }
 
@@ -57,9 +63,11 @@ test("task lists respect ordinary, module-leader, and department-leader scopes",
   const moduleLeader = { username: username("moduleleader"), name: "权限模块负责人" };
   const departmentLeader = { username: username("departmentleader"), name: "权限部门负责人" };
   const colleague = { username: username("colleague"), name: "权限同事" };
-  const updatedDepartments = settings.departments.map((item) => item.id === department.id
-    ? { ...item, modules: [moduleA, moduleB], leaderUsername: departmentLeader.username }
-    : item);
+  const updatedDepartments = settings.departments.map((item) =>
+    item.id === department.id
+      ? { ...item, modules: [moduleA, moduleB], leaderUsername: departmentLeader.username }
+      : item,
+  );
   const saved = await api("/admin/settings", {
     method: "PATCH",
     adminToken,
@@ -108,10 +116,15 @@ test("task lists respect ordinary, module-leader, and department-leader scopes",
 
   const ordinaryToken = await login(ordinary.username);
   const ordinaryTasks = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, { token: ordinaryToken });
-  const moduleTasks = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, { token: await login(moduleLeader.username) });
+  const moduleTasks = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
+    token: await login(moduleLeader.username),
+  });
   const departmentTasks = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, { token: departmentToken });
 
-  assert.deepEqual(ordinaryTasks.body.tasks.map((task) => task.title), ["普通用户任务"]);
+  assert.deepEqual(
+    ordinaryTasks.body.tasks.map((task) => task.title),
+    ["普通用户任务"],
+  );
   assert.deepEqual(
     moduleTasks.body.tasks.map((task) => task.title).sort(),
     ["模块负责人个人任务", "模块同事任务", "普通用户任务"].sort(),
@@ -140,12 +153,11 @@ test("a department leader can assign a member as a module leader for multiple mo
     method: "PATCH",
     adminToken,
     body: {
-      departments: [...settings.departments, { id: departmentId, name: "范围权限测试部门", enabled: true, modules, leaderUsername: leader.username }],
-      accounts: [
-        ...settings.accounts,
-        { ...leader, departmentId },
-        { ...member, departmentId },
+      departments: [
+        ...settings.departments,
+        { id: departmentId, name: "范围权限测试部门", enabled: true, modules, leaderUsername: leader.username },
       ],
+      accounts: [...settings.accounts, { ...leader, departmentId }, { ...member, departmentId }],
       sessionDurationMinutes: settings.sessionDurationMinutes,
       ai: settings.ai,
     },
@@ -190,13 +202,16 @@ test("global admin rejects a module leader without responsible modules", async (
     adminToken,
     body: {
       departments: settings.departments,
-      accounts: [...settings.accounts, {
-        username: username("invalidmoduleleader"),
-        name: "无范围模块负责人",
-        departmentId: settings.departments[0].id,
-        role: "module_leader",
-        managedModules: [],
-      }],
+      accounts: [
+        ...settings.accounts,
+        {
+          username: username("invalidmoduleleader"),
+          name: "无范围模块负责人",
+          departmentId: settings.departments[0].id,
+          role: "module_leader",
+          managedModules: [],
+        },
+      ],
       sessionDurationMinutes: settings.sessionDurationMinutes,
       ai: settings.ai,
     },

@@ -49,20 +49,20 @@ async function api(path, { method = "GET", body, headers = {} } = {}) {
 }
 
 function oauthState(returnTo = "/") {
-  return issueOAuthState(
-    { returnTo },
-    { secret: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN, now: Date.now() },
-  );
+  return issueOAuthState({ returnTo }, { secret: process.env.WORKBUDDY_OAUTH_RESOLVER_TOKEN, now: Date.now() });
 }
 
 function resolverResponse(overrides = {}) {
-  return new Response(JSON.stringify({
-    wecom_userid: "wx-zhongnanhai",
-    username: "zhongnanhai",
-    corp_id: "corp-data-product",
-    department_id: "data-product",
-    ...overrides,
-  }), { status: 200, headers: { "content-type": "application/json" } });
+  return new Response(
+    JSON.stringify({
+      wecom_userid: "wx-zhongnanhai",
+      username: "zhongnanhai",
+      corp_id: "corp-data-product",
+      department_id: "data-product",
+      ...overrides,
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
 }
 
 let taskId = "";

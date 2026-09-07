@@ -29,8 +29,20 @@ test("report archive schedule defaults to 20:00 Asia/Shanghai", () => {
 test("archives due reports at their configured Beijing time and is idempotent", () => {
   const state = {
     reports: {
-      weekly: { id: "weekly", departmentId: "d1", summaryType: "weekly", status: "editing", data: { endDate: "2026/08/23" } },
-      monthly: { id: "monthly", departmentId: "d1", summaryType: "monthly", status: "draft", data: { endDate: "2026/08/31" } },
+      weekly: {
+        id: "weekly",
+        departmentId: "d1",
+        summaryType: "weekly",
+        status: "editing",
+        data: { endDate: "2026/08/23" },
+      },
+      monthly: {
+        id: "monthly",
+        departmentId: "d1",
+        summaryType: "monthly",
+        status: "draft",
+        data: { endDate: "2026/08/31" },
+      },
     },
     settings: { reportArchive: defaultReportArchiveSchedule() },
   };
@@ -47,8 +59,20 @@ test("archives due reports at their configured Beijing time and is idempotent", 
 test("late execution compensates after month and quarter end without creating reports", () => {
   const state = {
     reports: {
-      month: { id: "month", departmentId: "d1", summaryType: "monthly", status: "draft", data: { endDate: "2026-06-30" } },
-      quarter: { id: "quarter", departmentId: "d1", summaryType: "quarterly", status: "editing", data: { endDate: "2026-06-30" } },
+      month: {
+        id: "month",
+        departmentId: "d1",
+        summaryType: "monthly",
+        status: "draft",
+        data: { endDate: "2026-06-30" },
+      },
+      quarter: {
+        id: "quarter",
+        departmentId: "d1",
+        summaryType: "quarterly",
+        status: "editing",
+        data: { endDate: "2026-06-30" },
+      },
     },
     settings: { reportArchive: { monthlyTime: "21:00", quarterlyTime: "20:00" } },
   };
