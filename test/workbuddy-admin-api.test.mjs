@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import test from "node:test";
 
 import { defaultLocalStatePath } from "../lib/state-store.mjs";
+import { weeklyRolloverWindow } from "../lib/weekly-rollover.mjs";
 
 process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
@@ -63,6 +64,7 @@ let activeOpenToken = process.env.WORKBUDDY_OPEN_API_TOKEN;
 let handler;
 
 test.before(async () => {
+  const currentWindow = weeklyRolloverWindow(Date.now());
   await rm(defaultLocalStatePath(), { force: true });
   ({ default: handler } = await import(`../api/[...path].mjs?admin-test=${Date.now()}`));
   const adminLogin = await api("/admin/login", {
@@ -100,7 +102,7 @@ test.before(async () => {
   const week = await api("/weeks", {
     method: "POST",
     headers: userHeaders,
-    body: { startDate: "2095-01-03", endDate: "2095-01-09" },
+    body: { startDate: currentWindow.targetStartDate, endDate: currentWindow.targetEndDate },
   });
   const task = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
     method: "POST",

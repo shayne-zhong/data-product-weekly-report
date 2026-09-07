@@ -33,7 +33,8 @@ Authorization: Bearer <WORKBUDDY_OPEN_API_TOKEN>
 
 - `updated_since` 必填，首次同步传 `0`。
 - 参数和返回值均为非负 Unix 秒整数。
-- 仅返回 `updated_at > updated_since` 的数据产品部当前任务。
+- 仅返回数据产品部、属于北京时间当前周（周一至周日）且 `updated_at > updated_since` 的任务；当前周口径与网站周任务自动结转一致。
+- 本周所有状态均可返回；上周、下周任务不会返回。周切换后，旧企微待办的关闭或清理由 WorkBuddy 负责。
 - 返回结果按 `updated_at` 升序排列，且 `updated_at` 严格递增。
 - 本期无分页、游标和删除记录。
 

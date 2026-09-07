@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import handler from "../api/[...path].mjs";
+import { weeklyRolloverWindow } from "../lib/weekly-rollover.mjs";
 import { issueOAuthState } from "../lib/workbuddy-auth.mjs";
 
 process.env.ADMIN_USERNAME = "Admin";
@@ -69,6 +70,7 @@ let taskId = "";
 let adminHeaders;
 
 test.before(async () => {
+  const currentWindow = weeklyRolloverWindow(Date.now());
   const adminLogin = await api("/admin/login", {
     method: "POST",
     body: { username: "Admin", password: "888888" },
@@ -87,7 +89,7 @@ test.before(async () => {
   const week = await api("/weeks", {
     method: "POST",
     headers: { "x-user-token": login.body.token },
-    body: { startDate: "2096-01-08", endDate: "2096-01-14" },
+    body: { startDate: currentWindow.targetStartDate, endDate: currentWindow.targetEndDate },
   });
   const task = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
     method: "POST",

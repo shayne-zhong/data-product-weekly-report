@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import test from "node:test";
 
 import { defaultLocalStatePath } from "../lib/state-store.mjs";
+import { weeklyRolloverWindow } from "../lib/weekly-rollover.mjs";
 
 process.env.ADMIN_USERNAME = "Admin";
 process.env.ADMIN_PASSWORD = "888888";
@@ -60,6 +61,7 @@ function openApi(path, options = {}) {
 }
 
 test.before(async () => {
+  const currentWindow = weeklyRolloverWindow(Date.now());
   await rm(defaultLocalStatePath(), { force: true });
   ({ default: handler } = await import(`../api/[...path].mjs?events-test=${Date.now()}`));
 
@@ -81,7 +83,7 @@ test.before(async () => {
   const week = await api("/weeks", {
     method: "POST",
     headers: userHeaders,
-    body: { startDate: "2094-01-02", endDate: "2094-01-08" },
+    body: { startDate: currentWindow.targetStartDate, endDate: currentWindow.targetEndDate },
   });
   const valid = await api(`/week/${encodeURIComponent(week.body.week.id)}/tasks`, {
     method: "POST",
