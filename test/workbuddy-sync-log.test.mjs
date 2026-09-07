@@ -119,6 +119,39 @@ test("queries can limit rows by an absolute start timestamp", () => {
   assert.deepEqual(result.events.map((event) => event.id), ["new"]);
 });
 
+test("production events preserve optional metrics and sanitize operator messages", () => {
+  const state = {};
+  const now = 2_000;
+  const appended = appendSyncEvent(state, {
+    externalEventId: "event-production-1",
+    source: "workbuddy",
+    action: "create",
+    result: "failure",
+    taskId: "task-1",
+    wecomTodoId: "todo-1",
+    durationMs: 320,
+    operatorUserId: "zhangsan",
+    attempt: 2,
+    message: "token=secret\nfailed",
+    occurredAt: now,
+  }, { now, idFactory: () => "sync-production-1" });
+
+  assert.equal(appended.event.durationMs, 320);
+  assert.equal(appended.event.operatorUserId, "zhangsan");
+  assert.equal(appended.event.attempt, 2);
+  assert.doesNotMatch(appended.event.message, /secret|\n/);
+  assert.deepEqual(
+    querySyncEvents(state, { keyword: "ZHANGSAN", now }).events.map((event) => event.id),
+    ["sync-production-1"],
+  );
+  assert.deepEqual(summarizeSyncEvents(state, { now }), {
+    success: 0,
+    failed: 1,
+    skipped: 0,
+    retrying: 0,
+  });
+});
+
 test("invalid event source, action, result, or timestamp is rejected", () => {
   const valid = {
     source: "website",
