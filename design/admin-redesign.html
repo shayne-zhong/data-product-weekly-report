@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>部门工作台 · 管理后台原型</title>
+  <style>
+    :root {
+      --brand-red: #E21413;
+      --brand-red-subtle: #FFF5F5;
+      --brand-blue: #3B82F6;
+      --text-primary: #303133;
+      --text-secondary: #606266;
+      --text-muted: #909399;
+      --canvas: #F5F6F8;
+      --workspace-canvas: #F5F7FA;
+      --surface: #FFFFFF;
+      --surface-subtle: #FAFAFA;
+      --border: #EBEEF5;
+      --border-strong: #DCDFE6;
+      --sidebar-hover: #F8F9FA;
+      --success: #16A34A;
+      --success-subtle: #F0FDF4;
+      --warning: #ED6C02;
+      --warning-subtle: #FFF4E5;
+      --processing: #4590E6;
+      --processing-subtle: #EAF3FF;
+      --error: #E21413;
+      --error-subtle: #FFF1F1;
+      --neutral: #666666;
+      --neutral-subtle: #F5F5F5;
+      --shadow-sm: 0 4px 12px rgba(48, 49, 51, 0.12);
+      --action-gradient: linear-gradient(148.66deg, #F96766 0%, #E21413 100%);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--text-primary); background: var(--workspace-canvas); font: 14px/1.43 "HarmonyOS Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--brand-red); outline-offset: 2px; }
+    .topbar { height: 64px; display: flex; align-items: stretch; gap: 24px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 216px; }
+    .brand-mark { width: 24px; height: 24px; color: var(--brand-red); }
+    .brand strong { display: block; font-size: 16px; line-height: 1.375; }
+    .brand span { display: block; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+    .primary-nav { display: flex; align-items: stretch; gap: 4px; }
+    .nav-group { position: relative; display: flex; }
+    .nav-group > button { position: relative; border: 0; padding: 0 16px; background: transparent; color: var(--text-secondary); font-weight: 600; }
+    .nav-group > button:hover, .nav-group > button[aria-expanded="true"] { color: var(--brand-red); background: var(--sidebar-hover); }
+    .nav-group > button.active { color: var(--brand-red); }
+    .nav-group > button.active::after { position: absolute; right: 16px; bottom: 0; left: 16px; height: 3px; background: var(--brand-red); content: ""; }
+    .subnav { position: absolute; top: 64px; left: 0; z-index: 10; display: none; width: 176px; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; box-shadow: var(--shadow-sm); }
+    .nav-group.open .subnav { display: grid; gap: 4px; }
+    .subnav button { min-height: 36px; border: 0; border-radius: 4px; padding: 8px 12px; background: transparent; color: var(--text-secondary); text-align: left; }
+    .subnav button:hover, .subnav button.active { background: var(--brand-red-subtle); color: var(--brand-red); }
+    .subnav button.dirty::after { display: inline-block; width: 8px; height: 8px; margin-left: 8px; border-radius: 999px; background: var(--warning); content: ""; }
+    .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .role-demo { height: 36px; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 12px; color: var(--text-secondary); background: var(--surface); }
+    .avatar { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 999px; background: var(--brand-red-subtle); color: var(--brand-red); font-weight: 600; }
+    .main { padding: 24px; }
+    .crumb { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; color: var(--text-muted); font-size: 13px; }
+    .crumb button { border: 0; padding: 0; color: var(--brand-blue); background: transparent; }
+    .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+    h1 { margin: 0 0 4px; font-size: 24px; line-height: 1.33; font-weight: 600; }
+    h2 { margin: 0; font-size: 20px; line-height: 1.4; font-weight: 600; }
+    h3 { margin: 0; font-size: 16px; line-height: 1.375; font-weight: 600; }
+    p { margin: 0; }
+    .page-head p, .section-head p, .helper { color: var(--text-secondary); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .button { min-height: 36px; border-radius: 4px; padding: 8px 16px; font-weight: 500; }
+    .button.primary { border: 0; background: var(--action-gradient); color: var(--surface); }
+    .button.secondary { border: 1px solid var(--brand-red); background: var(--surface); color: var(--brand-red); }
+    .button.tertiary { border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); }
+    .button.text { min-height: 36px; border: 0; padding: 8px; background: transparent; color: var(--brand-blue); }
+    .button.text-danger { min-height: 36px; border: 0; padding: 8px; background: transparent; color: var(--error); }
+    .page-container, .metric, .alert, .empty { border-radius: 8px; background: var(--surface); }
+    .page-container { padding: 24px; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .metric { min-height: 136px; padding: 24px; border: 1px solid var(--border); }
+    .metric .label { color: var(--text-secondary); font-weight: 500; }
+    .metric .value { margin: 12px 0 4px; font-size: 30px; line-height: 1.2; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .metric .note { color: var(--text-muted); font-size: 12px; }
+    .metric .status { color: var(--warning); }
+    .overview-grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr); gap: 16px; }
+    .section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    .list { display: grid; gap: 0; border-top: 1px solid var(--border); }
+    .todo-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 64px; border-bottom: 1px solid var(--border); }
+    .severity { width: 8px; height: 8px; border-radius: 999px; background: var(--warning); }
+    .todo-row strong, .status-line strong { display: block; font-weight: 500; }
+    .todo-row span, .status-line span { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
+    .tag { display: inline-flex; align-items: center; min-height: 24px; border-radius: 4px; padding: 4px 8px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .tag.warning { color: var(--warning); background: var(--warning-subtle); }
+    .tag.success { color: var(--success); background: var(--success-subtle); }
+    .tag.processing { color: var(--processing); background: var(--processing-subtle); }
+    .tag.neutral { color: var(--neutral); background: var(--neutral-subtle); }
+    .tag.error { color: var(--error); background: var(--error-subtle); }
+    .status-stack { display: grid; gap: 16px; }
+    .status-line { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 8px; }
+    .status-line .dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 999px; background: var(--success); }
+    .status-line .dot.warn { background: var(--warning); }
+    .filter-area { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 16px; align-items: end; margin-bottom: 24px; padding: 16px; background: var(--surface-subtle); border-radius: 4px; }
+    .field { display: grid; gap: 8px; }
+    .field label { color: var(--text-primary); font-weight: 500; }
+    .field input, .field select { width: 100%; height: 36px; border: 1px solid var(--border-strong); border-radius: 4px; padding: 0 12px; color: var(--text-primary); background: var(--surface); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+    .result-count { color: var(--text-secondary); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+    table { width: 100%; min-width: 1000px; border-collapse: collapse; }
+    thead { height: 44px; background: var(--surface-subtle); color: var(--text-secondary); font-weight: 500; }
+    th, td { height: 48px; padding: 0 12px; border-bottom: 1px solid var(--border); text-align: left; }
+    th { font-weight: 500; }
+    tbody tr:hover { background: var(--surface-subtle); }
+    .numeric { text-align: right; font-variant-numeric: tabular-nums; }
+    .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; color: var(--text-secondary); }
+    .two-column { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+    .form-section { padding: 24px 0; border-bottom: 1px solid var(--border); }
+    .form-section:first-child { padding-top: 0; }
+    .form-section:last-child { padding-bottom: 0; border-bottom: 0; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .notice { display: flex; gap: 12px; margin-top: 16px; padding: 16px; border-radius: 4px; color: var(--text-primary); background: var(--warning-subtle); }
+    .notice strong { color: var(--warning); }
+    .savebar { position: sticky; bottom: 16px; display: none; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding: 12px 16px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-sm); }
+    .savebar.show { display: flex; }
+    .savebar p { color: var(--text-secondary); }
+    .drawer-mask, .modal-mask { position: fixed; inset: 0; z-index: 20; display: none; background: var(--text-primary); }
+    .drawer-mask.open, .modal-mask.open { display: block; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 21; display: none; width: min(560px, 100%); padding: 24px; background: var(--surface); box-shadow: var(--shadow-sm); }
+    .drawer.open { display: block; }
+    .drawer-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+    .icon-button { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text-secondary); }
+    .drawer footer { position: absolute; right: 24px; bottom: 24px; left: 24px; display: flex; justify-content: flex-end; gap: 8px; }
+    .modal { position: fixed; top: 50%; left: 50%; z-index: 21; display: none; width: min(480px, calc(100% - 48px)); padding: 24px; border-radius: 8px; background: var(--surface); transform: translate(-50%, -50%); }
+    .modal.open { display: block; }
+    .modal h2 { margin-bottom: 12px; }
+    .modal p { color: var(--text-secondary); }
+    .modal footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+    .hidden { display: none !important; }
+    .toast { position: fixed; right: 24px; bottom: 24px; z-index: 30; display: none; padding: 12px 16px; border-radius: 4px; color: var(--success); background: var(--success-subtle); border: 1px solid var(--success); }
+    .toast.show { display: block; }
+    @media (max-width: 960px) { .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .overview-grid, .two-column { grid-template-columns: 1fr; } .filter-area { grid-template-columns: 1fr 1fr; } .topbar { gap: 8px; padding: 0 16px; } .brand { min-width: auto; } .brand span { display: none; } .primary-nav { overflow-x: auto; } .nav-group > button { padding: 0 12px; } }
+    @media (max-width: 640px) { .main { padding: 16px; } .topbar-actions .role-demo { display: none; } .dashboard-grid, .filter-area, .form-grid { grid-template-columns: 1fr; } .page-container { padding: 16px; } .page-head, .toolbar, .savebar { align-items: flex-start; flex-direction: column; } .savebar .actions { width: 100%; } .savebar .button { flex: 1; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" aria-label="部门工作台">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="13" y="4" width="7" height="10" rx="1.5" fill="currentColor" opacity=".82"/><rect x="4" y="12" width="7" height="8" rx="1.5" fill="currentColor" opacity=".68"/><path d="M15.5 17h4M15.5 20h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <div><strong>部门工作台</strong><span>管理后台</span></div>
+    </div>
+    <nav class="primary-nav" aria-label="后台导航">
+      <div class="nav-group" data-group="organization"><button type="button" aria-expanded="false">组织管理</button><div class="subnav" role="menu"><button type="button" role="menuitem" data-page="departments">部门管理</button><button type="button" role="menuitem" data-page="members">成员管理</button></div></div>
+      <div class="nav-group" data-group="rules"><button type="button" aria-expanded="false">规则配置</button><div class="subnav" role="menu"><button type="button" role="menuitem" data-page="login">保持登录</button><button type="button" role="menuitem" data-page="archive">归档设置</button></div></div>
+      <div class="nav-group" data-group="operations"><button type="button" aria-expanded="false">系统运维</button><div class="subnav" role="menu"><button type="button" role="menuitem" data-page="api-key">API 密钥</button><button type="button" role="menuitem" data-page="scheduled-tasks">定时任务</button></div></div>
+    </nav>
+    <div class="topbar-actions"><select class="role-demo" id="roleDemo" aria-label="原型角色视图"><option value="admin">演示角色：全局管理员</option><option value="leader">演示角色：部门负责人</option></select><div class="avatar" aria-label="王琳">王</div></div>
+  </header>
+
+  <main class="main">
+    <div class="crumb"><button type="button" id="homeLink">管理概览</button><span id="crumbGroup" class="hidden">/</span><span id="crumbPage" class="hidden"></span></div>
+    <section id="overviewPage" class="page">
+      <div class="page-head"><div><h1>管理概览</h1><p>优先处理影响组织配置、自动任务和归档结果的事项。</p></div><div class="actions"><select class="role-demo" aria-label="统计周期"><option>本周</option><option>本月</option><option>本季度</option></select><button class="button tertiary" type="button" id="refreshOverview">刷新数据</button></div></div>
+      <div class="dashboard-grid">
+        <article class="metric"><p class="label">待处理事项</p><p class="value">5</p><p class="note status">含 2 项需要管理员处理</p></article>
+        <article class="metric"><p class="label">本周任务完成率</p><p class="value">78%</p><p class="note">39 / 50 项已完成</p></article>
+        <article class="metric"><p class="label">待归档总结</p><p class="value">2</p><p class="note">均已到达归档时间</p></article>
+        <article class="metric"><p class="label">系统健康</p><p class="value">正常</p><p class="note">最后检查：今天 10:00</p></article>
+      </div>
+      <div class="overview-grid">
+        <section class="page-container"><div class="section-head"><div><h2>待处理事项</h2><p>按影响程度排序，点击可进入对应处理页面。</p></div><button class="button text" type="button" data-page="scheduled-tasks">查看运行中心</button></div><div class="list">
+          <div class="todo-row"><i class="severity" aria-hidden="true"></i><div><strong>周报自动归档上次执行失败</strong><span>报告自动归档 · 今天 08:00 · 请查看失败摘要后补跑</span></div><button class="button text" type="button" data-page="scheduled-tasks">处理</button></div>
+          <div class="todo-row"><i class="severity" aria-hidden="true"></i><div><strong>AI+X项目缺少模块负责人</strong><span>数据产品部 · 成员管理 · 影响任务分配范围</span></div><button class="button text" type="button" data-page="members">配置</button></div>
+          <div class="todo-row"><i class="severity" aria-hidden="true"></i><div><strong>2 条历史任务负责人无法唯一匹配</strong><span>数据产品部 · 任务权限可能无法正确收敛</span></div><button class="button text" type="button" data-page="members">查看</button></div>
+        </div></section>
+        <aside class="page-container"><div class="section-head"><div><h2>系统健康</h2><p>最近一次检查：今天 10:00</p></div></div><div class="status-stack">
+          <div class="status-line"><i class="dot" aria-hidden="true"></i><div><strong>后台服务</strong><span>连接正常</span></div></div>
+          <div class="status-line"><i class="dot" aria-hidden="true"></i><div><strong>周任务结转</strong><span>最近一次成功：今天 08:00</span></div></div>
+          <div class="status-line"><i class="dot warn" aria-hidden="true"></i><div><strong>报告自动归档</strong><span>最近一次失败：今天 08:00</span></div></div>
+        </div></aside>
+      </div>
+    </section>
+
+    <section id="departmentsPage" class="page hidden">
+      <div class="page-head"><div><h1>部门管理</h1><p>共 3 个部门。维护部门、负责人、启停状态与工作模块。</p></div><button class="button primary" type="button" id="createDepartment">新增部门</button></div>
+      <section class="page-container"><div class="filter-area"><div class="field"><label for="departmentKeyword">关键词</label><input id="departmentKeyword" placeholder="搜索部门或负责人" /></div><div class="field"><label for="departmentStatus">启用状态</label><select id="departmentStatus"><option>全部</option><option>启用</option><option>停用</option></select></div><div class="field"><label for="departmentOwner">负责人</label><select id="departmentOwner"><option>全部负责人</option><option>王琳</option><option>张哲</option></select></div><div class="actions"><button class="button primary" type="button">查询</button><button class="button tertiary" type="button">重置</button></div></div><div class="toolbar"><span class="result-count">共 3 条记录</span><button class="button secondary" type="button">导出配置</button></div><div class="table-wrap"><table><thead><tr><th>部门名称</th><th>部门负责人</th><th>工作模块</th><th>启用状态</th><th class="numeric">成员数</th><th>最后更新</th><th>操作</th></tr></thead><tbody><tr><td>数据产品部</td><td>王琳</td><td>AI+X项目、数据治理与经营分析</td><td><span class="tag success">启用</span></td><td class="numeric">18</td><td>今天 09:20</td><td><button class="button text" type="button" data-open-drawer="department">查看</button></td></tr><tr><td>财经共享中心</td><td>张哲</td><td>财经共享</td><td><span class="tag success">启用</span></td><td class="numeric">12</td><td>昨天 16:40</td><td><button class="button text" type="button" data-open-drawer="department">查看</button></td></tr><tr><td>智能应用部</td><td>—</td><td>AI应用项目</td><td><span class="tag warning">待配置</span></td><td class="numeric">6</td><td>2026-09-01</td><td><button class="button text" type="button" data-open-drawer="department">配置</button></td></tr></tbody></table></div><div class="table-footer"><span>每页 20 条 · 共 3 条</span><span>第 1 / 1 页</span></div></section>
+    </section>
+
+    <section id="membersPage" class="page hidden">
+      <div class="page-head"><div><h1>成员管理</h1><p>共 36 位成员。角色范围在服务端统一生效。</p></div><button class="button primary" type="button" id="createMember">新增成员</button></div>
+      <section class="page-container"><div class="filter-area"><div class="field"><label>关键词</label><input placeholder="搜索姓名或账号" /></div><div class="field"><label>部门</label><select><option>全部部门</option><option>数据产品部</option><option>财经共享中心</option></select></div><div class="field"><label>角色</label><select><option>全部角色</option><option>部门负责人</option><option>模块负责人</option><option>普通用户</option></select></div><div class="actions"><button class="button primary" type="button">查询</button><button class="button tertiary" type="button">重置</button></div></div><div class="toolbar"><span class="result-count">共 36 条记录</span><button class="button secondary" type="button">导出成员</button></div><div class="table-wrap"><table><thead><tr><th>成员</th><th>所属部门</th><th>角色</th><th>负责工作模块</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead><tbody><tr><td><strong>王琳</strong><br><span class="helper">wanglin</span></td><td>数据产品部</td><td><span class="tag processing">部门负责人</span></td><td>—</td><td><span class="tag success">启用</span></td><td>今天 09:18</td><td><button class="button text" type="button" data-open-drawer="member">查看</button></td></tr><tr><td><strong>陈卓</strong><br><span class="helper">chenzhuo</span></td><td>数据产品部</td><td><span class="tag neutral">模块负责人</span></td><td>AI+X项目</td><td><span class="tag success">启用</span></td><td>昨天 18:12</td><td><button class="button text" type="button" data-open-drawer="member">查看</button></td></tr><tr><td><strong>李雯</strong><br><span class="helper">liwen</span></td><td>数据产品部</td><td><span class="tag neutral">模块负责人</span></td><td><span class="tag warning">未配置</span></td><td><span class="tag success">启用</span></td><td>2026-09-01</td><td><button class="button text" type="button" data-open-drawer="member">处理</button></td></tr></tbody></table></div><div class="table-footer"><span>每页 20 条 · 共 36 条</span><span>第 1 / 2 页</span></div></section>
+    </section>
+
+    <section id="loginPage" class="page hidden"><div class="page-head"><div><h1>保持登录</h1><p>设置普通用户登录状态的保持时间；修改仅影响后续登录。</p></div></div><section class="page-container"><div class="form-section"><h2>会话策略</h2><div class="form-grid"><div class="field"><label for="sessionDays">保持登录时长（天）</label><input id="sessionDays" type="number" min="1" value="7" /></div><div class="field"><label for="sessionScope">适用对象</label><select id="sessionScope"><option>普通用户</option></select></div></div><div class="notice"><strong>说明</strong><span>管理员会话使用独立服务端策略，不能通过此页面调整。</span></div></div></section><div class="savebar" data-savebar="rules"><p><strong>当前页面有未保存修改</strong><br>切换页面前会保留草稿并在菜单中标记。</p><div class="actions"><button class="button tertiary" type="button" data-reset>撤销修改</button><button class="button primary" type="button" data-save>保存设置</button></div></div></section>
+
+    <section id="archivePage" class="page hidden"><div class="page-head"><div><h1>归档设置</h1><p>到点后归档对应周期已有的最后保存版本，不提前生成或归档内容。</p></div></div><section class="page-container"><div class="form-section"><h2>周期归档时间</h2><div class="form-grid"><div class="field"><label>周报归档时间（北京时间）</label><select class="dirty-input"><option>每周日 20:00</option></select></div><div class="field"><label>月报归档时间（北京时间）</label><select class="dirty-input"><option>每月最后一天 20:00</option></select></div><div class="field"><label>季报归档时间（北京时间）</label><select class="dirty-input"><option>每季度最后一天 20:00</option></select></div><div class="field"><label>执行方式</label><input value="Node 服务启动补偿 + 白天整点检查" readonly /></div></div><div class="notice"><strong>边界</strong><span>人工补跑与自动归档共用到期判断；已归档内容不会重复处理。</span></div></div></section><div class="savebar" data-savebar="rules"><p><strong>当前页面有未保存修改</strong><br>保存后仅更新配置，不会立即归档任何总结。</p><div class="actions"><button class="button tertiary" type="button" data-reset>撤销修改</button><button class="button primary" type="button" data-save>保存设置</button></div></div></section>
+
+    <section id="api-keyPage" class="page hidden"><div class="page-head"><div><h1>API 密钥</h1><p>配置 AI 供应商、模型与密钥。完整密钥不会再次显示。</p></div></div><section class="page-container"><div class="form-section"><h2>AI 服务配置</h2><div class="form-grid"><div class="field"><label>供应商</label><select class="dirty-input"><option>DeepSeek</option><option>Kimi</option></select></div><div class="field"><label>模型</label><input class="dirty-input" value="deepseek-chat" /></div><div class="field full"><label>API 密钥</label><input class="dirty-input" type="password" value="••••••••••••••••" aria-describedby="keyHint" /><span id="keyHint" class="helper">为保护密钥，仅展示已配置状态。输入新值后才会更新。</span></div></div><div class="notice"><strong>安全提示</strong><span>清除密钥是独立高风险操作，需要二次确认，不能与普通配置一起保存。</span></div></div></section><div class="savebar" data-savebar="operations"><p><strong>当前页面有未保存修改</strong><br>保存后由服务端加密保存，页面不会保留明文。</p><div class="actions"><button class="button tertiary" type="button" data-reset>撤销修改</button><button class="button primary" type="button" data-save>保存配置</button></div></div></section>
+
+    <section id="scheduled-tasksPage" class="page hidden"><div class="page-head"><div><h1>定时任务</h1><p>查看自动执行状态和失败原因；人工操作受幂等保护。</p></div><div class="actions"><button class="button tertiary" type="button" id="reloadTasks">刷新状态</button><button class="button primary" type="button" id="runCheck">检查并补跑</button></div></div><div class="dashboard-grid"><article class="metric"><p class="label">已启用任务</p><p class="value">2</p><p class="note">周任务结转、报告自动归档</p></article><article class="metric"><p class="label">最近 24 小时成功</p><p class="value">3</p><p class="note">含 1 次启动补偿检查</p></article><article class="metric"><p class="label">最近 24 小时失败</p><p class="value">1</p><p class="note status">报告自动归档待处理</p></article><article class="metric"><p class="label">下一次检查</p><p class="value">11:00</p><p class="note">北京时间 · Node 服务</p></article></div><section class="page-container"><div class="section-head"><div><h2>执行记录</h2><p>仅显示可读的业务结果和脱敏失败摘要。</p></div></div><div class="table-wrap"><table><thead><tr><th>任务名称</th><th>执行状态</th><th>执行时间</th><th>执行来源</th><th>检查范围</th><th class="numeric">成功 / 跳过 / 失败</th><th>结果摘要</th><th>操作</th></tr></thead><tbody id="taskLog"><tr><td>报告自动归档</td><td><span class="tag error">失败</span></td><td>今天 08:00</td><td>自动调度</td><td>数据产品部 · 周报</td><td class="numeric">0 / 0 / 1</td><td>归档状态写入失败，请检查存储连接。</td><td><button class="button text" type="button" id="retryRow">查看并补跑</button></td></tr><tr><td>周任务结转</td><td><span class="tag success">成功</span></td><td>今天 08:00</td><td>自动调度</td><td>3 个部门</td><td class="numeric">8 / 16 / 0</td><td>已完成到期周任务结转。</td><td><button class="button text" type="button">查看</button></td></tr><tr><td>报告自动归档</td><td><span class="tag success">成功</span></td><td>昨天 20:00</td><td>自动调度</td><td>数据产品部 · 月报</td><td class="numeric">2 / 0 / 0</td><td>已归档到期总结。</td><td><button class="button text" type="button">查看</button></td></tr></tbody></table></div></section></section>
+  </main>
+
+  <div class="drawer-mask" id="drawerMask"></div><aside class="drawer" id="drawer" aria-modal="true" role="dialog" aria-labelledby="drawerTitle"><div class="drawer-head"><div><h2 id="drawerTitle">部门详情</h2><p class="helper">在独立抽屉中查看或修改单条记录，列表保持当前筛选位置。</p></div><button class="icon-button" id="closeDrawer" type="button" aria-label="关闭">×</button></div><div class="form-grid"><div class="field"><label>部门名称</label><input value="数据产品部" /></div><div class="field"><label>启用状态</label><select><option>启用</option><option>停用</option></select></div><div class="field"><label>部门负责人</label><select><option>王琳</option></select></div><div class="field"><label>工作模块</label><input value="AI+X项目、数据治理与经营分析" /></div></div><footer><button class="button tertiary" type="button" id="cancelDrawer">取消</button><button class="button primary" type="button" id="saveDrawer">保存修改</button></footer></aside>
+  <div class="modal-mask" id="modalMask"></div><section class="modal" id="confirmModal" aria-modal="true" role="dialog" aria-labelledby="modalTitle"><h2 id="modalTitle">检查并补跑</h2><p>将只检查已到期但尚未完成的周任务结转和报告归档，不会重复创建任务或提前归档。确认后执行一次并刷新结果。</p><footer><button class="button tertiary" type="button" id="cancelRun">取消</button><button class="button primary" type="button" id="confirmRun">确认执行</button></footer></section>
+  <div class="toast" id="toast" role="status">已保存原型中的模拟配置</div>
+  <script>
+    const pages = { departments: ['组织管理', '部门管理'], members: ['组织管理', '成员管理'], login: ['规则配置', '保持登录'], archive: ['规则配置', '归档设置'], 'api-key': ['系统运维', 'API 密钥'], 'scheduled-tasks': ['系统运维', '定时任务'] };
+    let activePage = 'overview'; let dirtyGroup = null;
+    const $ = (selector) => document.querySelector(selector);
+    const $$ = (selector) => [...document.querySelectorAll(selector)];
+    function closeMenus() { $$('.nav-group').forEach(group => { group.classList.remove('open'); group.querySelector('button').setAttribute('aria-expanded', 'false'); }); }
+    function showPage(page) {
+      activePage = page; closeMenus(); $$('.page').forEach(item => item.classList.add('hidden')); $(`#${page}Page`).classList.remove('hidden');
+      $$('.subnav button, .nav-group > button').forEach(button => button.classList.remove('active'));
+      if (page !== 'overview') { const [group, title] = pages[page]; const groupEl = $(`.nav-group[data-group="${group === '组织管理' ? 'organization' : group === '规则配置' ? 'rules' : 'operations'}"]`); groupEl.querySelector(':scope > button').classList.add('active'); $(`.subnav [data-page="${page}"]`).classList.add('active'); $('#crumbGroup').classList.remove('hidden'); $('#crumbPage').classList.remove('hidden'); $('#crumbGroup').textContent = `/ ${group}`; $('#crumbPage').textContent = `/ ${title}`; } else { $('#crumbGroup').classList.add('hidden'); $('#crumbPage').classList.add('hidden'); }
+    }
+    $$('.nav-group > button').forEach(button => button.addEventListener('click', () => { const group = button.parentElement; const open = !group.classList.contains('open'); closeMenus(); if (open) { group.classList.add('open'); button.setAttribute('aria-expanded', 'true'); } }));
+    $$('.subnav button, [data-page]').forEach(button => button.addEventListener('click', () => button.dataset.page && showPage(button.dataset.page)));
+    $('#homeLink').addEventListener('click', () => showPage('overview'));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeMenus(); closeDrawer(); closeModal(); } });
+    document.addEventListener('click', event => { if (!event.target.closest('.nav-group')) closeMenus(); });
+    function openDrawer(type) { $('#drawerTitle').textContent = type === 'member' ? '成员详情' : '部门详情'; $('#drawerMask').classList.add('open'); $('#drawer').classList.add('open'); $('#closeDrawer').focus(); }
+    function closeDrawer() { $('#drawerMask').classList.remove('open'); $('#drawer').classList.remove('open'); }
+    $$('[data-open-drawer]').forEach(button => button.addEventListener('click', () => openDrawer(button.dataset.openDrawer)));
+    $('#createDepartment').addEventListener('click', () => openDrawer('department')); $('#createMember').addEventListener('click', () => openDrawer('member')); $('#closeDrawer').addEventListener('click', closeDrawer); $('#cancelDrawer').addEventListener('click', closeDrawer); $('#drawerMask').addEventListener('click', closeDrawer); $('#saveDrawer').addEventListener('click', () => { closeDrawer(); toast('已保存原型中的模拟修改'); });
+    function markDirty(group) { dirtyGroup = group; $$(`[data-savebar="${group}"]`).forEach(bar => bar.classList.add('show')); const navGroup = group === 'rules' ? 'rules' : 'operations'; $(`.nav-group[data-group="${navGroup}"] .subnav button.active`)?.classList.add('dirty'); }
+    $$('.dirty-input, #sessionDays').forEach(input => input.addEventListener('input', () => markDirty(activePage === 'api-key' ? 'operations' : 'rules')));
+    $$('[data-save]').forEach(button => button.addEventListener('click', () => { $$('.savebar').forEach(bar => bar.classList.remove('show')); $$('.subnav button.dirty').forEach(item => item.classList.remove('dirty')); dirtyGroup = null; toast('已保存原型中的模拟配置'); }));
+    $$('[data-reset]').forEach(button => button.addEventListener('click', () => { $$('.savebar').forEach(bar => bar.classList.remove('show')); $$('.subnav button.dirty').forEach(item => item.classList.remove('dirty')); dirtyGroup = null; toast('已撤销原型中的模拟修改'); }));
+    function openModal() { $('#modalMask').classList.add('open'); $('#confirmModal').classList.add('open'); $('#confirmRun').focus(); }
+    function closeModal() { $('#modalMask').classList.remove('open'); $('#confirmModal').classList.remove('open'); }
+    $('#runCheck').addEventListener('click', openModal); $('#retryRow').addEventListener('click', openModal); $('#cancelRun').addEventListener('click', closeModal); $('#modalMask').addEventListener('click', closeModal);
+    $('#confirmRun').addEventListener('click', () => { closeModal(); $('#taskLog').insertAdjacentHTML('afterbegin', '<tr><td>到期任务检查</td><td><span class="tag processing">执行中</span></td><td>刚刚</td><td>管理员手动运行</td><td>全部已到期内容</td><td class="numeric">—</td><td>正在检查可安全补跑的项目。</td><td><button class="button text" type="button">查看</button></td></tr>'); toast('已开始模拟执行检查并补跑'); });
+    $('#roleDemo').addEventListener('change', event => { const leader = event.target.value === 'leader'; $$('.nav-group[data-group="rules"], .nav-group[data-group="operations"]').forEach(group => group.classList.toggle('hidden', leader)); if (leader && (activePage === 'login' || activePage === 'archive' || activePage === 'api-key' || activePage === 'scheduled-tasks')) showPage('overview'); toast(leader ? '已切换为部门负责人视图' : '已切换为全局管理员视图'); });
+    $('#refreshOverview').addEventListener('click', () => toast('已刷新原型中的模拟统计')); $('#reloadTasks').addEventListener('click', () => toast('已刷新原型中的模拟状态'));
+    function toast(message) { const node = $('#toast'); node.textContent = message; node.classList.add('show'); window.setTimeout(() => node.classList.remove('show'), 2400); }
+  </script>
+</body>
+</html>

@@ -4,6 +4,13 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
+test("task cards surface the latest progress while keeping descriptions compact", () => {
+  const source = html.match(/ {4}function renderTaskCard\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0] || "";
+  assert.match(source, /当前进展/);
+  assert.match(source, /latestLog\(task\)/);
+  assert.match(html, /\.task-desc,\.risk-box\{[\s\S]*?-webkit-line-clamp:2/);
+});
+
 test("admin record filtering keeps source indices and clamps pagination", () => {
   const source = html.match(/ {4}function adminFilteredPage\([\s\S]*?\r?\n {4}\}/)?.[0];
   assert.ok(source, "missing adminFilteredPage");
