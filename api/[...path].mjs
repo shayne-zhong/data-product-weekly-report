@@ -79,6 +79,13 @@ const aiProviders = {
     apiKeyNames: ["MOONSHOT_API_KEY", "KIMI_API_KEY", "AI_API_KEY"],
   },
 };
+const defaultAiContextPrompt =
+  "上下文包含本周任务和当前填写的周报内容。请以周报内容为主，并用任务信息核对完成情况、进度和风险；两者冲突时保留原始表述，不自行推断。";
+const defaultAiPrompts = {
+  executive: "面向CIO和管理层，突出业务结果、量化指标、关键风险、依赖事项和下阶段决策点。",
+  concise: "高度精炼，删除重复表述，每个模块优先保留3-6条最有价值的事实。",
+  complete: "在保留全部有效事实的前提下润色表达、合并重复项并强化层次。",
+};
 const defaultDepartmentAccounts = [
   ["钟南海", "zhongnanhai"],
   ["宋泉辰", "songquanchen"],
@@ -221,10 +228,23 @@ function normalizeAiSettings(value = {}) {
   const encryptedApiKey =
     value.encryptedApiKey && typeof value.encryptedApiKey === "object" ? value.encryptedApiKey : null;
   const apiKeyLast4 = String(value.apiKeyLast4 || "").slice(-4);
+  const contextPrompt = String(value.contextPrompt || defaultAiContextPrompt)
+    .trim()
+    .slice(0, 8_000);
+  const prompts = Object.fromEntries(
+    Object.entries(defaultAiPrompts).map(([style, fallback]) => [
+      style,
+      String(value.prompts?.[style] || fallback)
+        .trim()
+        .slice(0, 8_000) || fallback,
+    ]),
+  );
   return {
     enabled: value.enabled === true,
     provider,
     model: model || aiProviders[provider].defaultModel,
+    contextPrompt: contextPrompt || defaultAiContextPrompt,
+    prompts,
     ...(encryptedApiKey ? { encryptedApiKey } : {}),
     ...(encryptedApiKey && apiKeyLast4 ? { apiKeyLast4 } : {}),
   };
@@ -250,6 +270,10 @@ function publicAiSettings(value = {}, { admin = false } = {}) {
     providerLabel: aiProviders[ai.provider].label,
     configured: Boolean(ai.encryptedApiKey || aiApiKey(ai.provider)),
   };
+  if (admin) {
+    result.contextPrompt = ai.contextPrompt;
+    result.prompts = { ...ai.prompts };
+  }
   if (admin && ai.encryptedApiKey && ai.apiKeyLast4) result.apiKeyMask = `•••• ${ai.apiKeyLast4}`;
   return result;
 }
@@ -1172,12 +1196,7 @@ async function handleAccounts(req, res, state, actor) {
   return json(res, { accounts });
 }
 
-function aiSummaryInstruction(style, summaryType, departmentName) {
-  const styleRules = {
-    concise: "高度精炼，删除重复表述，每个模块优先保留3-6条最有价值的事实。",
-    executive: "面向CIO和管理层，突出业务结果、量化指标、关键风险、依赖事项和下阶段决策点。",
-    complete: "在保留全部有效事实的前提下润色表达、合并重复项并强化层次。",
-  };
+function aiSummaryInstruction(style, summaryType, departmentName, ai) {
   const typeLabel = { weekly: "周总结", monthly: "月总结", quarterly: "季度总结" }[summaryType] || "工作总结";
   const structureRule =
     summaryType === "monthly"
@@ -1185,7 +1204,8 @@ function aiSummaryInstruction(style, summaryType, departmentName) {
       : summaryType === "quarterly"
         ? "只按【本季目标】【本季进展】【当前风险】三个标题输出，禁止生成【下季计划】。"
         : "保留原文标题、周期、模块名称，以及进展、风险、计划等必要层级。";
-  return `你是${departmentName}负责人助理，负责把${typeLabel}整理成可直接发送给管理层的中文纯文本。\n\n要求：\n1. 严格基于原文，不得补充、猜测或虚构任何数字、结论、人员和进度。\n2. ${styleRules[style] || styleRules.executive}\n3. ${structureRule}\n4. 优先呈现量化成果、完成度、业务影响、阻塞原因和需要管理层关注的事项。\n5. 合并同义或重复事项，修正病句和标点；信息不完整时保持原意，不自行推断。\n6. 输出纯文本，不要Markdown代码块，不要写“以下是总结”等前言，不要解释你的处理过程。\n7. 列表统一使用“1、2、3、”格式；没有内容的风险可写“无”。`;
+  const stylePrompt = ai.prompts?.[style] || ai.prompts?.executive || defaultAiPrompts.executive;
+  return `你是${departmentName}负责人助理，负责把${typeLabel}整理成可直接发送给管理层的中文纯文本。\n\n后台配置的补充上下文：\n${ai.contextPrompt}\n\n当前版本 Prompt：\n${stylePrompt}\n\n固定要求：\n1. 严格基于原文，不得补充、猜测或虚构任何数字、结论、人员和进度。\n2. ${structureRule}\n3. 优先呈现量化成果、完成度、业务影响、阻塞原因和需要管理层关注的事项。\n4. 合并同义或重复事项，修正病句和标点；信息不完整时保持原意，不自行推断。\n5. 输出纯文本，不要Markdown代码块，不要写“以下是总结”等前言，不要解释你的处理过程。\n6. 列表统一使用“1、2、3、”格式；没有内容的风险可写“无”。`;
 }
 
 function cleanAiText(value) {
@@ -1212,7 +1232,7 @@ async function requestAiSummary({ sourceText, style, summaryType, departmentName
       body: JSON.stringify({
         model: ai.model,
         messages: [
-          { role: "system", content: aiSummaryInstruction(style, summaryType, departmentName) },
+          { role: "system", content: aiSummaryInstruction(style, summaryType, departmentName, ai) },
           { role: "user", content: `请总结并提炼以下原始内容：\n\n${sourceText}` },
         ],
         temperature: 0.2,
@@ -1361,7 +1381,13 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     reportArchive: Object.hasOwn(body, "reportArchive")
       ? normalizeReportArchiveSchedule(body.reportArchive)
       : current.reportArchive,
-    ai: body.ai ? normalizeAiSettings({ ...current.ai, ...body.ai }) : current.ai,
+    ai: body.ai
+      ? normalizeAiSettings({
+          ...current.ai,
+          ...body.ai,
+          prompts: { ...current.ai.prompts, ...body.ai.prompts },
+        })
+      : current.ai,
   };
   if (body.ai?.apiKey) {
     const apiKey = String(body.ai.apiKey).trim();

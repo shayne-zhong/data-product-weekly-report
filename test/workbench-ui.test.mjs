@@ -39,6 +39,45 @@ test("loading a week only fetches its tasks and never triggers rollover", () => 
   assert.doesNotMatch(source, /autoRolloverFromPrevious|\/rollover/);
 });
 
+test("weekly AI context automatically includes matching-week tasks and the current report", () => {
+  const source = html.match(/ {4}function weeklyAiSourceText\(\) \{[\s\S]*?\r?\n {4}\}/)?.[0];
+  assert.ok(source, "missing weeklyAiSourceText");
+  const buildSource = new Function(
+    "currentWeek",
+    "reportData",
+    "tasks",
+    "normalizeDate",
+    "latestLog",
+    "taskProgressPercent",
+    "renderReportText",
+    `${source}; return weeklyAiSourceText();`,
+  );
+  const result = buildSource(
+    { startDate: "2026/09/07", endDate: "2026/09/13" },
+    { startDate: "2026/09/07", endDate: "2026/09/13" },
+    [
+      {
+        title: "上线经营看板",
+        module: "数据产品",
+        status: "进行中",
+        owner: "张三",
+        description: "完成联调",
+        progress: 80,
+      },
+      { title: "不纳入周报", includeInReport: false },
+    ],
+    (value) => value,
+    () => ({ progress: "已完成接口验证" }),
+    (task) => task.progress,
+    () => "当前填写的周报正文",
+  );
+  assert.match(result, /【本周任务】/);
+  assert.match(result, /上线经营看板/);
+  assert.match(result, /已完成接口验证/);
+  assert.doesNotMatch(result, /不纳入周报/);
+  assert.match(result, /【当前填写的周报内容】\n当前填写的周报正文/);
+});
+
 function aiReportHelpersRuntime() {
   const source = html.match(
     / {4}function reportDateTimestamp[\s\S]*?(?=\r?\n\r?\n {4}function setAiReportStatus)/,

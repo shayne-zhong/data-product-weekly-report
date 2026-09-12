@@ -163,9 +163,26 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
   const saved = await api("/admin/settings", {
     method: "POST",
     headers: { authorization: `Bearer ${adminToken}` },
-    body: { ai: { enabled: true, provider: "deepseek", model: "deepseek-v4-flash" } },
+    body: {
+      ai: {
+        enabled: true,
+        provider: "deepseek",
+        model: "deepseek-v4-flash",
+        contextPrompt: "测试补充上下文：优先核对任务状态。",
+        prompts: {
+          executive: "测试管理层重点 Prompt",
+          concise: "测试高度精炼 Prompt",
+          complete: "测试完整润色 Prompt",
+        },
+      },
+    },
   });
   assert.equal(saved.statusCode, 200);
+  assert.equal(saved.body.settings.ai.contextPrompt, "测试补充上下文：优先核对任务状态。");
+  assert.equal(saved.body.settings.ai.prompts.executive, "测试管理层重点 Prompt");
+  const publicSettings = await api("/settings");
+  assert.equal(Object.hasOwn(publicSettings.body.settings.ai, "contextPrompt"), false);
+  assert.equal(Object.hasOwn(publicSettings.body.settings.ai, "prompts"), false);
 
   const originalKey = process.env.DEEPSEEK_API_KEY;
   const originalMoonshotKey = process.env.MOONSHOT_API_KEY;
@@ -201,6 +218,10 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
     assert.equal(generated.body.result.usage.total_tokens, 128);
     assert.equal(upstreamRequest.url, "https://api.deepseek.com/chat/completions");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-placeholder");
+    const weeklyMessages = JSON.parse(upstreamRequest.options.body).messages;
+    assert.match(weeklyMessages[0].content, /测试管理层重点 Prompt/);
+    assert.match(weeklyMessages[0].content, /测试补充上下文：优先核对任务状态。/);
+    assert.match(weeklyMessages[1].content, /本周完成重点任务/);
 
     const monthlyGenerated = await api("/ai/report-summary", {
       method: "POST",
@@ -248,6 +269,19 @@ test("AI report summary requires login and returns a reviewable candidate", asyn
     assert.equal(kimiGenerated.statusCode, 200);
     assert.equal(upstreamRequest.url, "https://api.moonshot.cn/v1/chat/completions");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer unit-test-moonshot-placeholder");
+    assert.match(JSON.parse(upstreamRequest.options.body).messages[0].content, /测试高度精炼 Prompt/);
+
+    const completeGenerated = await api("/ai/report-summary", {
+      method: "POST",
+      token: defaultToken,
+      body: {
+        sourceText: "数据产品部周重点工作汇报\n汇报周期：2026/07/13—2026/07/19\n本周完成重点任务。",
+        summaryType: "weekly",
+        style: "complete",
+      },
+    });
+    assert.equal(completeGenerated.statusCode, 200);
+    assert.match(JSON.parse(upstreamRequest.options.body).messages[0].content, /测试完整润色 Prompt/);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;

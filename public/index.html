@@ -294,7 +294,7 @@ body.admin-mode{
       <div class="admin-nav-item" data-admin-nav-group="operations">
         <button class="admin-group-button" data-admin-group="operations" aria-haspopup="menu" aria-expanded="false">系统运维</button>
         <div class="admin-secondary-menu" role="menu" aria-label="系统运维">
-          <button role="menuitem" data-admin-group="operations" data-admin-section="api-key">API 密钥</button>
+          <button role="menuitem" data-admin-group="operations" data-admin-section="api-key">AI 配置</button>
           <button role="menuitem" data-admin-group="operations" data-admin-section="scheduled-tasks">定时任务</button>
           <button role="menuitem" data-admin-group="operations" data-admin-section="workbuddy">企微任务同步</button>
         </div>
@@ -606,7 +606,7 @@ body.admin-mode{
               </div>
             </section>
             <section class="panel admin-section" data-admin-panel="api-key" hidden>
-              <div class="admin-section-head"><div><h3>API 密钥</h3><p>配置 AI 供应商、模型和 API 密钥；完整密钥不会再次显示。</p></div></div>
+              <div class="admin-section-head"><div><h3>AI 配置</h3><p>配置供应商、模型、上下文和三个提炼版本；完整密钥不会再次显示。</p></div></div>
               <div class="admin-ai-grid">
                 <div><label>供应商</label><select id="adminAiProvider"><option value="deepseek">DeepSeek</option><option value="kimi">Kimi</option></select></div>
                 <div><label>模型</label><input id="adminAiModel" placeholder="例如 deepseek-chat" /></div>
@@ -616,6 +616,16 @@ body.admin-mode{
               <div id="adminAiKeyStatus" class="ai-ready warn" style="margin-top:12px;">正在检查 API 密钥...</div>
               <div class="actions" style="justify-content:flex-start;margin-top:12px;"><button class="ghost-btn" id="adminAiTestBtn">测试连接</button><button class="danger-btn" id="adminAiClearBtn">清除密钥</button></div>
               <div class="subtitle" id="adminAiEnvHint" style="margin-top:8px;">密钥将由服务端加密保存。</div>
+              <div class="form-group" style="margin-top:20px;">
+                <label for="adminAiContextPrompt">补充上下文</label>
+                <div class="subtitle" style="margin-bottom:8px;">系统会自动带入本周任务和当前填写的周报内容，无需勾选。这里可补充统一的判断口径或业务背景。</div>
+                <textarea id="adminAiContextPrompt" rows="4" maxlength="8000"></textarea>
+              </div>
+              <div class="form-grid" style="margin-top:16px;">
+                <div class="form-group full"><label for="adminAiExecutivePrompt">管理层重点版 Prompt</label><textarea id="adminAiExecutivePrompt" rows="5" maxlength="8000"></textarea></div>
+                <div class="form-group full"><label for="adminAiConcisePrompt">高度精炼版 Prompt</label><textarea id="adminAiConcisePrompt" rows="5" maxlength="8000"></textarea></div>
+                <div class="form-group full"><label for="adminAiCompletePrompt">完整润色版 Prompt</label><textarea id="adminAiCompletePrompt" rows="5" maxlength="8000"></textarea></div>
+              </div>
             </section>
             <section class="panel admin-section" data-admin-panel="scheduled-tasks" hidden>
               <div class="admin-section-head"><div><h3>定时任务</h3><p>查看自动执行状态和失败原因；人工重新启动仍受防重机制保护。</p></div><button class="ghost-btn" id="reloadScheduledTasksBtn">刷新状态</button></div>
@@ -1883,6 +1893,8 @@ body.admin-mode{
         model: settings.ai?.model || (settings.ai?.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash"),
         configured: settings.ai?.configured === true,
         apiKeyMask: settings.ai?.apiKeyMask || "",
+        contextPrompt: settings.ai?.contextPrompt || "",
+        prompts: { ...(settings.ai?.prompts || {}) },
       };
       adminDraftSettings = {
         departments: departments.map((department) => ({ ...department, modules: [...department.modules] })),
@@ -3805,6 +3817,31 @@ body.admin-mode{
       return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     }
 
+    function weeklyAiSourceText() {
+      const matchesLoadedWeek = currentWeek
+        && normalizeDate(currentWeek.startDate) === normalizeDate(reportData.startDate)
+        && normalizeDate(currentWeek.endDate) === normalizeDate(reportData.endDate);
+      const sourceTasks = matchesLoadedWeek ? tasks.filter((task) => task.includeInReport !== false) : [];
+      const taskText = sourceTasks.length
+        ? sourceTasks.map((task, index) => {
+            const log = latestLog(task);
+            const details = [
+              `模块：${task.module || "未分类"}`,
+              `状态：${task.status || "未设置"}`,
+              `进度：${taskProgressPercent(task)}%`,
+              task.owner ? `负责人：${task.owner}` : "",
+              task.description ? `说明：${task.description}` : "",
+              log?.progress ? `最新进展：${log.progress}` : "",
+              task.blocker ? `阻塞：${task.blocker}` : "",
+            ].filter(Boolean);
+            return `${index + 1}、${task.title || "未命名任务"}\n${details.join("；")}`;
+          }).join("\n")
+        : matchesLoadedWeek
+          ? "无纳入周报的本周任务"
+          : "当前周报周期未加载对应任务";
+      return `【本周任务】\n${taskText}\n\n【当前填写的周报内容】\n${renderReportText()}`;
+    }
+
     function renderReportPreview() {
       $("reportPreview").textContent = renderReportText();
     }
@@ -4589,6 +4626,10 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       $("adminAiProvider").value = ai.provider || "deepseek";
       $("adminAiModel").value = ai.model || (ai.provider === "kimi" ? "kimi-k2.6" : "deepseek-v4-flash");
       $("adminAiEnabled").value = String(ai.enabled === true);
+      $("adminAiContextPrompt").value = ai.contextPrompt || "";
+      $("adminAiExecutivePrompt").value = ai.prompts?.executive || "";
+      $("adminAiConcisePrompt").value = ai.prompts?.concise || "";
+      $("adminAiCompletePrompt").value = ai.prompts?.complete || "";
       $("adminSessionDurationMinutes").value = String(adminDraftSettings.sessionDurationMinutes || 30);
       $("adminWeeklyArchiveTime").value = adminDraftSettings.reportArchive?.weeklyTime || "20:00";
       $("adminMonthlyArchiveTime").value = adminDraftSettings.reportArchive?.monthlyTime || "20:00";
@@ -4726,6 +4767,12 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
           enabled: adminDraftSettings.ai?.enabled === true,
           provider: adminDraftSettings.ai?.provider === "kimi" ? "kimi" : "deepseek",
           model: String(adminDraftSettings.ai?.model || "").trim(),
+          contextPrompt: $("adminAiContextPrompt").value.trim(),
+          prompts: {
+            executive: $("adminAiExecutivePrompt").value.trim(),
+            concise: $("adminAiConcisePrompt").value.trim(),
+            complete: $("adminAiCompletePrompt").value.trim(),
+          },
         };
       }
       const draftBeforeSave = structuredClone(adminDraftSettings);
@@ -5742,6 +5789,9 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       adminDraftSettings.ai = { ...(adminDraftSettings.ai || {}), enabled: event.target.value === "true" };
       markAdminDirty("api-key");
     });
+    ["adminAiContextPrompt", "adminAiExecutivePrompt", "adminAiConcisePrompt", "adminAiCompletePrompt"].forEach((id) => {
+      $(id).addEventListener("input", () => markAdminDirty("api-key"));
+    });
     function closeAdminDropdowns(exceptGroup = "") {
       document.querySelectorAll(".admin-nav-item").forEach((item) => {
         if (item.dataset.adminNavGroup === exceptGroup) return;
@@ -6268,7 +6318,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       setAiReportStatus(`${aiSettings.providerLabel} 正在提炼，请稍候...`, "loading");
       try {
         const context = { reportId: currentReportId, summaryType: reportData.summaryType || "weekly", startDate: reportData.startDate, endDate: reportData.endDate, generation: aiReportGeneration };
-        const sourceText = context.summaryType === "weekly" ? renderReportText() : await monthlyOrQuarterlyAiSourceText(context);
+        const sourceText = context.summaryType === "weekly" ? weeklyAiSourceText() : await monthlyOrQuarterlyAiSourceText(context);
         const result = await apiJson("/api/ai/report-summary", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
