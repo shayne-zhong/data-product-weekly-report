@@ -4,6 +4,8 @@ coverage
 state
 docs
 public
+design
+design-demos
 .netlify
 .vercel
 package-lock.json
