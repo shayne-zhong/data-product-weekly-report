@@ -1809,7 +1809,11 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
-    if (action === "period-reports") return periodReports.admin(req, res, state, parts, now, { username: decoded.username, departmentId: department.id });
+    if (action === "period-reports")
+      return periodReports.admin(req, res, state, parts, now, {
+        username: decoded.username,
+        departmentId: department.id,
+      });
     if (action === "workbuddy") return json(res, { error: "仅全局管理员可管理企微任务同步" }, 403);
     if (action === "overview") {
       if (req.method !== "GET") return methodNotAllowed(res);
@@ -2338,7 +2342,8 @@ export default async function handler(req, res) {
       if (admin?.role === "admin") return await periodReports.view(req, res, state, parts, now, admin);
       if (admin?.role === "leader") {
         const department = resolveLeaderDepartment(state, admin.username);
-        if (!department?.enabled || Number(department.leaderAssignedAt || 0) > Number(admin.issuedAt || 0)) return json(res, { error: "负责人身份已失效" }, 401);
+        if (!department?.enabled || Number(department.leaderAssignedAt || 0) > Number(admin.issuedAt || 0))
+          return json(res, { error: "负责人身份已失效" }, 401);
         return await periodReports.view(req, res, state, parts, now, { departmentId: department.id });
       }
       if (!actor) return json(res, { error: "请先登录" }, 401);

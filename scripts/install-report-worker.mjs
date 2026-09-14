@@ -35,9 +35,28 @@ export async function installReportWorker({ connectionPath, destination = defaul
     `Set shell = CreateObject("WScript.Shell")\nshell.Run """${q(process.execPath)}"" ""${q(join(destination, "report-worker.mjs"))}"" --config ""${q(join(destination, "connection.json"))}""", 0, False\n`,
   );
   if (startup && process.platform === "win32") {
-    await execFileAsync("schtasks.exe", ["/Create", "/TN", "Department Workbench Report Worker", "/TR", `wscript.exe "${launcher}"`, "/SC", "ONLOGON", "/RL", "LIMITED", "/F"], { windowsHide: true });
+    await execFileAsync(
+      "schtasks.exe",
+      [
+        "/Create",
+        "/TN",
+        "Department Workbench Report Worker",
+        "/TR",
+        `wscript.exe "${launcher}"`,
+        "/SC",
+        "ONLOGON",
+        "/RL",
+        "LIMITED",
+        "/F",
+      ],
+      { windowsHide: true },
+    );
   }
-  const child = spawn(process.execPath, [join(destination, "report-worker.mjs"), "--config", join(destination, "connection.json")], { detached: true, stdio: "ignore", windowsHide: true });
+  const child = spawn(
+    process.execPath,
+    [join(destination, "report-worker.mjs"), "--config", join(destination, "connection.json")],
+    { detached: true, stdio: "ignore", windowsHide: true },
+  );
   child.unref();
   return { destination, startupInstalled: Boolean(startup && process.platform === "win32") };
 }
@@ -45,9 +64,16 @@ export async function installReportWorker({ connectionPath, destination = defaul
 async function main() {
   const args = process.argv.slice(2);
   const configAt = args.indexOf("--config");
-  const result = await installReportWorker({ connectionPath: configAt >= 0 ? args[configAt + 1] : "", startup: !args.includes("--no-startup") });
+  const result = await installReportWorker({
+    connectionPath: configAt >= 0 ? args[configAt + 1] : "",
+    startup: !args.includes("--no-startup"),
+  });
   console.log(`本机报告程序已安装：${result.destination}`);
   if (result.startupInstalled) console.log("已设置登录后自动运行。");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch((error) => { console.error(error.message); process.exitCode = 1; });
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url))
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
