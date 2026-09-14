@@ -961,6 +961,7 @@ body.admin-mode{
     </section>
   </div>
 
+  <script src="/period-reports.js"></script>
   <script>
     const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
     let modules = [...defaultModules];
@@ -1033,12 +1034,13 @@ body.admin-mode{
     let aiReportGeneration = 0;
     let adminDraftSettings = { departments: departments.map((department) => ({ ...department, modules: [...department.modules] })), accounts: accountRows.map((account) => ({ ...account })), sessionDurationMinutes, reportArchive: { ...reportArchiveSettings }, ai: { ...aiSettings } };
     const adminNavigation = [
-      { id: "organization", sections: ["departments", "members"] },
+      { id: "organization", sections: ["departments", "members", "period-reports"] },
       { id: "rules", sections: ["login", "archive"] },
       { id: "operations", sections: ["api-key", "scheduled-tasks", "workbuddy"] },
     ];
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
     const adminSectionMeta = {
+      "period-reports": { label: "经营报告", icon: "i-tasks", group: "组织管理" },
       overview: { label: "管理概览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
       login: { label: "保持登录", icon: "i-clock", group: "规则配置" }, archive: { label: "归档设置", icon: "i-archive", group: "规则配置" },
       "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" }, workbuddy: { label: "企微任务同步", icon: "i-tasks", group: "系统运维" },
@@ -4365,7 +4367,7 @@ body.admin-mode{
     }
 
     function adminVisibleSections() {
-      return adminRole === "leader" ? ["overview", "departments", "members"] : Object.keys(adminSectionMeta);
+      return adminRole === "leader" ? ["overview", "departments", "members", "period-reports"] : Object.keys(adminSectionMeta);
     }
 
     function adminFilteredPage(records, filter) {
@@ -4522,6 +4524,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       $("adminShell").classList.remove("nav-open");
       if (section === "overview") await loadAdminOverview().catch((error) => { adminOverview = { metrics: {}, pending: [{ label: error.message || "概览读取失败", page: "overview" }] }; renderAdminOverview(); });
       if (section === "scheduled-tasks") await loadScheduledTasks().catch((error) => setSyncStatus(error.message || "定时任务状态读取失败", "warn"));
+      if (section === "period-reports") await periodReportUi.load().catch((error) => setSyncStatus(error.message || "经营报告读取失败", "warn"));
       renderAdmin();
     }
 
@@ -6052,6 +6055,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
         await authAction({ username: $("loginUsername").value, password: $("loginPassword").value });
         $("loginPassword").value = "";
         setView("tasks");
+        await periodReportUi.openFromUrl();
       } catch (error) {
         $("loginMessage").textContent = error.message || "账号或密码错误";
       } finally {
@@ -6508,7 +6512,14 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       if (userToken && !ensureLoginAlive()) return;
       if (currentUser) renderProfile();
     }, 60 * 1000);
+    const periodReportUi = window.createPeriodReportUi({ api: apiJson, adminHeaders: adminRequestHeaders, isAdmin: () => adminAuthed, notify: (message) => setSyncStatus(message, "warn") });
+
     async function initializeApp() {
+      if (new URLSearchParams(location.search).has("periodReport") && adminAuthed) {
+        showAuthenticatedWorkspace();
+        await periodReportUi.openFromUrl();
+        return;
+      }
       if (isAdminRoute()) {
         showAuthenticatedWorkspace();
         enterAdminMode();
@@ -6549,6 +6560,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       await loadWeeks();
       setSyncStatus("已同步", "ok");
       maybeShowOnboarding();
+      await periodReportUi.openFromUrl();
     }
 
     initializeApp().catch(() => setSyncStatus("连接失败", "warn"));

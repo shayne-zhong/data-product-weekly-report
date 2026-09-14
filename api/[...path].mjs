@@ -10,6 +10,7 @@ import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
+import { createPeriodReportService } from "../lib/period-report-service.mjs";
 import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
 import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
 import { createMutationLock } from "../lib/mutation-lock.mjs";
@@ -54,6 +55,7 @@ const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
 };
+const periodReports = createPeriodReportService({ saveState, json });
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
 const defaultDepartment = {
   id: "data-product",
@@ -1807,6 +1809,7 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
+    if (action === "period-reports") return periodReports.admin(req, res, state, parts, now, { username: decoded.username, departmentId: department.id });
     if (action === "workbuddy") return json(res, { error: "仅全局管理员可管理企微任务同步" }, 403);
     if (action === "overview") {
       if (req.method !== "GET") return methodNotAllowed(res);
@@ -1816,6 +1819,7 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
   }
 
+  if (action === "period-reports") return periodReports.admin(req, res, state, parts, now, decoded);
   if (action === "workbuddy") {
     if (parts.length === 2 && req.method === "GET") {
       return json(res, workbuddyAdminPayload(state, now));
@@ -2328,6 +2332,18 @@ export default async function handler(req, res) {
     const state = await loadState();
     const now = Date.now();
     const actor = currentUser(req, state, now);
+    if (parts[0] === "report-worker") return await periodReports.worker(req, res, state, parts, now);
+    if (parts[0] === "period-reports") {
+      const admin = await verifyAdminToken(bearerToken(req), { now });
+      if (admin?.role === "admin") return await periodReports.view(req, res, state, parts, now, admin);
+      if (admin?.role === "leader") {
+        const department = resolveLeaderDepartment(state, admin.username);
+        if (!department?.enabled || Number(department.leaderAssignedAt || 0) > Number(admin.issuedAt || 0)) return json(res, { error: "负责人身份已失效" }, 401);
+        return await periodReports.view(req, res, state, parts, now, { departmentId: department.id });
+      }
+      if (!actor) return json(res, { error: "请先登录" }, 401);
+      return await periodReports.view(req, res, state, parts, now, actor);
+    }
     if (openTaskRequest) return await handleOpenTasks(req, res, state, parts, now);
     if (openSyncEventRequest) return await handleWorkbuddySyncEvents(req, res, state, now);
     if (wecomCallbackRequest) return await handleWecomCallback(req, res, state, now);

@@ -14,6 +14,7 @@
 - `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api` 和精确路径 `/wecom/callback`、托管静态资源，并在直接运行时负责两个后台任务的启动补偿与白天小时调度。
 - `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
 - `scripts/build.mjs`：校验内联脚本，生成 `build` 目录和构建清单。
+- `scripts/report-worker.mjs`：用户本机领取经营报告任务，隔离调用 Codex 与报告 Skill，并在浏览器校验后回传；`scripts/install-report-worker.mjs` 安装登录启动入口。
 
 常用命令：`npm.cmd start`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run lint`、`npm.cmd run format:check`。
 
@@ -35,6 +36,7 @@
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
 - 待办产物：`lib/task-artifact-service.mjs`、`lib/artifact-core.mjs`、`lib/artifact-store.mjs`、`lib/artifact-preview.mjs`、`lib/multipart-file.mjs`。
+- 部门 HTML 经营报告：`lib/period-report-service.mjs` 冻结部门任务、周报和月报快照，管理版本、设备领取与回传校验；`lib/period-report-engine.mjs` 为项目内固定 HTML 渲染器；`public/period-reports.js` 提供后台生成和受限预览。
 - 迁移校验：`lib/vercel-state-source.mjs`、`lib/state-fingerprint.mjs` 及相关脚本。
 
 ## 请求与数据流
@@ -51,7 +53,7 @@ WorkBuddy 仅通过内网 Node 服务访问 `GET /api/open/tasks?updated_since=`
 
 报告自动归档仅由直接运行的 Node 服务调度：服务启动时补偿检查，并在北京时间每日 08:00–20:00 的整点每小时检查；执行器仍按后台的周/月/季配置判断到期报告并保证幂等。
 
-顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`goals`、`accounts`、`ai`、`open`、`wecom`；`open` 仅接受 WorkBuddy Bearer Token，`wecom/callback` 仅处理内网企微 OAuth 回调。
+顶层路由包括 `auth`、`admin`、`settings`、`weeks`、`week`、`tasks`、`task`、`reports`、`report`、`period-reports`、`report-worker`、`goals`、`accounts`、`ai`、`open`、`wecom`。`period-reports` 按会话部门权限提供已完成 HTML 报告，`report-worker` 仅使用配对设备 Bearer 凭证且只可在单实例 Node 服务领取和回传；`open` 仅接受 WorkBuddy Bearer Token，`wecom/callback` 仅处理内网企微 OAuth 回调。
 
 ## 定向读取指南
 
@@ -59,6 +61,7 @@ WorkBuddy 仅通过内网 Node 服务访问 `GET /api/open/tasks?updated_since=`
 - 周任务结转：`server.mjs` 小时调度 → API 内部执行器 → `lib/weekly-rollover.mjs` → 结转、持久化与生产服务测试。
 - 部门目标：目标 UI → `lib/task-core.mjs` 的贡献汇总 → 目标与任务 API 测试。
 - 周报：周报 UI → 报告 API → `test/report-api.test.mjs`。
+- 经营报告：后台 UI → `admin/period-reports` → 本机 `report-worker` → `period-reports` 受限预览 → `test/period-reports.test.mjs`；本机安装说明见 `docs/REPORT_WORKER.md`。
 - 登录管理：鉴权 UI → 鉴权 API → 管理员和安全模块。
 - WorkBuddy 企微集成：`lib/open-task-sync.mjs`、`lib/workbuddy-auth.mjs`、`lib/workbuddy-config.mjs`、`lib/workbuddy-sync-log.mjs` → `api/[...path].mjs` 的 `open`/`wecom`/`admin/workbuddy` 路由 → `public/index.html` 后台运维界面与 `server.mjs` 内网回调转发 → 对应 WorkBuddy 测试。
 - 部署持久化：运行入口和平台适配 → `lib/state-store.mjs` → 生产测试。
