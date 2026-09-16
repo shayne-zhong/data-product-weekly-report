@@ -1,10 +1,108 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import * as serviceApi from "../lib/period-report-service.mjs";
 import { renderReport } from "../lib/period-report-engine.mjs";
+import { defaultLocalStatePath } from "../lib/state-store.mjs";
+import handler, {
+  recoverPeriodReportJobsFromServer,
+  runPeriodReportJobFromServer,
+} from "../api/[...path].mjs";
 
 const now = Date.UTC(2026, 8, 14);
 const input = { departmentId: "alpha", year: 2026, kind: "quarter", part: 3 };
+
+process.env.ADMIN_USERNAME = "period-test-admin";
+process.env.ADMIN_PASSWORD = "period-test-password";
+process.env.ADMIN_SESSION_SECRET = "period-reports-admin-session-secret-32-bytes";
+process.env.SETTINGS_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
+
+function mockRes() {
+  return {
+    statusCode: 200,
+    headers: {},
+    body: null,
+    setHeader(key, value) { this.headers[key] = value; },
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; },
+  };
+}
+
+async function api(path, { method = "GET", body, headers = {}, token = "" } = {}) {
+  const res = mockRes();
+  await handler({
+    method,
+    body,
+    headers: { ...(token ? { "x-user-token": token } : {}), ...headers },
+    query: { path: path.split("/").filter(Boolean) },
+  }, res);
+  return res;
+}
+
+async function prepareApiPeriodSources(accountIndex) {
+  const login = await api("admin/login", {
+    method: "POST",
+    body: { username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD },
+  });
+  assert.equal(login.statusCode, 200);
+  const adminHeaders = { authorization: `Bearer ${login.body.token}` };
+  const settings = await api("admin/settings", { headers: adminHeaders });
+  const account = settings.body.settings.accounts[accountIndex];
+  const registered = await api("auth/register", {
+    method: "POST",
+    body: { username: account.username, password: "12345678", displayName: account.name },
+  });
+  assert.equal(registered.statusCode, 201);
+  const user = await api("auth/login", { method: "POST", body: { username: account.username, password: "12345678" } });
+  assert.equal(user.statusCode, 200);
+  const userToken = user.body.token;
+  assert.equal((await api("goals", { method: "POST", token: userToken, body: { year: 2026, rows: [{ name: "交付", target: 1 }] } })).statusCode, 200);
+  for (const month of [7, 8, 9]) {
+    const endDate = new Date(Date.UTC(2026, month, 0)).toISOString().slice(0, 10);
+    const report = await api("reports", {
+      method: "POST",
+      token: userToken,
+      body: {
+        status: "final",
+        data: {
+          summaryType: "monthly",
+          title: `${month}月总结`,
+          startDate: `2026-${String(month).padStart(2, "0")}-01`,
+          endDate,
+          modules: [{ title: "交付", sections: [{ title: "进展", items: ["已完成"] }] }],
+        },
+      },
+    });
+    assert.ok([201, 409].includes(report.statusCode));
+  }
+  return { adminHeaders, departmentId: settings.body.settings.departments[0].id, userToken };
+}
+
+async function configurePeriodAi(adminHeaders, ai) {
+  const settings = await api("admin/settings", { headers: adminHeaders });
+  const response = await api("admin/settings", {
+    method: "POST",
+    headers: adminHeaders,
+    body: { ...settings.body.settings, ai: { ...settings.body.settings.ai, ...ai } },
+  });
+  assert.equal(response.statusCode, 200);
+}
+
+async function createQueuedApiPeriodJob(context) {
+  const queuedCallbacks = [];
+  const originalQueueMicrotask = globalThis.queueMicrotask;
+  globalThis.queueMicrotask = (callback) => queuedCallbacks.push(callback);
+  try {
+    const created = await api("admin/period-reports", {
+      method: "POST",
+      headers: context.adminHeaders,
+      body: { departmentId: context.departmentId, year: 2026, kind: "quarter", part: 3 },
+    });
+    return { created, queuedCallbacks };
+  } finally {
+    globalThis.queueMicrotask = originalQueueMicrotask;
+  }
+}
 
 function fixture() {
   return {
@@ -190,4 +288,179 @@ test("concurrent admin creates reuse the first active job after generation prepa
   assert.equal(queued.length, 1);
   assert.equal(a.value.job.id, b.value.job.id);
   assert.deepEqual([a.code, b.code].sort(), [200, 201]);
+});
+
+test("website backend exposes asynchronous DeepSeek execution and startup recovery entrypoints", () => {
+  assert.equal(typeof runPeriodReportJobFromServer, "function");
+  assert.equal(typeof recoverPeriodReportJobsFromServer, "function");
+});
+
+test("admin POST queues immediately, backend publishes after flush, and DeepSeek failure leaves no viewable HTML", async () => {
+  const login = await api("admin/login", {
+    method: "POST",
+    body: { username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD },
+  });
+  assert.equal(login.statusCode, 200);
+  const adminHeaders = { authorization: `Bearer ${login.body.token}` };
+  const settings = await api("admin/settings", { headers: adminHeaders });
+  const configured = await api("admin/settings", {
+    method: "POST",
+    headers: adminHeaders,
+    body: {
+      ...settings.body.settings,
+      ai: { ...settings.body.settings.ai, enabled: true, provider: "deepseek", model: "deepseek-chat", apiKey: "test-key" },
+    },
+  });
+  assert.equal(configured.statusCode, 200);
+
+  const account = settings.body.settings.accounts[0];
+  const registered = await api("auth/register", {
+    method: "POST",
+    body: { username: account.username, password: "12345678", displayName: account.name },
+  });
+  assert.equal(registered.statusCode, 201);
+  const user = await api("auth/login", { method: "POST", body: { username: account.username, password: "12345678" } });
+  assert.equal(user.statusCode, 200);
+  const userToken = user.body.token;
+
+  assert.equal((await api("goals", { method: "POST", token: userToken, body: { year: 2026, rows: [{ name: "交付", target: 1 }] } })).statusCode, 200);
+  for (const month of [7, 8, 9]) {
+    const endDate = new Date(Date.UTC(2026, month, 0)).toISOString().slice(0, 10);
+    const report = await api("reports", {
+      method: "POST",
+      token: userToken,
+      body: {
+        status: "final",
+        data: {
+          summaryType: "monthly",
+          title: `${month}月总结`,
+          startDate: `2026-${String(month).padStart(2, "0")}-01`,
+          endDate,
+          modules: [{ title: "交付", sections: [{ title: "进展", items: ["已完成"] }] }],
+        },
+      },
+    });
+    assert.equal(report.statusCode, 201);
+  }
+
+  const queuedCallbacks = [];
+  const originalQueueMicrotask = globalThis.queueMicrotask;
+  globalThis.queueMicrotask = (callback) => queuedCallbacks.push(callback);
+  let jobId;
+  try {
+    const created = await api("admin/period-reports", {
+      method: "POST",
+      headers: adminHeaders,
+      body: { departmentId: settings.body.settings.departments[0].id, year: 2026, kind: "quarter", part: 3 },
+    });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.body.job.status, "queued");
+    assert.equal(queuedCallbacks.length, 1);
+    jobId = created.body.job.id;
+  } finally {
+    globalThis.queueMicrotask = originalQueueMicrotask;
+  }
+
+  const published = await runPeriodReportJobFromServer(jobId, {
+    request: async ({ snapshot }) => ({
+      report: output({ departmentName: snapshot.department.name, period: snapshot.period, snapshot }),
+      usage: { inputTokens: 10 },
+    }),
+  });
+  assert.equal(published.status, "published");
+  const viewed = await api(`period-reports/${jobId}`, { token: userToken });
+  assert.equal(viewed.statusCode, 200);
+  assert.match(viewed.body.html, /正式版本/);
+
+  globalThis.queueMicrotask = () => {};
+  let failedId;
+  try {
+    const retry = await api("admin/period-reports/retry", { method: "POST", headers: adminHeaders, body: { jobId } });
+    assert.equal(retry.statusCode, 201);
+    failedId = retry.body.job.id;
+  } finally {
+    globalThis.queueMicrotask = originalQueueMicrotask;
+  }
+  await assert.rejects(runPeriodReportJobFromServer(failedId, { request: async () => { throw new Error("DeepSeek unavailable"); } }), /unavailable/);
+  const failedView = await api(`period-reports/${failedId}`, { token: userToken });
+  assert.equal(failedView.statusCode, 404);
+});
+
+test("period report releases the mutation lock before waiting for DeepSeek", async () => {
+  const context = await prepareApiPeriodSources(1);
+  await configurePeriodAi(context.adminHeaders, { enabled: true, provider: "deepseek", model: "deepseek-chat", apiKey: "lock-test-key" });
+  const { created, queuedCallbacks } = await createQueuedApiPeriodJob(context);
+  assert.equal(created.statusCode, 201);
+  assert.equal(queuedCallbacks.length, 1);
+
+  let started;
+  const requestStarted = new Promise((resolve) => { started = resolve; });
+  let continueRequest;
+  const waitForRequest = new Promise((resolve) => { continueRequest = resolve; });
+  const running = runPeriodReportJobFromServer(created.body.job.id, {
+    request: async ({ snapshot }) => {
+      started();
+      await waitForRequest;
+      return { report: output({ departmentName: snapshot.department.name, period: snapshot.period, snapshot }) };
+    },
+  });
+  await requestStarted;
+
+  const independentMutation = await api("reports", {
+    method: "POST",
+    token: context.userToken,
+    body: {
+      status: "draft",
+      data: {
+        summaryType: "weekly",
+        title: "锁外写入验证",
+        startDate: "2026-09-14",
+        endDate: "2026-09-20",
+        modules: [{ title: "交付", sections: [{ title: "进展", items: ["已保存"] }] }],
+      },
+    },
+  });
+  assert.equal(independentMutation.statusCode, 201);
+  continueRequest();
+  assert.equal((await running).status, "published");
+});
+
+test("request failure reloads and persists a failed job without decrypted key or HTML", async () => {
+  const context = await prepareApiPeriodSources(2);
+  await configurePeriodAi(context.adminHeaders, { enabled: true, provider: "deepseek", model: "deepseek-chat", apiKey: "persist-key-1234" });
+  const { created } = await createQueuedApiPeriodJob(context);
+  assert.equal(created.statusCode, 201);
+  const jobId = created.body.job.id;
+  const beforeRun = JSON.parse(await readFile(defaultLocalStatePath(), "utf8")).periodReports.jobs[jobId];
+  assert.equal(beforeRun.model, "deepseek-chat");
+  assert.equal(JSON.stringify(beforeRun).includes("persist-key-1234"), false);
+
+  await assert.rejects(runPeriodReportJobFromServer(jobId, { request: async () => { throw new Error("DeepSeek unavailable"); } }), /unavailable/);
+  const reloaded = JSON.parse(await readFile(defaultLocalStatePath(), "utf8")).periodReports.jobs[jobId];
+  assert.equal(reloaded.status, "failed");
+  assert.equal("html" in reloaded, false);
+  assert.equal(JSON.stringify(reloaded).includes("persist-key-1234"), false);
+  assert.equal((await api(`period-reports/${jobId}`, { token: context.userToken })).statusCode, 404);
+});
+
+test("disabled or non-DeepSeek settings reject before queueing or consuming quota", async () => {
+  const context = await prepareApiPeriodSources(3);
+  await configurePeriodAi(context.adminHeaders, { enabled: false, provider: "kimi" });
+  const before = JSON.parse(await readFile(defaultLocalStatePath(), "utf8"));
+  const jobsBefore = Object.keys(before.periodReports?.jobs || {}).length;
+  const quotaBefore = before.aiUsage?.[process.env.ADMIN_USERNAME]?.count || 0;
+  const rejected = await createQueuedApiPeriodJob(context);
+  assert.equal(rejected.created.statusCode, 503);
+  assert.equal(rejected.created.body.error, "请先在后台启用并选择 DeepSeek");
+  assert.equal(rejected.queuedCallbacks.length, 0);
+  const afterRejected = JSON.parse(await readFile(defaultLocalStatePath(), "utf8"));
+  assert.equal(Object.keys(afterRejected.periodReports?.jobs || {}).length, jobsBefore);
+  assert.equal(afterRejected.aiUsage?.[process.env.ADMIN_USERNAME]?.count || 0, quotaBefore);
+
+  await configurePeriodAi(context.adminHeaders, { enabled: true, provider: "deepseek", model: "deepseek-chat" });
+  const accepted = await createQueuedApiPeriodJob(context);
+  assert.equal(accepted.created.statusCode, 201);
+  assert.equal(accepted.queuedCallbacks.length, 1);
+  const afterAccepted = JSON.parse(await readFile(defaultLocalStatePath(), "utf8"));
+  assert.equal(afterAccepted.aiUsage?.[process.env.ADMIN_USERNAME]?.count, quotaBefore + 1);
 });
