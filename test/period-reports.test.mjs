@@ -1,347 +1,193 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { mkdtemp, writeFile, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  createPeriodReportService,
-  createPeriodJob,
-  publicPeriodJob,
-  validatePeriodOutput,
-  REPORT_TIMEOUT,
-} from "../lib/period-report-service.mjs";
+import * as serviceApi from "../lib/period-report-service.mjs";
 import { renderReport } from "../lib/period-report-engine.mjs";
-import { executeReportJob } from "../scripts/report-worker.mjs";
 
-const now = Date.UTC(2026, 8, 14),
-  input = { departmentId: "alpha", year: 2026, kind: "quarter", part: 3 };
+const now = Date.UTC(2026, 8, 14);
+const input = { departmentId: "alpha", year: 2026, kind: "quarter", part: 3 };
+
 function fixture() {
   return {
     settings: {
       departments: [
-        { id: "alpha", name: "研发部", enabled: true, modules: ["研发"] },
-        { id: "beta", name: "销售部", enabled: true, modules: ["销售"] },
+        { id: "alpha", name: "研发部", enabled: true },
+        { id: "beta", name: "销售部", enabled: true },
       ],
       accounts: [
-        { username: "alice", name: "甲", departmentId: "alpha", enabled: true },
-        { username: "bob", name: "乙", departmentId: "beta", enabled: true },
+        { username: "alice", departmentId: "alpha", enabled: true },
+        { username: "bob", departmentId: "beta", enabled: true },
       ],
     },
-    users: {
-      alice: { id: "alice", username: "alice", departmentId: "alpha" },
-      bob: { id: "bob", username: "bob", departmentId: "beta" },
+    goalsByDepartment: {
+      alpha: { year: 2026, rows: [{ id: "goal-1", title: "交付目标" }] },
+      beta: { year: 2026, rows: [{ id: "goal-2", title: "销售目标" }] },
     },
-    sessions: {
-      tokenA: { username: "alice", departmentId: "alpha", expiresAt: Date.now() + 3600_000 },
-      tokenB: { username: "bob", departmentId: "beta", expiresAt: Date.now() + 3600_000 },
-    },
-    weeks: {
-      w1: { id: "w1", departmentId: "alpha", startDate: "2026-07-06", endDate: "2026-07-12" },
-      w2: { id: "w2", departmentId: "alpha", startDate: "2026-07-13", endDate: "2026-07-19" },
-      old: { id: "old", departmentId: "alpha", startDate: "2026-04-01", endDate: "2026-04-07" },
-    },
-    tasks: {
-      t1: { id: "t1", departmentId: "alpha", weekId: "w1", title: "项目交付", status: "进行中" },
-      t2: { id: "t2", departmentId: "alpha", weekId: "w2", sourceTaskId: "t1", title: "项目交付", status: "已完成" },
-      secret: { id: "secret", departmentId: "beta", weekId: "w1", title: "他部门机密" },
-      old: { id: "old", departmentId: "alpha", weekId: "old", title: "旧季度" },
-    },
-    reports: {
-      r1: {
-        id: "r1",
-        departmentId: "alpha",
-        summaryType: "weekly",
-        status: "final",
-        data: { title: "研发周报", startDate: "2026/07/06", endDate: "2026/07/12", modules: [] },
-      },
-      r2: {
-        id: "r2",
-        departmentId: "alpha",
-        summaryType: "monthly",
-        status: "draft",
-        data: { title: "研发月报", startDate: "2026/07/01", endDate: "2026/07/31", modules: [] },
-      },
-    },
+    reports: Object.fromEntries([7, 8, 9].map((month) => [
+      `m${month}`,
+      { id: `m${month}`, departmentId: "alpha", summaryType: "monthly", status: "final", data: { title: `研发${month}月总结`, startDate: `2026-${String(month).padStart(2, "0")}-01`, endDate: new Date(Date.UTC(2026, month, 0)).toISOString().slice(0, 10) } },
+    ]).concat([["secret", { id: "secret", departmentId: "beta", summaryType: "monthly", status: "final", data: { title: "销售机密", startDate: "2026-07-01", endDate: "2026-07-31" } }]])),
   };
 }
+
 function output(job) {
   return {
-    schemaVersion: 1,
-    title: "研发季度经营报告",
-    organization: "研发部",
-    period: job.period,
+    schemaVersion: 1, title: "研发季度经营报告", organization: job.departmentName, period: structuredClone(job.period),
     domains: [{ id: "all", label: "部门总览", color: "#bd252b" }],
-    sources: [
-      { id: "snapshot", title: "资料快照统计（不代表期间完成量）" },
-      { id: "task-1", title: "项目交付" },
-    ],
+    sources: job.snapshot.sources.map(({ id, title }) => ({ id, title })),
     slides: [
-      {
-        id: "cover",
-        kind: "cover",
-        title: "研发季度经营报告",
-        domainId: "all",
-        summary: "基于任务及工作总结编制，保留业务待确认事项。",
-      },
-      {
-        id: "metrics",
-        kind: "metrics",
-        title: "资料已汇集，期间完成情况仍需核对",
-        domainId: "all",
-        metrics: [
-          {
-            label: "去重任务资料",
-            value: 1,
-            unit: "项",
-            definition: "本次资料快照数量，不代表期间完成量",
-            sourceIds: ["snapshot"],
-            evidence: { sourceId: "snapshot", path: ["taskCount"] },
-          },
-        ],
-      },
-      {
-        id: "results",
-        kind: "cards",
-        title: "项目交付记录已进入复核",
-        domainId: "all",
-        cards: [
-          {
-            title: "项目交付",
-            body: "任务目前标记已完成，具体完成期间及业务成效仍需负责人复核。",
-            sourceIds: ["task-1"],
-          },
-        ],
-      },
+      { id: "cover", kind: "cover", title: "研发季度经营报告", domainId: "all", summary: "基于冻结资料编制，业务结论仍待复核。" },
+      { id: "metrics", kind: "metrics", title: "资料已汇集", domainId: "all", metrics: [{ label: "待核对指标", value: null, unit: "项", definition: "本报告保留待核对指标", sourceIds: [] }] },
+      { id: "cards", kind: "cards", title: "季度总结", domainId: "all", cards: [{ title: "经营资料", body: "季度总结已纳入本次冻结资料。", sourceIds: [job.snapshot.sources[0].id] }] },
     ],
   };
 }
-function check(html, report) {
-  return {
-    passed: true,
-    slides: report.slides.length,
-    htmlHash: createHash("sha256").update(html).digest("hex"),
-    errors: [],
-  };
+
+function create(state = fixture(), actor = { username: "admin", role: "admin" }) {
+  return serviceApi.createPeriodJob(state, input, actor, now, { model: "test-model", skillVersion: "skill-v1" });
 }
-function harness(state = fixture()) {
-  const service = createPeriodReportService({
-    saveState: async () => {},
-    json: (res, value, code = 200) => Object.assign(res, { value, code }),
+
+function complete(state, jobId, clock = now) {
+  const job = state.periodReports.jobs[jobId];
+  serviceApi.beginPeriodJob(state, jobId, clock);
+  serviceApi.markPeriodJobValidating(state, jobId, clock + 1);
+  return serviceApi.publishPeriodJob(state, jobId, output(job), { usage: { inputTokens: 10 }, contentHash: "server-hash" }, clock + 2);
+}
+
+test("preparation freezes strict source context and duplicate active creation reuses the queued job", () => {
+  const state = fixture(); const prepared = serviceApi.preparePeriodJob(state, input, { username: "admin", role: "admin" }, now);
+  assert.equal(state.periodReports, undefined);
+  const job = serviceApi.persistPreparedPeriodJob(state, prepared, { username: "admin" }, now, { model: "test-model", skillVersion: "skill-v1" });
+  assert.equal(job.status, "queued"); assert.equal(job.version, undefined);
+  assert.equal(JSON.stringify(job.snapshot).includes("销售机密"), false);
+  state.goalsByDepartment.alpha.rows[0].title = "后来修改";
+  assert.equal(job.snapshot.sources[0].content.rows[0].title, "交付目标");
+  const duplicate = create(state); assert.equal(duplicate.duplicate, true); assert.equal(duplicate.job.id, job.id);
+});
+
+test("preparation retains department authorization and validates supported nonfuture periods", () => {
+  assert.throws(() => create(fixture(), { username: "bob", departmentId: "beta" }), /无权/);
+  assert.throws(() => serviceApi.createPeriodJob(fixture(), { ...input, departmentId: "beta" }, {}, now), /资料不完整|无权/);
+  assert.equal(serviceApi.periodFromInput({ ...input, kind: "half", part: 2 }, now).start, "2026-07-01");
+  assert.equal(serviceApi.periodFromInput({ ...input, kind: "year", part: 1 }, now).end, "2026-12-31");
+  assert.throws(() => serviceApi.periodFromInput({ ...input, year: 2030 }, now), /起始日/);
+  assert.throws(() => serviceApi.periodFromInput({ ...input, kind: "quarter", part: 5 }, now), /周期/);
+});
+
+test("lifecycle accepts only queued to generating to validating and formally publishes version one", () => {
+  const state = fixture(); const { job: queued } = create(state);
+  assert.throws(() => serviceApi.markPeriodJobValidating(state, queued.id, now), /报告任务状态已变化/);
+  assert.throws(() => serviceApi.publishPeriodJob(state, queued.id, {}, {}, now), /报告任务不可发布/);
+  const generating = serviceApi.beginPeriodJob(state, queued.id, now);
+  assert.equal(generating.startedAt, now);
+  generating.status = "tampered";
+  assert.equal(state.periodReports.jobs[queued.id].status, "generating");
+  const validating = serviceApi.markPeriodJobValidating(state, queued.id, now + 1);
+  validating.status = "tampered";
+  assert.equal(state.periodReports.jobs[queued.id].status, "validating");
+  serviceApi.publishPeriodJob(state, queued.id, output(generating), { usage: { inputTokens: 10 }, contentHash: "server-hash" }, now + 2);
+  const published = state.periodReports.jobs[queued.id];
+  assert.equal(published.status, "published"); assert.equal(published.version, 1); assert.equal(published.publishedAt, now + 2);
+  assert.equal(published.contentHash, "server-hash"); assert.match(published.html, /正式版本 · skill-v1 · test-model/);
+  assert.throws(() => serviceApi.beginPeriodJob(state, queued.id, now + 3), /报告任务不可执行/);
+  const next = create(state).job; assert.notEqual(next.id, queued.id); assert.equal(next.version, undefined);
+});
+
+test("publication rejects invalid frozen-source output and renderer escapes trusted provenance", () => {
+  const state = fixture(); const { job } = create(state); serviceApi.beginPeriodJob(state, job.id, now); serviceApi.markPeriodJobValidating(state, job.id, now);
+  const invalid = output(state.periodReports.jobs[job.id]); invalid.sources.push({ id: "foreign", title: "伪造来源" });
+  assert.throws(() => serviceApi.publishPeriodJob(state, job.id, invalid, {}, now), /快照/);
+  const wrongDepartment = output(state.periodReports.jobs[job.id]); wrongDepartment.organization = "错误部门";
+  assert.throws(() => serviceApi.publishPeriodJob(state, job.id, wrongDepartment, {}, now), /部门/);
+  const wrongPeriod = output(state.periodReports.jobs[job.id]); wrongPeriod.period.start = "2026-01-01";
+  assert.throws(() => serviceApi.publishPeriodJob(state, job.id, wrongPeriod, {}, now), /周期/);
+  assert.match(renderReport(output(state.periodReports.jobs[job.id]), { provenance: "正式 <来源>" }), /正式 &lt;来源&gt;/);
+});
+
+test("migration retires workers, maps legacy completion, and restart recovery fails every active job", () => {
+  const state = fixture(); state.periodReports = { workers: { old: { id: "old", tokenHash: "secret" } }, jobs: {
+    done: { id: "done", status: "completed", workerId: "old", lease: "lease", heartbeatAt: 1, deadline: 2 },
+    queued: { id: "queued", status: "queued", workerId: "old" }, running: { id: "running", status: "running", lease: "lease" }, validating: { id: "validating", status: "validating", heartbeatAt: 1 },
+  } };
+  const data = serviceApi.migratePeriodReportState(state, now); assert.equal(data, state.periodReports); assert.equal("workers" in data, false); assert.equal(data.jobs.done.status, "published");
+  for (const id of ["queued", "running", "validating"]) { assert.equal(data.jobs[id].status, "failed"); assert.equal(data.jobs[id].error, "旧版本机生成流程已停用，请重新生成"); assert.equal(data.jobs[id].updatedAt, now); }
+  assert.equal("workerId" in data.jobs.done, false);
+  Object.assign(data.jobs, { restartQueued: { id: "restartQueued", status: "queued" }, restart: { id: "restart", status: "generating" }, restartValidating: { id: "restartValidating", status: "validating" } });
+  assert.deepEqual(serviceApi.recoverInterruptedPeriodJobs(state, now + 1), ["restartQueued", "restart", "restartValidating"]);
+  assert.equal(data.jobs.restart.error, "服务重启导致生成中断，请重试");
+});
+
+test("migration publishes completed legacy jobs even after worker state was removed", () => {
+  const state = fixture(); state.periodReports = { jobs: { done: { id: "done", status: "completed" } } };
+  serviceApi.migratePeriodReportState(state, now);
+  assert.equal(state.periodReports.jobs.done.status, "published");
+});
+
+test("lifecycle functions retire legacy worker jobs before applying their transitions", () => {
+  const legacy = (status) => ({ periodReports: { workers: { old: { id: "old" } }, jobs: { old: { id: "old", status, workerId: "old", lease: "lease" } } } });
+  const queued = legacy("queued");
+  assert.throws(() => serviceApi.beginPeriodJob(queued, "old", now), /不可执行/);
+  assert.equal(queued.periodReports.jobs.old.status, "failed");
+  assert.equal("workerId" in queued.periodReports.jobs.old, false);
+  const running = legacy("running");
+  assert.throws(() => serviceApi.markPeriodJobValidating(running, "old", now), /状态已变化/);
+  assert.equal(running.periodReports.jobs.old.error, "旧版本机生成流程已停用，请重新生成");
+  const failing = legacy("queued");
+  assert.equal(serviceApi.failPeriodJob(failing, "old", "new", now), null);
+  const publishing = legacy("validating");
+  assert.throws(() => serviceApi.publishPeriodJob(publishing, "old", {}, {}, now), /报告任务不可发布/);
+  assert.equal(publishing.periodReports.jobs.old.error, "旧版本机生成流程已停用，请重新生成");
+  const recovering = legacy("validating");
+  assert.deepEqual(serviceApi.recoverInterruptedPeriodJobs(recovering, now), []);
+  assert.equal(recovering.periodReports.jobs.old.status, "failed");
+});
+
+test("failure handles active jobs only and caps its error", () => {
+  const state = fixture(); const { job } = create(state); const failed = serviceApi.failPeriodJob(state, job.id, "x".repeat(400), now);
+  assert.equal(failed.status, "failed"); assert.equal(failed.error.length, 300); failed.error = "tampered"; assert.equal(state.periodReports.jobs[job.id].error.length, 300); assert.equal(serviceApi.failPeriodJob(state, job.id, "again", now), null);
+  const errored = create(state).job;
+  assert.equal(serviceApi.failPeriodJob(state, errored.id, new Error("连接失败"), now).error, "连接失败");
+  const defaulted = create(state).job;
+  assert.equal(serviceApi.failPeriodJob(state, defaulted.id, undefined, now).error, "生成失败");
+});
+
+test("published-only views keep historical job URLs while stable keys resolve the highest formal version", async () => {
+  const state = fixture(); const first = create(state).job; complete(state, first.id); const second = create(state).job; complete(state, second.id, now + 10);
+  const service = serviceApi.createPeriodReportService({ saveState: async () => {}, json: (res, value, code = 200) => Object.assign(res, { value, code }), prepareGeneration: async () => ({ model: "test-model", skillVersion: "skill-v1" }), enqueue: async () => {} });
+  const stable = await service.view({ method: "GET" }, {}, state, ["period-reports", first.key], now, { departmentId: "alpha" }); assert.equal(stable.value.job.id, second.id);
+  const historical = await service.view({ method: "GET" }, {}, state, ["period-reports", first.id], now, { departmentId: "alpha" }); assert.equal(historical.value.job.id, first.id); assert.equal("snapshot" in historical.value.job, false); assert.equal(historical.value.job.snapshotCapturedAt, now);
+  await assert.rejects(service.view({ method: "GET" }, {}, state, ["period-reports", first.id], now, { departmentId: "beta" }), /无权/);
+});
+
+test("admin prepares before generation, persists generated metadata, and retries a published report as a new job", async () => {
+  const state = fixture(); const calls = [];
+  const service = serviceApi.createPeriodReportService({
+    saveState: async () => calls.push("save"), json: (res, value, code = 200) => Object.assign(res, { value, code }),
+    prepareGeneration: async (_state, _actor, prepared) => { calls.push(`prepare:${prepared.key}`); return { model: "deepseek", skillVersion: "period-report-v2" }; },
+    enqueue: async (id) => calls.push(`enqueue:${id}`),
+  });
+  const actor = { username: "admin", role: "admin" }; const created = await service.admin({ method: "POST", body: input }, {}, state, ["admin", "period-reports"], now, actor); const job = state.periodReports.jobs[created.value.job.id];
+  assert.equal(created.code, 201); assert.equal(job.model, "deepseek"); assert.equal(job.skillVersion, "period-report-v2"); assert.deepEqual(calls.slice(0, 3), [`prepare:${job.key}`, "save", `enqueue:${job.id}`]);
+  const duplicate = await service.admin({ method: "POST", body: input }, {}, state, ["admin", "period-reports"], now, actor); assert.equal(duplicate.code, 200); assert.equal(calls.filter((entry) => entry.startsWith("prepare:")).length, 1);
+  complete(state, job.id); const retry = await service.admin({ method: "POST", body: { jobId: job.id } }, {}, state, ["admin", "period-reports", "retry"], now + 4, actor); assert.equal(retry.code, 201); assert.notEqual(retry.value.job.id, job.id);
+});
+
+test("concurrent admin creates reuse the first active job after generation preparation", async () => {
+  const state = fixture(); const queued = []; let prepared = 0; let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const service = serviceApi.createPeriodReportService({
+    saveState: async () => {}, json: (res, value, code = 200) => Object.assign(res, { value, code }),
+    prepareGeneration: async () => { prepared++; await gate; return { model: "deepseek", skillVersion: "period-report-v2" }; },
+    enqueue: async (id) => queued.push(id),
   });
   const actor = { username: "admin", role: "admin" };
-  return {
-    state,
-    actor,
-    service,
-    admin: async (action = "", body, who = actor) =>
-      service.admin(
-        { method: body === undefined ? "GET" : "POST", body },
-        {},
-        state,
-        ["admin", "period-reports", ...(action ? [action] : [])],
-        now,
-        who,
-      ),
-    worker: async (token, action, body = {}, clock = now) =>
-      service.worker(
-        { method: "POST", headers: { authorization: `Bearer ${token}` }, body },
-        {},
-        state,
-        ["report-worker", action],
-        clock,
-      ),
-  };
-}
-test("snapshot isolates department and period, deduplicates rollovers and stays frozen", () => {
-  const state = fixture(),
-    result = createPeriodJob(state, input, { username: "admin" }, now);
-  const snapshot = state.periodReports.jobs[result.job.id].snapshot;
-  assert.deepEqual(snapshot.stats, { taskCount: 1, weeklyReportCount: 1, monthlyReportCount: 1 });
-  assert.equal(JSON.stringify(snapshot).includes("他部门机密"), false);
-  assert.equal(JSON.stringify(snapshot).includes("旧季度"), false);
-  state.tasks.t2.title = "修改后的任务";
-  assert.equal(snapshot.sources.find((s) => s.id === "task-1").content.title, "项目交付");
-  assert.equal(snapshot.sources.find((s) => s.id === "report-2").content.status, "draft");
-});
-test("duplicate clicks reuse active task; unauthorized and empty departments are rejected", () => {
-  const state = fixture();
-  const first = createPeriodJob(state, input, { username: "a" }, now);
-  assert.equal(createPeriodJob(state, input, { username: "a" }, now).job.id, first.job.id);
-  assert.throws(() => createPeriodJob(state, input, { username: "b", departmentId: "beta" }, now), /无权/);
-  assert.throws(() => createPeriodJob(state, { ...input, departmentId: "beta" }, {}, now), /没有任务/);
-});
-test("half/year boundaries are exact and future periods rejected", () => {
-  for (const [kind, part, start, end] of [
-    ["half", 2, "2026-07-01", "2026-12-31"],
-    ["year", 1, "2026-01-01", "2026-12-31"],
-  ]) {
-    const result = createPeriodJob(fixture(), { ...input, kind, part }, {}, now);
-    assert.equal(result.job.period.start, start);
-    assert.equal(result.job.period.end, end);
-    assert.equal(result.job.period.asOf, "2026-09-14");
-  }
-  assert.equal(
-    createPeriodJob(fixture(), { ...input, kind: "quarter", part: 2 }, {}, now).job.period.asOf,
-    "2026-06-30",
-  );
-  assert.throws(() => createPeriodJob(fixture(), { ...input, year: 2030 }, {}, now), /起始日/);
-});
-test("forged values, unknown sources and changed periods fail independent validation", () => {
-  const state = fixture(),
-    { job: meta } = createPeriodJob(state, input, {}, now),
-    job = state.periodReports.jobs[meta.id];
-  const valid = output(job);
-  assert.deepEqual(validatePeriodOutput(job, valid).errors, []);
-  const changed = structuredClone(valid);
-  changed.slides[1].metrics[0].value = 100;
-  assert.match(validatePeriodOutput(job, changed).errors.join(), /数字证据/);
-  changed.sources.push({ id: "foreign", title: "外部来源" });
-  changed.period.start = "2026-01-01";
-  assert.match(validatePeriodOutput(job, changed).errors.join(), /快照/);
-  assert.match(validatePeriodOutput(job, changed).errors.join(), /周期/);
-});
-test("worker claims once, reconnects original lease, and other devices cannot steal", async () => {
-  const h = harness();
-  const a = (await h.admin("pair", {})).value,
-    b = (await h.admin("pair", {})).value;
-  await h.admin("", input);
-  const first = (await h.worker(a.token, "claim")).value.job;
-  assert.equal((await h.worker(a.token, "claim")).value.job.lease, first.lease);
-  assert.equal((await h.worker(b.token, "claim")).value.job, null);
-  await assert.rejects(h.worker(b.token, "heartbeat", { jobId: first.id, lease: first.lease }), /归属/);
-  assert.match(publicPeriodJob(h.state.periodReports.jobs[first.id], now + 100_000).message, /连接中断/);
-  await h.admin("revoke", { workerId: a.workerId });
-  await assert.rejects(h.worker(a.token, "claim"), /停用/);
-});
-test("cancel/timeout reject late results and manual retry preserves versions", async () => {
-  const h = harness(),
-    paired = (await h.admin("pair", {})).value;
-  await h.admin("", input);
-  const job = (await h.worker(paired.token, "claim")).value.job;
-  await h.admin("cancel", { jobId: job.id });
-  await assert.rejects(h.worker(paired.token, "complete", { jobId: job.id, lease: job.lease }), /已结束/);
-  const second = (await h.admin("", input)).value.job;
-  assert.equal(second.version, 2);
-  const claimed = (await h.worker(paired.token, "claim")).value.job;
-  await assert.rejects(
-    h.worker(paired.token, "heartbeat", { jobId: claimed.id, lease: claimed.lease }, now + REPORT_TIMEOUT + 1),
-    /已结束/,
-  );
-  assert.equal(h.state.periodReports.jobs[claimed.id].status, "failed");
-});
-test("HTML completion requires matching browser evidence, is idempotent, and stable URL resolves latest", async () => {
-  const h = harness(),
-    paired = (await h.admin("pair", {})).value;
-  await h.admin("", input);
-  const claimed = (await h.worker(paired.token, "claim")).value.job;
-  const report = output(claimed),
-    payload = { jobId: claimed.id, lease: claimed.lease, report };
-  await assert.rejects(h.worker(paired.token, "complete", payload), /浏览器校验/);
-  payload.browserCheck = check(renderReport(report), report);
-  await h.worker(paired.token, "complete", payload);
-  await h.worker(paired.token, "complete", payload);
-  const stateJob = h.state.periodReports.jobs[claimed.id];
-  const viewed = await h.service.view(
-    { method: "GET" },
-    {},
-    h.state,
-    ["period-reports", encodeURIComponent(stateJob.key)],
-    now,
-    { departmentId: "alpha" },
-  );
-  assert.match(viewed.value.html, /<!doctype html>/);
-  assert.equal(viewed.value.job.version, 1);
-  await assert.rejects(
-    h.service.view({ method: "GET" }, {}, h.state, ["period-reports", claimed.id], now, { departmentId: "beta" }),
-    /无权/,
-  );
-  assert.equal((await h.admin("", input)).value.job.version, 2);
-});
-test("worker resumes upload after network failure without invoking generator again", async () => {
-  const state = fixture(),
-    meta = createPeriodJob(state, input, {}, now).job;
-  const job = { ...state.periodReports.jobs[meta.id], lease: "lease", deadline: Date.now() + 60_000 };
-  const root = await mkdtemp(join(tmpdir(), "period-worker-test-"));
-  let generated = 0,
-    completed = 0;
-  const config = { workerId: "test-worker", skillPath: fileURLToPath(new URL("../docs", import.meta.url)) };
-  const options = {
-    config,
-    root,
-    call: async (action) => {
-      if (action === "complete" && ++completed === 1) throw new Error("连接中断");
-    },
-    generate: async (_job, dir) => {
-      generated++;
-      await writeFile(join(dir, "report.json"), JSON.stringify(output(job)));
-    },
-    check: async (html) => check(html, output(job)),
-  };
-  await assert.rejects(executeReportJob(job, options), /连接中断/);
-  await executeReportJob(job, options);
-  assert.equal(generated, 1);
-  assert.equal(completed, 2);
-});
-test("actual API rejects anonymous/foreign access, accepts admin queue and persists output", async () => {
-  const root = await mkdtemp(join(tmpdir(), "period-api-test-"));
-  process.env.STATE_PATH = join(root, "state.json");
-  process.env.ADMIN_USERNAME = "ReportAdmin";
-  process.env.ADMIN_PASSWORD = "Test-password-928!";
-  process.env.ADMIN_SESSION_SECRET = "report-integration-session-secret-12345678";
-  await writeFile(process.env.STATE_PATH, JSON.stringify(fixture()));
-  const { default: handler } = await import("../api/[...path].mjs");
-  async function api(path, { method = "GET", body, token = "", user = "" } = {}) {
-    const res = {
-      statusCode: 200,
-      setHeader() {},
-      status(c) {
-        this.statusCode = c;
-        return this;
-      },
-      json(value) {
-        this.value = value;
-        return this;
-      },
-    };
-    await handler(
-      {
-        method,
-        body,
-        headers: { authorization: token ? `Bearer ${token}` : "", "x-user-token": user },
-        query: { path: path.split("/") },
-      },
-      res,
-    );
-    return res;
-  }
-  assert.equal((await api("period-reports")).statusCode, 401);
-  assert.equal((await api("admin/period-reports", { method: "POST", body: input, user: "tokenA" })).statusCode, 401);
-  const login = await api("admin/login", {
-    method: "POST",
-    body: { username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD },
-  });
-  assert.equal(login.statusCode, 200);
-  const token = login.value.token;
-  const pair = await api("admin/period-reports/pair", { method: "POST", body: {}, token });
-  const [a, b] = await Promise.all([
-    api("admin/period-reports", { method: "POST", body: input, token }),
-    api("admin/period-reports", { method: "POST", body: input, token }),
-  ]);
+  const first = service.admin({ method: "POST", body: input }, {}, state, ["admin", "period-reports"], now, actor);
+  const second = service.admin({ method: "POST", body: input }, {}, state, ["admin", "period-reports"], now, actor);
+  await Promise.resolve();
+  assert.equal(prepared, 2);
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(Object.keys(state.periodReports.jobs).length, 1);
+  assert.equal(queued.length, 1);
   assert.equal(a.value.job.id, b.value.job.id);
-  const claimed = await api("report-worker/claim", { method: "POST", body: {}, token: pair.value.token });
-  const job = claimed.value.job,
-    report = output(job);
-  const complete = await api("report-worker/complete", {
-    method: "POST",
-    token: pair.value.token,
-    body: { jobId: job.id, lease: job.lease, report, browserCheck: check(renderReport(report), report) },
-  });
-  assert.equal(complete.statusCode, 200, JSON.stringify(complete.value));
-  assert.equal((await api(`period-reports/${job.id}`, { user: "tokenB" })).statusCode, 404);
-  assert.equal((await api(`period-reports/${job.id}`, { user: "tokenA" })).statusCode, 200);
-  const saved = JSON.parse(await readFile(process.env.STATE_PATH, "utf8"));
-  assert.equal(saved.periodReports.jobs[job.id].status, "completed");
-  assert.equal(JSON.stringify(saved).includes(pair.value.token), false);
+  assert.deepEqual([a.code, b.code].sort(), [200, 201]);
 });
