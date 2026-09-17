@@ -10,7 +10,16 @@ import { adminCredentialsValid as credentialsMatch } from "../lib/runtime-config
 import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
-import { createPeriodReportService } from "../lib/period-report-service.mjs";
+import {
+  beginPeriodJob,
+  createPeriodReportService,
+  failPeriodJob,
+  markPeriodJobValidating,
+  publishPeriodJob,
+  recoverInterruptedPeriodJobs,
+} from "../lib/period-report-service.mjs";
+import { requestDeepSeekPeriodReport } from "../lib/deepseek-period-report.mjs";
+import { WEBSITE_PERIOD_REPORT_SKILL_VERSION } from "../lib/period-report-skill.mjs";
 import { hashPassword, needsRehash, verifyPassword } from "../lib/password-hash.mjs";
 import { clearLoginFailures, loginThrottleStatus, registerLoginFailure } from "../lib/login-throttle.mjs";
 import { createMutationLock } from "../lib/mutation-lock.mjs";
@@ -55,7 +64,12 @@ const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
 };
-const periodReports = createPeriodReportService({ saveState, json });
+const periodReports = createPeriodReportService({
+  saveState,
+  json,
+  prepareGeneration: preparePeriodGeneration,
+  enqueue: enqueuePeriodReportJob,
+});
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
 const defaultDepartment = {
   id: "data-product",
@@ -494,6 +508,135 @@ export async function runReportAutoArchiveFromServer({ triggeredAt = Date.now(),
   try {
     const state = await loadState();
     return await executeReportAutoArchive(state, { triggeredAt, trigger });
+  } finally {
+    release();
+  }
+}
+
+function periodGenerationError(message, statusCode) {
+  return Object.assign(new Error(message), { statusCode });
+}
+
+async function preparePeriodGeneration(state, actor, prepared, now) {
+  const departmentSettings = settingsForDepartment(state, prepared.department.id);
+  const ai = normalizeAiSettings(departmentSettings.ai);
+  if (!ai.enabled || ai.provider !== "deepseek") {
+    throw periodGenerationError("请先在后台启用并选择 DeepSeek", 503);
+  }
+  let apiKey;
+  try {
+    apiKey = await resolvedAiApiKey(ai);
+  } catch {
+    throw periodGenerationError("DeepSeek API Key 未配置", 503);
+  }
+  if (!apiKey) throw periodGenerationError("DeepSeek API Key 未配置", 503);
+  const quota = consumeAiQuota(state, actor, now);
+  if (!quota.allowed) {
+    throw periodGenerationError(`今日AI提炼次数已达上限（${quota.limit}次）`, 429);
+  }
+  return {
+    model: ai.model,
+    skillVersion: WEBSITE_PERIOD_REPORT_SKILL_VERSION,
+    quota,
+  };
+}
+
+function enqueuePeriodReportJob(jobId) {
+  queueMicrotask(() => {
+    void runPeriodReportJobFromServer(jobId).catch(() => {
+      console.error("Period report job failed");
+    });
+  });
+}
+
+export async function persistPeriodReportFailure(jobId, error, { now = Date.now() } = {}) {
+  const release = await mutationLock.acquire();
+  try {
+    const state = await loadState();
+    const failed = failPeriodJob(state, jobId, error, now);
+    await saveState(state);
+    return failed;
+  } finally {
+    release();
+  }
+}
+
+export async function runPeriodReportJobFromServer(jobId, { request = requestDeepSeekPeriodReport } = {}) {
+  let generation;
+  try {
+    const release = await mutationLock.acquire();
+    try {
+      const state = await loadState();
+      const job = beginPeriodJob(state, jobId, Date.now());
+      const departmentSettings = settingsForDepartment(state, job.departmentId);
+      const ai = normalizeAiSettings(departmentSettings.ai);
+      if (!ai.enabled || ai.provider !== "deepseek") {
+        throw periodGenerationError("请先在后台启用并选择 DeepSeek", 503);
+      }
+      let apiKey;
+      try {
+        apiKey = await resolvedAiApiKey(ai);
+      } catch {
+        throw periodGenerationError("DeepSeek API Key 未配置", 503);
+      }
+      if (!apiKey) throw periodGenerationError("DeepSeek API Key 未配置", 503);
+      await saveState(state);
+      generation = { apiKey, model: ai.model, snapshot: job.snapshot };
+    } finally {
+      release();
+    }
+  } catch (error) {
+    await persistPeriodReportFailure(jobId, error);
+    throw error;
+  }
+
+  let generated;
+  try {
+    generated = await request(generation);
+  } catch (error) {
+    await persistPeriodReportFailure(jobId, error);
+    throw error;
+  }
+
+  try {
+    const validatingRelease = await mutationLock.acquire();
+    try {
+      const state = await loadState();
+      markPeriodJobValidating(state, jobId, Date.now());
+      await saveState(state);
+    } finally {
+      validatingRelease();
+    }
+
+    const publishingRelease = await mutationLock.acquire();
+    try {
+      const state = await loadState();
+      const published = publishPeriodJob(
+        state,
+        jobId,
+        generated?.report,
+        { usage: generated?.usage, contentHash: generated?.contentHash },
+        Date.now(),
+      );
+      await saveState(state);
+      return published;
+    } finally {
+      publishingRelease();
+    }
+  } catch (error) {
+    await persistPeriodReportFailure(jobId, error);
+    throw error;
+  }
+}
+
+export async function recoverPeriodReportJobsFromServer({ triggeredAt = Date.now() } = {}) {
+  const release = await mutationLock.acquire();
+  try {
+    const state = await loadState();
+    const legacyWorkersRemoved = Object.hasOwn(state.periodReports || {}, "workers");
+    const recoveredJobIds = recoverInterruptedPeriodJobs(state, triggeredAt);
+    if (legacyWorkersRemoved || recoveredJobIds.length) await saveState(state);
+    return { recoveredJobIds, legacyWorkersRemoved };
   } finally {
     release();
   }
@@ -2336,7 +2479,6 @@ export default async function handler(req, res) {
     const state = await loadState();
     const now = Date.now();
     const actor = currentUser(req, state, now);
-    if (parts[0] === "report-worker") return await periodReports.worker(req, res, state, parts, now);
     if (parts[0] === "period-reports") {
       const admin = await verifyAdminToken(bearerToken(req), { now });
       if (admin?.role === "admin") return await periodReports.view(req, res, state, parts, now, admin);

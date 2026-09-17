@@ -3,7 +3,11 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import apiHandler, { runReportAutoArchiveFromServer, runWeeklyRolloverFromServer } from "./api/[...path].mjs";
+import apiHandler, {
+  recoverPeriodReportJobsFromServer,
+  runReportAutoArchiveFromServer,
+  runWeeklyRolloverFromServer,
+} from "./api/[...path].mjs";
 import { validateProductionConfig } from "./lib/runtime-config.mjs";
 
 const defaultPublicRoot = fileURLToPath(new URL("./public", import.meta.url));
@@ -190,18 +194,48 @@ export function startReportAutoArchiveScheduler({ run = runReportAutoArchiveFrom
   return startDaytimeHourlyScheduler({ run, label: "Report auto archive scheduler", ...options });
 }
 
+export { recoverPeriodReportJobsFromServer };
+
+export async function startProductionBackgroundJobs({
+  recoverPeriodReports = recoverPeriodReportJobsFromServer,
+  startWeeklyScheduler = startWeeklyRolloverScheduler,
+  startArchiveScheduler = startReportAutoArchiveScheduler,
+  logger = console,
+} = {}) {
+  let recovery = { recoveredJobIds: [], legacyWorkersRemoved: false };
+  try {
+    recovery = await recoverPeriodReports();
+    logger.info?.(
+      "Period report recovery:",
+      JSON.stringify({
+        count: recovery.recoveredJobIds.length,
+        ids: recovery.recoveredJobIds,
+      }),
+    );
+  } catch {
+    logger.error?.("Period report recovery failed");
+  }
+  const weeklyScheduler = startWeeklyScheduler();
+  const archiveScheduler = startArchiveScheduler();
+  return {
+    recovery,
+    stop() {
+      weeklyScheduler.stop();
+      archiveScheduler.stop();
+    },
+  };
+}
+
 const isDirectRun = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 
 if (isDirectRun) {
   const port = Number(process.env.PORT || 3000);
   const server = createProductionServer();
-  server.listen(port, "0.0.0.0", () => {
+  server.listen(port, "0.0.0.0", async () => {
     console.log(`Department workbench listening on port ${port}`);
-    const scheduler = startWeeklyRolloverScheduler();
-    const reportArchiveScheduler = startReportAutoArchiveScheduler();
+    const backgroundJobs = await startProductionBackgroundJobs();
     server.once("close", () => {
-      scheduler.stop();
-      reportArchiveScheduler.stop();
+      backgroundJobs.stop();
     });
   });
 }

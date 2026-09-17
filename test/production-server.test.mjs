@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { createProductionServer } from "../server.mjs";
 import * as productionServer from "../server.mjs";
+import { recoverInterruptedPeriodJobs } from "../lib/period-report-service.mjs";
 
 process.env.ADMIN_USERNAME = "admin-test";
 process.env.ADMIN_PASSWORD = "admin-password-test";
@@ -75,6 +76,47 @@ test("production server schedules both background jobs hourly during Beijing day
 
   await assertDaytimeHourlyScheduler(productionServer.startWeeklyRolloverScheduler);
   await assertDaytimeHourlyScheduler(productionServer.startReportAutoArchiveScheduler);
+});
+
+test("production server exports period-report recovery before schedulers start", () => {
+  assert.equal(typeof productionServer.recoverPeriodReportJobsFromServer, "function");
+});
+
+test("direct startup recovers active period jobs exactly once before starting schedulers", async () => {
+  const state = {
+    periodReports: {
+      jobs: {
+        queued: { id: "queued", status: "queued" },
+        generating: { id: "generating", status: "generating" },
+        validating: { id: "validating", status: "validating" },
+        published: { id: "published", status: "published", html: "<main>正式报告</main>" },
+      },
+    },
+  };
+  const calls = [];
+  const scheduler = await productionServer.startProductionBackgroundJobs({
+    recoverPeriodReports: async () => {
+      calls.push("recover");
+      return { recoveredJobIds: recoverInterruptedPeriodJobs(state, 123), legacyWorkersRemoved: false };
+    },
+    startWeeklyScheduler: () => {
+      calls.push("weekly");
+      return { stop() {} };
+    },
+    startArchiveScheduler: () => {
+      calls.push("archive");
+      return { stop() {} };
+    },
+    logger: { info() {}, error() {} },
+  });
+  assert.deepEqual(calls, ["recover", "weekly", "archive"]);
+  for (const id of ["queued", "generating", "validating"]) {
+    assert.equal(state.periodReports.jobs[id].status, "failed");
+    assert.equal(state.periodReports.jobs[id].error, "服务重启导致生成中断，请重试");
+  }
+  assert.equal(state.periodReports.jobs.published.status, "published");
+  assert.equal(state.periodReports.jobs.published.html, "<main>正式报告</main>");
+  scheduler.stop();
 });
 
 test("production server serves health, UI, and protected API", async () => {

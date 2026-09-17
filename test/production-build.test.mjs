@@ -20,4 +20,6 @@ test("production build contains the runnable service", async () => {
   assert.equal(manifest.version, stdout.trim());
   assert.match(manifest.builtAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(join("build", manifest.entry), join("build", "server.mjs"));
+  await assert.rejects(access(new URL("../build/scripts/report-worker.mjs", import.meta.url)));
+  await assert.rejects(access(new URL("../build/scripts/install-report-worker.mjs", import.meta.url)));
 });
