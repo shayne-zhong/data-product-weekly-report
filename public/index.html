@@ -1045,7 +1045,7 @@ body.admin-mode{
     ];
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
     const adminSectionMeta = {
-      "period-reports": { label: "部门总结报告", icon: "i-tasks", group: "组织管理" },
+      "period-reports": { label: "总结报告", icon: "i-tasks", group: "组织管理" },
       overview: { label: "管理概览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
       login: { label: "保持登录", icon: "i-clock", group: "规则配置" }, archive: { label: "归档设置", icon: "i-archive", group: "规则配置" },
       "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" }, workbuddy: { label: "企微待办", icon: "i-tasks", group: "系统运维" },
@@ -4023,7 +4023,7 @@ body.admin-mode{
         .map((report) => `
           <div class="report-item" data-period-report-open="${escapeHtml(report.id)}">
             <div class="report-item-main"><div>
-              ${escapeHtml(report.period.label)}部门总结报告 · V${escapeHtml(report.version)}
+              ${report.origin === "codex-html-upload" ? "Codex 上传 · " : ""}${escapeHtml(report.period.label)}部门总结报告 · V${escapeHtml(report.version)}
               <br><small>已正式发布 · ${escapeHtml(displayDate(report.period.start))} — ${escapeHtml(displayDate(report.period.end))}</small>
             </div></div>
           </div>
@@ -4951,7 +4951,9 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
 
       const periodReportId = event.target.closest("[data-period-report-open]")?.dataset.periodReportOpen;
       if (periodReportId) {
-        await periodReportUi.open(periodReportId);
+        const report = departmentPeriodReports.find((item) => item.id === periodReportId);
+        if (report?.origin === "codex-html-upload") await periodReportUi.openInWindow(periodReportId);
+        else await periodReportUi.open(periodReportId);
         return;
       }
 

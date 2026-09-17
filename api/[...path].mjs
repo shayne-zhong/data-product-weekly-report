@@ -71,6 +71,12 @@ const periodReports = createPeriodReportService({
   prepareGeneration: preparePeriodGeneration,
   enqueue: enqueuePeriodReportJob,
   abort: (jobId) => periodReportControllers.get(jobId)?.abort(),
+  readUpload: (req) =>
+    parseSingleFile(req, {
+      maxBytes: 2 * 1024 * 1024,
+      fields: ["departmentId", "year", "kind", "part"],
+      tooLargeMessage: "上传的 HTML 不能超过 2 MB",
+    }),
 });
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
 const defaultDepartment = {

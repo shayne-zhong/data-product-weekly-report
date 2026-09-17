@@ -4,11 +4,16 @@ import { Readable } from "node:stream";
 
 import { parseSingleFile } from "../lib/multipart-file.mjs";
 
-function multipartRequest(files, boundary = "artifact-boundary") {
-  const parts = files.map(
+function multipartRequest(files, fields = {}, boundary = "artifact-boundary") {
+  const parts = [
+    ...Object.entries(fields).map(
+      ([name, value]) => `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+    ),
+    ...files.map(
     ({ field = "file", filename, mimeType, content }) =>
       `--${boundary}\r\nContent-Disposition: form-data; name="${field}"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n${content}\r\n`,
-  );
+    ),
+  ];
   const req = Readable.from(Buffer.from(`${parts.join("")}--${boundary}--\r\n`));
   req.headers = { "content-type": `multipart/form-data; boundary=${boundary}` };
   return req;
@@ -27,6 +32,17 @@ test("parses one named file and preserves a UTF-8 filename", async () => {
   assert.equal(file.filename, "结果.pdf");
   assert.equal(file.mimeType, "application/pdf");
   assert.match(file.buffer.toString(), /^%PDF/);
+});
+
+test("parses only explicitly allowed upload fields with the file", async () => {
+  const file = await parseSingleFile(
+    multipartRequest(
+      [{ filename: "report.html", mimeType: "text/html", content: "<html>报告</html>" }],
+      { departmentId: "alpha", year: "2026", ignored: "no" },
+    ),
+    { fields: ["departmentId", "year"] },
+  );
+  assert.deepEqual(file.fields, { departmentId: "alpha", year: "2026" });
 });
 
 test("rejects missing and multiple file parts", async () => {

@@ -11,8 +11,9 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     ...[1, 2, 3, 4].map((part) => `<option value="quarter:${part}">第${part}季度</option>`),
     '<option value="half:1">上半年</option><option value="half:2">下半年</option><option value="year:1">年度</option>',
   ].join("");
-  panel.innerHTML = `<div class="admin-section-head"><div><h3>部门总结报告管理</h3><p>按报告周期汇集已归档的总结与年度目标，使用网站配置的 DeepSeek 生成正式 HTML 报告。</p></div><button class="ghost-btn" id="pr-refresh">刷新</button></div>
+  panel.innerHTML = `<div class="admin-section-head"><div><h3>总结报告</h3><p>按报告周期汇集已归档的总结与年度目标，使用网站配置的 DeepSeek 生成正式 HTML 报告。</p></div><button class="ghost-btn" id="pr-refresh">刷新</button></div>
     <form id="pr-form" class="admin-record-filters"><label>部门<select id="pr-department" required></select></label><label>年份<input id="pr-year" type="number" min="2000" max="2100" required value="${new Date().getFullYear()}"></label><label>报告周期<select id="pr-period">${periodOptions}</select></label><button class="btn" id="pr-generate">生成报告</button></form>
+    <div class="admin-record-filters"><label>Codex HTML<input id="pr-upload-file" type="file" accept=".html,.htm,text/html,application/xhtml+xml" /></label><button class="ghost-btn" id="pr-upload" type="button">上传报告</button><small class="subtitle">仅 HTML，最大 2 MB；上传后作为正式版本发布。</small></div>
     <p id="pr-message" role="status" aria-live="polite"></p><div id="pr-jobs" style="margin-top:20px"></div>`;
   document.querySelector(".admin-content").append(panel);
   el("pr-period").value = `quarter:${Math.floor(new Date().getMonth() / 3) + 1}`;
@@ -28,6 +29,7 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   function sourceSummary(job) {
+    if (job.origin === "codex-html-upload") return "Codex 上传 HTML";
     const sources = job.sources || {};
     const parts = [`目标 ${sources.goalCount || 0}`];
     if (sources.monthlySummaryCount) parts.push(`月度总结 ${sources.monthlySummaryCount}`);
@@ -39,7 +41,7 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     return `<div class="table-wrap"><table class="admin-record-table"><thead><tr><th>部门 / 周期</th><th>版本</th><th>状态</th><th>资料</th><th>操作</th></tr></thead><tbody>${jobs.map((j) => {
       const published = j.status === "published";
       const active = ["queued", "generating", "validating"].includes(j.status);
-      return `<tr><td>${esc(j.departmentName)}<br>${esc(j.period.label)}</td><td>${j.version ? `V${j.version}` : "—"}</td><td>${esc(labels[j.status] || j.status)}${j.message ? `<br><small>${esc(j.message)}</small>` : ""}</td><td>${esc(sourceSummary(j))}</td><td>${published ? `<button class="ghost-btn" data-pr-open="${esc(j.id)}">预览</button> <button class="ghost-btn" data-pr-download="${esc(j.id)}">下载 HTML</button> <a href="${esc(j.href)}" target="_blank" rel="noopener">固定链接</a>` : ""}${admin && active ? ` <button class="ghost-btn" data-pr-cancel="${esc(j.id)}">终止</button>` : ""}${admin && ["failed", "published", "cancelled"].includes(j.status) ? ` <button class="ghost-btn" data-pr-retry="${esc(j.id)}">${published ? "重新生成" : "重试"}</button> <button class="ghost-btn" data-pr-delete="${esc(j.id)}">删除</button>` : ""}</td></tr>`;
+      return `<tr><td>${esc(j.departmentName)}<br>${esc(j.period.label)}</td><td>${j.version ? `V${j.version}` : "—"}</td><td>${esc(labels[j.status] || j.status)}${j.message ? `<br><small>${esc(j.message)}</small>` : ""}</td><td>${esc(sourceSummary(j))}</td><td>${published ? `${j.origin === "codex-html-upload" ? `<button class="ghost-btn" data-pr-window-open="${esc(j.id)}">新窗口打开</button>` : `<button class="ghost-btn" data-pr-open="${esc(j.id)}">预览</button>`} <button class="ghost-btn" data-pr-download="${esc(j.id)}">下载 HTML</button> <a href="${esc(j.href)}" target="_blank" rel="noopener">固定链接</a>` : ""}${admin && active ? ` <button class="ghost-btn" data-pr-cancel="${esc(j.id)}">终止</button>` : ""}${admin && ["failed", "published", "cancelled"].includes(j.status) ? ` <button class="ghost-btn" data-pr-retry="${esc(j.id)}">${published ? "重新生成" : "重试"}</button> <button class="ghost-btn" data-pr-delete="${esc(j.id)}">删除</button>` : ""}</td></tr>`;
     }).join("")}</tbody></table></div>`;
   }
   async function load() {
@@ -66,6 +68,24 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     finally { el("pr-generate").disabled = !data.generationSupported; }
   });
   el("pr-refresh").onclick = () => load().catch((e) => message(e.message, true));
+  el("pr-upload").onclick = async () => {
+    const file = el("pr-upload-file").files?.[0];
+    if (!file) return message("请选择 Codex 生成的 HTML 文件。", true);
+    const [kind, part] = el("pr-period").value.split(":");
+    const form = new FormData();
+    form.append("file", file);
+    form.append("departmentId", el("pr-department").value);
+    form.append("year", String(Number(el("pr-year").value)));
+    form.append("kind", kind);
+    form.append("part", part);
+    el("pr-upload").disabled = true;
+    try {
+      await api("/api/admin/period-reports/upload", { method: "POST", headers: adminHeaders(), body: form });
+      el("pr-upload-file").value = "";
+      message("Codex HTML 已上传并发布。"); await load();
+    } catch (error) { message(error.message, true); notify(error.message); }
+    finally { el("pr-upload").disabled = false; }
+  };
   async function open(id) {
     const result = await api(`/api/period-reports/${encodeURIComponent(id)}`, { headers: isAdmin() ? adminHeaders() : {} });
     current = result; lastFocus = document.activeElement;
@@ -73,16 +93,29 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     el("pr-viewer-note").textContent = `正式版本 · 资料截止 ${result.job.snapshotCapturedAtLabel} · ${result.job.skillVersion} · ${result.job.model}`;
     el("pr-frame").srcdoc = result.html; dialog.showModal(); el("pr-close").focus();
   }
+  async function openInWindow(id) {
+    const popup = window.open("", "_blank");
+    if (!popup) throw new Error("浏览器拦截了新窗口，请允许此网站打开窗口后重试");
+    popup.document.open();
+    popup.document.write('<!doctype html><title>总结报告</title><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#f2eee7}</style><iframe id="report" title="总结报告" sandbox="allow-scripts allow-modals" referrerpolicy="no-referrer"></iframe>');
+    popup.document.close();
+    try {
+      const result = await api(`/api/period-reports/${encodeURIComponent(id)}`, { headers: adminHeaders() });
+      popup.document.title = `${result.job.period.label}总结报告`;
+      popup.document.getElementById("report").srcdoc = result.html;
+    } catch (error) { popup.close(); throw error; }
+  }
   function close() { dialog.close(); el("pr-frame").srcdoc = ""; current = null; lastFocus?.focus(); }
   el("pr-close").onclick = close;
   dialog.addEventListener("cancel", (e) => { e.preventDefault(); close(); });
   dialog.addEventListener("click", (e) => { if (e.target === dialog) { const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close(); } });
   el("pr-download").onclick = () => { if (current) download(current.html, `${current.job.period.label}-V${current.job.version}.html`, "text/html;charset=utf-8"); };
   document.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-pr-open],[data-pr-retry],[data-pr-download],[data-pr-cancel],[data-pr-delete]");
+    const button = event.target.closest("[data-pr-open],[data-pr-retry],[data-pr-download],[data-pr-cancel],[data-pr-delete],[data-pr-window-open]");
     if (!button) return; button.disabled = true;
     try {
       if (button.dataset.prOpen) await open(button.dataset.prOpen);
+      if (button.dataset.prWindowOpen) await openInWindow(button.dataset.prWindowOpen);
       if (button.dataset.prRetry) { const job = data.jobs.find((j) => j.id === button.dataset.prRetry); await submit({ departmentId: job.departmentId, ...job.period }); }
       if (button.dataset.prDownload) {
         const result = await api(`/api/period-reports/${encodeURIComponent(button.dataset.prDownload)}`, { headers: adminHeaders() });
@@ -108,5 +141,5 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     const result = await api("/api/period-reports");
     return result.reports || [];
   }
-  return { load, loadPublicReports, open, openFromUrl: async () => { const id = new URLSearchParams(location.search).get("periodReport"); if (id) await open(id); } };
+  return { load, loadPublicReports, open, openInWindow, openFromUrl: async () => { const id = new URLSearchParams(location.search).get("periodReport"); if (id) await open(id); } };
 };

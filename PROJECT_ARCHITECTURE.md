@@ -35,7 +35,7 @@
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
 - 待办产物：`lib/task-artifact-service.mjs`、`lib/artifact-core.mjs`、`lib/artifact-store.mjs`、`lib/artifact-preview.mjs`、`lib/multipart-file.mjs`。
-- 部门总结报告：`lib/period-report-context.mjs` 负责月度、季度、半年和年度的分层总结与目标快照；`lib/period-report-skill.mjs` 和 `lib/deepseek-period-report.mjs` 负责网站版 Skill 与 DeepSeek 边界；`lib/period-report-service.mjs` 管理后台任务、终止、删除、正式版本和访问；`lib/period-report-engine.mjs` 固定渲染 HTML；`public/period-reports.js` 提供后台生成、管理和受限预览。
+- 部门总结报告：`lib/period-report-context.mjs` 负责月度、季度、半年和年度的分层总结与目标快照；`lib/period-report-skill.mjs` 和 `lib/deepseek-period-report.mjs` 负责网站版 Skill 与 DeepSeek 边界；`lib/period-report-service.mjs` 管理后台任务、Codex HTML 上传、终止、删除、正式版本和访问；`lib/multipart-file.mjs` 解析受限的上传文件与字段；`lib/period-report-engine.mjs` 固定渲染网站生成报告；`public/period-reports.js` 提供后台生成、上传、管理、受限预览和上传报告的新窗口沙盒运行。
 - 迁移校验：`lib/vercel-state-source.mjs`、`lib/state-fingerprint.mjs` 及相关脚本。
 
 ## 请求与数据流

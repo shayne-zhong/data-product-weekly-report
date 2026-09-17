@@ -230,6 +230,57 @@ test("monthly periods can publish and reject invalid or future months", () => {
   assert.throws(() => serviceApi.periodFromInput({ ...input, kind: "month", part: 10 }, now), /起始日/);
 });
 
+test("Codex HTML upload publishes a department-scoped version and deduplicates matching content", () => {
+  const state = fixture();
+  const file = { filename: "codex-q3.html", mimeType: "text/html", buffer: Buffer.from("<html><body>Q3</body></html>") };
+  const uploaded = serviceApi.uploadPeriodHtml(state, input, file, { username: "admin" }, now);
+  assert.equal(uploaded.status, "published");
+  assert.equal(uploaded.origin, "codex-html-upload");
+  assert.equal(uploaded.filename, "codex-q3.html");
+  assert.equal(uploaded.version, 1);
+  assert.equal(uploaded.html, "<html><body>Q3</body></html>");
+  assert.equal(uploaded.snapshot.sources.length, 0);
+  const duplicate = serviceApi.uploadPeriodHtml(state, input, file, { username: "admin" }, now + 1);
+  assert.equal(duplicate.id, uploaded.id);
+  assert.equal(Object.keys(state.periodReports.jobs).length, 1);
+  assert.throws(
+    () => serviceApi.uploadPeriodHtml(state, input, { ...file, filename: "codex.txt" }, { username: "admin" }, now),
+    /HTML/,
+  );
+  assert.throws(
+    () => serviceApi.uploadPeriodHtml(state, input, { ...file, buffer: Buffer.alloc(0) }, { username: "admin" }, now),
+    /不能为空/,
+  );
+  assert.throws(
+    () => serviceApi.uploadPeriodHtml(state, input, file, { departmentId: "beta" }, now),
+    /无权/,
+  );
+});
+
+test("admin upload persists the multipart HTML and exposes it through the protected report view", async () => {
+  const state = fixture();
+  const saves = [];
+  const service = serviceApi.createPeriodReportService({
+    saveState: async () => saves.push("saved"),
+    json: (res, value, code = 200) => Object.assign(res, { value, code }),
+    readUpload: async () => ({
+      fields: { ...input },
+      filename: "codex.html",
+      mimeType: "text/html",
+      buffer: Buffer.from("<html><body>Codex report</body></html>"),
+    }),
+  });
+  const response = await service.admin(
+    { method: "POST" }, {}, state, ["admin", "period-reports", "upload"], now, { username: "admin", departmentId: "alpha" },
+  );
+  assert.equal(response.code, 201);
+  assert.equal(response.value.job.origin, "codex-html-upload");
+  assert.equal(response.value.job.html, undefined);
+  assert.deepEqual(saves, ["saved"]);
+  const viewed = await service.view({ method: "GET" }, {}, state, ["period-reports", response.value.job.id], now, { departmentId: "alpha" });
+  assert.equal(viewed.value.html, "<html><body>Codex report</body></html>");
+});
+
 test("cancel is durable at every active stage and prevents late failure or publication", () => {
   for (const stage of ["queued", "generating", "validating"]) {
     const state = fixture();
@@ -467,7 +518,7 @@ test("published-only views keep historical job URLs while stable keys resolve th
   );
 });
 
-test("period report UI provides monthly generation and report management without a top-level public panel", async () => {
+test("period report UI provides Codex HTML upload and isolated new-window opening", async () => {
   const ui = await readFile(new URL("../public/period-reports.js", import.meta.url), "utf8");
   assert.doesNotMatch(ui, /连接本机设备|pr-pair|data-pr-revoke|等待本机领取|AI 生成草稿/);
   assert.match(ui, /排队中/);
@@ -478,6 +529,9 @@ test("period report UI provides monthly generation and report management without
   assert.match(ui, /下载 HTML/);
   assert.match(ui, /data-pr-cancel/);
   assert.match(ui, /data-pr-delete/);
+  assert.match(ui, /pr-upload-file/);
+  assert.match(ui, /data-pr-window-open/);
+  assert.match(ui, /sandbox="allow-scripts allow-modals"/);
   assert.doesNotMatch(ui, /pr-public-details/);
 });
 
@@ -486,7 +540,7 @@ test("workbench history renders department report categories and labels the rena
   assert.match(page, /data-report-type="half"/);
   assert.match(page, /data-report-type="year"/);
   assert.match(page, /data-period-report-open/);
-  assert.match(page, /部门总结报告/);
+  assert.match(page, /"period-reports": \{ label: "总结报告"/);
   assert.match(page, /企微待办/);
   assert.doesNotMatch(page, /部门 HTML 经营报告/);
 });
