@@ -205,10 +205,13 @@ export async function startProductionBackgroundJobs({
   let recovery = { recoveredJobIds: [], legacyWorkersRemoved: false };
   try {
     recovery = await recoverPeriodReports();
-    logger.info?.("Period report recovery:", JSON.stringify({
-      count: recovery.recoveredJobIds.length,
-      ids: recovery.recoveredJobIds,
-    }));
+    logger.info?.(
+      "Period report recovery:",
+      JSON.stringify({
+        count: recovery.recoveredJobIds.length,
+        ids: recovery.recoveredJobIds,
+      }),
+    );
   } catch {
     logger.error?.("Period report recovery failed");
   }

@@ -51,7 +51,10 @@ test("quarter requires its three exact monthly summaries and annual goals", () =
   assert.equal(snapshot.sources.filter((source) => source.type === "monthly").length, 3);
   assert.equal(snapshot.sources.filter((source) => source.type === "goals").length, 1);
   assert.equal(snapshot.sources[0].id, "goals-2026");
-  assert.equal(snapshot.sources.some((source) => ["task", "weekly"].includes(source.type)), false);
+  assert.equal(
+    snapshot.sources.some((source) => ["task", "weekly"].includes(source.type)),
+    false,
+  );
   assert.equal(snapshot.capturedAt, 123);
   assert.match(snapshot.hash, /^[a-f0-9]{64}$/);
 });
@@ -59,11 +62,19 @@ test("quarter requires its three exact monthly summaries and annual goals", () =
 test("half-year and annual requirements use only formal quarterly summaries", () => {
   assert.deepEqual(
     requiredSummaryPeriods({ kind: "half", year: 2026, part: 1 }).map(({ type, part }) => [type, part]),
-    [["quarterly", 1], ["quarterly", 2]],
+    [
+      ["quarterly", 1],
+      ["quarterly", 2],
+    ],
   );
   assert.deepEqual(
     requiredSummaryPeriods({ kind: "year", year: 2026, part: 1 }).map(({ type, part }) => [type, part]),
-    [["quarterly", 1], ["quarterly", 2], ["quarterly", 3], ["quarterly", 4]],
+    [
+      ["quarterly", 1],
+      ["quarterly", 2],
+      ["quarterly", 3],
+      ["quarterly", 4],
+    ],
   );
   const snapshot = buildPeriodSnapshot(fixture(), department, { kind: "half", year: 2026, part: 1 });
   assert.equal(snapshot.sources.filter((source) => source.type === "quarterly").length, 2);

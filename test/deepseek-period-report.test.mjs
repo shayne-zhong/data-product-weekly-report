@@ -52,9 +52,15 @@ test("DeepSeek request sends the frozen prompt and parses one fenced JSON respon
       calls.push({ url, options });
       return new Response(
         JSON.stringify({
-          choices: [{ message: { content: `\`\`\`json
+          choices: [
+            {
+              message: {
+                content: `\`\`\`json
 {"schemaVersion":1,"slides":[]}
-\`\`\`` } }],
+\`\`\``,
+              },
+            },
+          ],
           usage: { total_tokens: 42 },
         }),
         { status: 200, headers: { "content-type": "application/json" } },
@@ -113,7 +119,11 @@ test("DeepSeek request converts aborts and caps upstream response errors", async
             signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
           }),
       }),
-    /DeepSeek 生成超时，请重试/,
+    (error) => {
+      assert.match(error.message, /DeepSeek 生成超时，请重试/);
+      assert.equal(error.cause?.name, "AbortError");
+      return true;
+    },
   );
 
   await assert.rejects(
@@ -124,7 +134,8 @@ test("DeepSeek request converts aborts and caps upstream response errors", async
         snapshot,
         fetchImpl: async () => new Response("x".repeat(300), { status: 502 }),
       }),
-    (error) => error.message.startsWith("DeepSeek 调用失败：") && error.message.length === "DeepSeek 调用失败：".length + 240,
+    (error) =>
+      error.message.startsWith("DeepSeek 调用失败：") && error.message.length === "DeepSeek 调用失败：".length + 240,
   );
 });
 
