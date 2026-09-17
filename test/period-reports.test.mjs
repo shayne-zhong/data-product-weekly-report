@@ -256,6 +256,15 @@ test("published-only views keep historical job URLs while stable keys resolve th
   await assert.rejects(service.view({ method: "GET" }, {}, state, ["period-reports", first.id], now, { departmentId: "beta" }), /无权/);
 });
 
+test("period report UI only describes website generation and formal report statuses", async () => {
+  const ui = await readFile(new URL("../public/period-reports.js", import.meta.url), "utf8");
+  assert.doesNotMatch(ui, /连接本机设备|pr-pair|data-pr-revoke|等待本机领取|AI 生成草稿/);
+  assert.match(ui, /排队中/);
+  assert.match(ui, /已正式发布/);
+  assert.match(ui, /月度总结/);
+  assert.match(ui, /季度总结/);
+});
+
 test("admin prepares before generation, persists generated metadata, and retries a published report as a new job", async () => {
   const state = fixture(); const calls = [];
   const service = serviceApi.createPeriodReportService({
