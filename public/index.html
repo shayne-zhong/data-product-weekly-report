@@ -296,7 +296,7 @@ body.admin-mode{
         <div class="admin-secondary-menu" role="menu" aria-label="系统运维">
           <button role="menuitem" data-admin-group="operations" data-admin-section="api-key">AI 配置</button>
           <button role="menuitem" data-admin-group="operations" data-admin-section="scheduled-tasks">定时任务</button>
-          <button role="menuitem" data-admin-group="operations" data-admin-section="workbuddy">企微任务同步</button>
+          <button role="menuitem" data-admin-group="operations" data-admin-section="workbuddy">企微待办</button>
         </div>
       </div>
     </nav>
@@ -416,6 +416,8 @@ body.admin-mode{
               <button class="active" data-report-type="weekly">周</button>
               <button data-report-type="monthly">月</button>
               <button data-report-type="quarterly">季度</button>
+              <button data-report-type="half">半年</button>
+              <button data-report-type="year">年度</button>
             </div>
           </div>
           <div id="reportHistoryInline"></div>
@@ -525,7 +527,7 @@ body.admin-mode{
           <div class="settings-editor">
             <section class="panel admin-section" data-admin-panel="workbuddy" hidden>
               <div class="admin-section-head">
-                <div><h3>企微任务同步</h3><p>统一查看同步状态、生产配置、员工 userid 映射和 WorkBuddy 执行结果。</p></div>
+                <div><h3>企微待办</h3><p>统一查看同步状态、生产配置、员工 userid 映射和 WorkBuddy 执行结果。</p></div>
                 <button class="ghost-btn" id="reloadWorkbuddyBtn">刷新</button>
               </div>
               <div id="workbuddyOverview" class="workbuddy-overview"><div class="subtitle">读取同步状态中...</div></div>
@@ -973,6 +975,8 @@ body.admin-mode{
       weekly: { label: "周总结", title: "数据产品部周重点工作汇报", dateLabel: "汇报周期" },
       monthly: { label: "月总结", title: "数据产品部月度工作总结", dateLabel: "总结周期" },
       quarterly: { label: "季度总结", title: "数据产品部季度工作总结", dateLabel: "总结周期" },
+      half: { label: "半年总结", title: "数据产品部半年工作总结", dateLabel: "总结周期" },
+      year: { label: "年度总结", title: "数据产品部年度工作总结", dateLabel: "总结周期" },
     };
     const statuses = ["待开始", "进行中", "阻塞", "已完成"];
     const priorityQuadrants = ["重要紧急", "重要不紧急", "不重要紧急", "不重要不紧急"];
@@ -994,6 +998,7 @@ body.admin-mode{
     let tasks = [];
     let selectedTaskId = "";
     let reports = [];
+    let departmentPeriodReports = [];
     let reportData = emptyReportData("", "");
     let reportStatus = "draft";
     let currentReportId = "";
@@ -1040,10 +1045,10 @@ body.admin-mode{
     ];
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
     const adminSectionMeta = {
-      "period-reports": { label: "经营报告", icon: "i-tasks", group: "组织管理" },
+      "period-reports": { label: "部门总结报告", icon: "i-tasks", group: "组织管理" },
       overview: { label: "管理概览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
       login: { label: "保持登录", icon: "i-clock", group: "规则配置" }, archive: { label: "归档设置", icon: "i-archive", group: "规则配置" },
-      "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" }, workbuddy: { label: "企微任务同步", icon: "i-tasks", group: "系统运维" },
+      "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" }, workbuddy: { label: "企微待办", icon: "i-tasks", group: "系统运维" },
     };
     let adminModulesDepartmentId = defaultDepartment.id;
     const adminSessionStorageKey = `${storageKey}-admin-session`;
@@ -1364,9 +1369,24 @@ body.admin-mode{
       return { startDate: iso(start), endDate: iso(end), id: `${iso(start)}_${iso(end)}` };
     }
 
+    function halfYearRange(date = new Date()) {
+      const firstMonth = date.getMonth() < 6 ? 0 : 6;
+      const start = new Date(date.getFullYear(), firstMonth, 1);
+      const end = new Date(date.getFullYear(), firstMonth + 6, 0);
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return { startDate: iso(start), endDate: iso(end), id: `${iso(start)}_${iso(end)}` };
+    }
+
+    function yearRange(date = new Date()) {
+      const year = date.getFullYear();
+      return { startDate: `${year}-01-01`, endDate: `${year}-12-31`, id: `${year}-01-01_${year}-12-31` };
+    }
+
     function reportRange(type = reportTypeFilter) {
       if (type === "monthly") return monthRange();
       if (type === "quarterly") return quarterRange();
+      if (type === "half") return halfYearRange();
+      if (type === "year") return yearRange();
       return currentWeek || weekRange();
     }
 
@@ -3906,8 +3926,12 @@ body.admin-mode{
     }
 
     async function loadReports() {
-      const result = await apiJson("/api/reports");
+      const [result, periodResult] = await Promise.all([
+        apiJson("/api/reports"),
+        periodReportUi.loadPublicReports().catch(() => []),
+      ]);
       reports = result.reports || [];
+      departmentPeriodReports = periodResult || [];
       renderInlineReportHistory();
       $("historyList").innerHTML = reports.map((report) => `
         <div class="history-row">
@@ -3978,7 +4002,7 @@ body.admin-mode{
       });
       const filteredReports = reports.filter((report) => reportSummaryType(report) === reportTypeFilter);
       const rows = filteredReports.length ? filteredReports : reports.length ? [] : [{ id: "", summaryType: reportData.summaryType || reportTypeFilter, startDate: reportData.startDate, endDate: reportData.endDate, status: "draft", title: reportData.title }];
-      $("reportHistoryInline").innerHTML = rows.map((report, index) => {
+      const summaries = rows.map((report, index) => {
         const isActive = report.id ? report.id === currentReportId : index === 0;
         return `
           <div class="report-item ${isActive ? "active" : ""}" ${report.id ? `data-report-open="${report.id}"` : ""}>
@@ -3993,7 +4017,22 @@ body.admin-mode{
             </div>` : ""}
           </div>
         `;
-      }).join("") || `<div class="report-item"><small>暂无${reportTypes[reportTypeFilter]?.label || "总结"}</small></div>`;
+      }).join("");
+      const periodReports = departmentPeriodReports
+        .filter((report) => periodReportSummaryType(report) === reportTypeFilter)
+        .map((report) => `
+          <div class="report-item" data-period-report-open="${escapeHtml(report.id)}">
+            <div class="report-item-main"><div>
+              ${escapeHtml(report.period.label)}部门总结报告 · V${escapeHtml(report.version)}
+              <br><small>已正式发布 · ${escapeHtml(displayDate(report.period.start))} — ${escapeHtml(displayDate(report.period.end))}</small>
+            </div></div>
+          </div>
+        `).join("");
+      $("reportHistoryInline").innerHTML = summaries + periodReports || `<div class="report-item"><small>暂无${reportTypes[reportTypeFilter]?.label || "总结"}</small></div>`;
+    }
+
+    function periodReportSummaryType(report) {
+      return ({ month: "monthly", quarter: "quarterly", half: "half", year: "year" })[report?.period?.kind] || "";
     }
 
     function reportHistoryLabel(report) {
@@ -4908,6 +4947,12 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
 
       if (inlineReportAction?.type === "open") {
         await openReport(inlineReportAction.id);
+      }
+
+      const periodReportId = event.target.closest("[data-period-report-open]")?.dataset.periodReportOpen;
+      if (periodReportId) {
+        await periodReportUi.open(periodReportId);
+        return;
       }
 
       const reportTypeBtn = event.target.closest("[data-report-type]");

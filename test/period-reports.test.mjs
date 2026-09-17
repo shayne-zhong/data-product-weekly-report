@@ -220,6 +220,64 @@ function complete(state, jobId, clock = now) {
   );
 }
 
+test("monthly periods can publish and reject invalid or future months", () => {
+  const state = fixture();
+  const job = serviceApi.createPeriodJob(state, { ...input, kind: "month", part: 8 }, {}, now).job;
+  assert.equal(job.period.label, "2026年8月");
+  assert.equal(job.period.end, "2026-08-31");
+  assert.equal(complete(state, job.id).status, "published");
+  assert.throws(() => serviceApi.periodFromInput({ ...input, kind: "month", part: 13 }, now), /周期/);
+  assert.throws(() => serviceApi.periodFromInput({ ...input, kind: "month", part: 10 }, now), /起始日/);
+});
+
+test("cancel is durable at every active stage and prevents late failure or publication", () => {
+  for (const stage of ["queued", "generating", "validating"]) {
+    const state = fixture();
+    const job = create(state).job;
+    if (stage !== "queued") serviceApi.beginPeriodJob(state, job.id, now);
+    if (stage === "validating") serviceApi.markPeriodJobValidating(state, job.id, now);
+    serviceApi.cancelPeriodJob(state, job.id, { departmentId: "alpha" }, now + 1);
+    assert.equal(state.periodReports.jobs[job.id].status, "cancelled");
+    assert.equal(serviceApi.failPeriodJob(state, job.id, "late failure"), null);
+    assert.throws(() => serviceApi.publishPeriodJob(state, job.id, output(state.periodReports.jobs[job.id])), /不可发布/);
+    assert.deepEqual(serviceApi.recoverInterruptedPeriodJobs(state), []);
+    assert.equal(create(state).duplicate, false);
+  }
+});
+
+test("admin cancel and delete enforce department scopes, save before abort, and retain version sequence", async () => {
+  const state = fixture();
+  const sourceBefore = JSON.stringify({ reports: state.reports, goals: state.goalsByDepartment });
+  const calls = [];
+  const service = serviceApi.createPeriodReportService({
+    saveState: async () => calls.push("save"),
+    abort: (id) => calls.push(`abort:${id}`),
+    json: (res, value, code = 200) => Object.assign(res, { value, code }),
+  });
+  const operate = (method, id, suffix, actor = { departmentId: "alpha" }) => service.admin(
+    { method }, {}, state, ["admin", "period-reports", id, ...suffix], now, actor,
+  );
+  const queued = create(state).job;
+  await assert.rejects(operate("POST", queued.id, ["cancel"], { departmentId: "beta" }), /无权/);
+  await assert.rejects(operate("DELETE", queued.id, []), /先终止/);
+  await operate("POST", queued.id, ["cancel"]);
+  assert.deepEqual(calls, ["save", `abort:${queued.id}`]);
+  await operate("DELETE", queued.id, []);
+  assert.equal(state.periodReports.jobs[queued.id], undefined);
+  const first = create(state).job;
+  complete(state, first.id);
+  const second = create(state).job;
+  complete(state, second.id);
+  await assert.rejects(operate("DELETE", second.id, [], { departmentId: "beta" }), /无权/);
+  await operate("DELETE", second.id, []);
+  await assert.rejects(service.view({ method: "GET" }, {}, state, ["period-reports", second.id], now), /不存在/);
+  const latest = await service.view({ method: "GET" }, {}, state, ["period-reports", first.key], now);
+  assert.equal(latest.value.job.id, first.id);
+  const third = create(state).job;
+  assert.equal(complete(state, third.id).version, 3);
+  assert.equal(JSON.stringify({ reports: state.reports, goals: state.goalsByDepartment }), sourceBefore);
+});
+
 test("preparation freezes strict source context and duplicate active creation reuses the queued job", () => {
   const state = fixture();
   const prepared = serviceApi.preparePeriodJob(state, input, { username: "admin", role: "admin" }, now);
@@ -409,13 +467,28 @@ test("published-only views keep historical job URLs while stable keys resolve th
   );
 });
 
-test("period report UI only describes website generation and formal report statuses", async () => {
+test("period report UI provides monthly generation and report management without a top-level public panel", async () => {
   const ui = await readFile(new URL("../public/period-reports.js", import.meta.url), "utf8");
   assert.doesNotMatch(ui, /连接本机设备|pr-pair|data-pr-revoke|等待本机领取|AI 生成草稿/);
   assert.match(ui, /排队中/);
   assert.match(ui, /已正式发布/);
   assert.match(ui, /月度总结/);
   assert.match(ui, /季度总结/);
+  assert.match(ui, /已终止/);
+  assert.match(ui, /下载 HTML/);
+  assert.match(ui, /data-pr-cancel/);
+  assert.match(ui, /data-pr-delete/);
+  assert.doesNotMatch(ui, /pr-public-details/);
+});
+
+test("workbench history renders department report categories and labels the renamed admin entries", async () => {
+  const page = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(page, /data-report-type="half"/);
+  assert.match(page, /data-report-type="year"/);
+  assert.match(page, /data-period-report-open/);
+  assert.match(page, /部门总结报告/);
+  assert.match(page, /企微待办/);
+  assert.doesNotMatch(page, /部门 HTML 经营报告/);
 });
 
 test("retired report worker entrypoints are absent while legacy state remains migratable", async () => {
@@ -671,6 +744,40 @@ test("period report releases the mutation lock before waiting for DeepSeek", asy
   assert.equal(independentMutation.statusCode, 201);
   continueRequest();
   assert.equal((await running).status, "published");
+
+  // A late model response must not resurrect a cancelled and then deleted job.
+  const next = await createQueuedApiPeriodJob(context);
+  const cancelledId = next.created.body.job.id;
+  let requestSignal;
+  let releaseLate;
+  let announceStarted;
+  const lateGate = new Promise((resolve) => { releaseLate = resolve; });
+  const startedLate = new Promise((resolve) => { announceStarted = resolve; });
+  const lateRun = runPeriodReportJobFromServer(cancelledId, {
+    request: async ({ snapshot, signal }) => {
+      requestSignal = signal;
+      announceStarted();
+      await lateGate;
+      return { report: output({ departmentName: snapshot.department.name, period: snapshot.period, snapshot }) };
+    },
+  }).then(() => null, (error) => error);
+  await startedLate;
+  try {
+    const denied = await api(`admin/period-reports/${cancelledId}/cancel`, { method: "POST", token: context.userToken });
+    assert.ok([401, 403].includes(denied.statusCode));
+    const cancelled = await api(`admin/period-reports/${cancelledId}/cancel`, { method: "POST", headers: context.adminHeaders });
+    assert.equal(cancelled.statusCode, 200);
+    assert.equal(cancelled.body.job.status, "cancelled");
+    assert.equal(requestSignal.aborted, true);
+    const deleted = await api(`admin/period-reports/${cancelledId}`, { method: "DELETE", headers: context.adminHeaders });
+    assert.equal(deleted.statusCode, 200);
+  } finally {
+    releaseLate();
+  }
+  assert.ok(await lateRun instanceof Error);
+  const persisted = JSON.parse(await readFile(defaultLocalStatePath(), "utf8"));
+  assert.equal(persisted.periodReports.jobs[cancelledId], undefined);
+  assert.equal((await api(`period-reports/${cancelledId}`, { token: context.userToken })).statusCode, 404);
 });
 
 test("request failure reloads and persists a failed job without decrypted key or HTML", async () => {

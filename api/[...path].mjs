@@ -64,11 +64,13 @@ const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
 };
+const periodReportControllers = new Map();
 const periodReports = createPeriodReportService({
   saveState,
   json,
   prepareGeneration: preparePeriodGeneration,
   enqueue: enqueuePeriodReportJob,
+  abort: (jobId) => periodReportControllers.get(jobId)?.abort(),
 });
 const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
 const defaultDepartment = {
@@ -562,6 +564,17 @@ export async function persistPeriodReportFailure(jobId, error, { now = Date.now(
 }
 
 export async function runPeriodReportJobFromServer(jobId, { request = requestDeepSeekPeriodReport } = {}) {
+  if (periodReportControllers.has(jobId)) throw periodGenerationError("报告任务正在执行", 409);
+  const controller = new AbortController();
+  periodReportControllers.set(jobId, controller);
+  try {
+    return await executePeriodReportJob(jobId, request, controller.signal);
+  } finally {
+    periodReportControllers.delete(jobId);
+  }
+}
+
+async function executePeriodReportJob(jobId, request, signal) {
   let generation;
   try {
     const release = await mutationLock.acquire();
@@ -581,7 +594,7 @@ export async function runPeriodReportJobFromServer(jobId, { request = requestDee
       }
       if (!apiKey) throw periodGenerationError("DeepSeek API Key 未配置", 503);
       await saveState(state);
-      generation = { apiKey, model: ai.model, snapshot: job.snapshot };
+      generation = { apiKey, model: ai.model, snapshot: job.snapshot, signal };
     } finally {
       release();
     }

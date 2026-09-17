@@ -2,19 +2,20 @@
 window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) {
   const el = (id) => document.getElementById(id);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  const labels = { queued: "排队中", generating: "生成中", validating: "校验中", published: "已正式发布", failed: "失败" };
+  const labels = { queued: "排队中", generating: "生成中", validating: "校验中", published: "已正式发布", failed: "失败", cancelled: "已终止" };
   let data = { jobs: [] }, reading = false, current = null, lastFocus = null;
   const panel = document.createElement("section");
   panel.className = "admin-section panel"; panel.dataset.adminPanel = "period-reports"; panel.hidden = true;
-  panel.innerHTML = `<div class="admin-section-head"><div><h3>经营报告</h3><p>按报告周期汇集已归档的总结与年度目标，使用网站配置的 DeepSeek 生成正式 HTML 报告。</p></div><button class="ghost-btn" id="pr-refresh">刷新</button></div>
-    <form id="pr-form" class="admin-record-filters"><label>部门<select id="pr-department" required></select></label><label>年份<input id="pr-year" type="number" min="2000" max="2100" required value="${new Date().getFullYear()}"></label><label>报告周期<select id="pr-period"><option value="quarter:1">第一季度</option><option value="quarter:2">第二季度</option><option value="quarter:3">第三季度</option><option value="quarter:4">第四季度</option><option value="half:1">上半年</option><option value="half:2">下半年</option><option value="year:1">年度</option></select></label><button class="btn" id="pr-generate">生成报告</button></form>
+  const periodOptions = [
+    ...Array.from({ length: 12 }, (_, index) => `<option value="month:${index + 1}">${index + 1}月</option>`),
+    ...[1, 2, 3, 4].map((part) => `<option value="quarter:${part}">第${part}季度</option>`),
+    '<option value="half:1">上半年</option><option value="half:2">下半年</option><option value="year:1">年度</option>',
+  ].join("");
+  panel.innerHTML = `<div class="admin-section-head"><div><h3>部门总结报告管理</h3><p>按报告周期汇集已归档的总结与年度目标，使用网站配置的 DeepSeek 生成正式 HTML 报告。</p></div><button class="ghost-btn" id="pr-refresh">刷新</button></div>
+    <form id="pr-form" class="admin-record-filters"><label>部门<select id="pr-department" required></select></label><label>年份<input id="pr-year" type="number" min="2000" max="2100" required value="${new Date().getFullYear()}"></label><label>报告周期<select id="pr-period">${periodOptions}</select></label><button class="btn" id="pr-generate">生成报告</button></form>
     <p id="pr-message" role="status" aria-live="polite"></p><div id="pr-jobs" style="margin-top:20px"></div>`;
   document.querySelector(".admin-content").append(panel);
   el("pr-period").value = `quarter:${Math.floor(new Date().getMonth() / 3) + 1}`;
-  const publicPanel = document.createElement("section");
-  publicPanel.className = "panel"; publicPanel.style.cssText = "padding:18px;margin-bottom:18px";
-  publicPanel.innerHTML = '<details id="pr-public-details"><summary style="cursor:pointer;font-weight:700">部门 HTML 经营报告</summary><div id="pr-public" style="margin-top:12px">展开后读取报告</div></details>';
-  el("reportView").prepend(publicPanel);
   const dialog = document.createElement("dialog");
   dialog.id = "pr-viewer";
   dialog.style.cssText = "width:96vw;max-width:none;height:94vh;padding:0;border:1px solid #ddd;border-radius:8px;background:#f6f4ee";
@@ -34,8 +35,12 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
     return parts.join(" · ");
   }
   function rows(jobs, admin) {
-    if (!jobs.length) return '<p class="subtitle">暂无经营报告</p>';
-    return `<div class="table-wrap"><table class="admin-record-table"><thead><tr><th>部门 / 周期</th><th>版本</th><th>状态</th><th>资料</th><th>操作</th></tr></thead><tbody>${jobs.map((j) => `<tr><td>${esc(j.departmentName)}<br>${esc(j.period.label)}</td><td>${j.version ? `V${j.version}` : "—"}</td><td>${esc(labels[j.status] || j.status)}${j.message ? `<br><small>${esc(j.message)}</small>` : ""}</td><td>${esc(sourceSummary(j))}</td><td>${j.status === "published" ? `<button class="ghost-btn" data-pr-open="${esc(j.id)}">打开报告</button> <a href="${esc(j.href)}" target="_blank" rel="noopener">固定链接</a>` : ""}${admin && ["failed", "published"].includes(j.status) ? `<button class="ghost-btn" data-pr-retry="${esc(j.id)}">${j.status === "published" ? "重新生成" : "重试"}</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`;
+    if (!jobs.length) return '<p class="subtitle">暂无部门总结报告</p>';
+    return `<div class="table-wrap"><table class="admin-record-table"><thead><tr><th>部门 / 周期</th><th>版本</th><th>状态</th><th>资料</th><th>操作</th></tr></thead><tbody>${jobs.map((j) => {
+      const published = j.status === "published";
+      const active = ["queued", "generating", "validating"].includes(j.status);
+      return `<tr><td>${esc(j.departmentName)}<br>${esc(j.period.label)}</td><td>${j.version ? `V${j.version}` : "—"}</td><td>${esc(labels[j.status] || j.status)}${j.message ? `<br><small>${esc(j.message)}</small>` : ""}</td><td>${esc(sourceSummary(j))}</td><td>${published ? `<button class="ghost-btn" data-pr-open="${esc(j.id)}">预览</button> <button class="ghost-btn" data-pr-download="${esc(j.id)}">下载 HTML</button> <a href="${esc(j.href)}" target="_blank" rel="noopener">固定链接</a>` : ""}${admin && active ? ` <button class="ghost-btn" data-pr-cancel="${esc(j.id)}">终止</button>` : ""}${admin && ["failed", "published", "cancelled"].includes(j.status) ? ` <button class="ghost-btn" data-pr-retry="${esc(j.id)}">${published ? "重新生成" : "重试"}</button> <button class="ghost-btn" data-pr-delete="${esc(j.id)}">删除</button>` : ""}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
   }
   async function load() {
     if (reading) return; reading = true;
@@ -74,19 +79,34 @@ window.createPeriodReportUi = function ({ api, adminHeaders, isAdmin, notify }) 
   dialog.addEventListener("click", (e) => { if (e.target === dialog) { const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close(); } });
   el("pr-download").onclick = () => { if (current) download(current.html, `${current.job.period.label}-V${current.job.version}.html`, "text/html;charset=utf-8"); };
   document.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-pr-open],[data-pr-retry]");
+    const button = event.target.closest("[data-pr-open],[data-pr-retry],[data-pr-download],[data-pr-cancel],[data-pr-delete]");
     if (!button) return; button.disabled = true;
     try {
       if (button.dataset.prOpen) await open(button.dataset.prOpen);
       if (button.dataset.prRetry) { const job = data.jobs.find((j) => j.id === button.dataset.prRetry); await submit({ departmentId: job.departmentId, ...job.period }); }
+      if (button.dataset.prDownload) {
+        const result = await api(`/api/period-reports/${encodeURIComponent(button.dataset.prDownload)}`, { headers: adminHeaders() });
+        download(result.html, `${result.job.period.label}-V${result.job.version}.html`, "text/html;charset=utf-8");
+      }
+      if (button.dataset.prCancel) {
+        const id = button.dataset.prCancel;
+        if (!confirm("确认终止这项生成任务？已产生的模型调用消耗无法撤销。")) return;
+        await api(`/api/admin/period-reports/${encodeURIComponent(id)}/cancel`, { method: "POST", headers: adminHeaders() });
+        message("生成任务已终止。"); await load();
+      }
+      if (button.dataset.prDelete) {
+        const id = button.dataset.prDelete;
+        if (!confirm("确认删除这份部门总结报告？此操作不会删除来源总结或目标。")) return;
+        await api(`/api/admin/period-reports/${encodeURIComponent(id)}`, { method: "DELETE", headers: adminHeaders() });
+        message("部门总结报告已删除。"); await load();
+      }
     } catch (error) { message(error.message, true); notify(error.message); }
     finally { button.disabled = false; }
   });
-  el("pr-public-details").addEventListener("toggle", async () => {
-    if (!el("pr-public-details").open) return;
-    try { const result = await api("/api/period-reports"); el("pr-public").innerHTML = rows(result.reports, false); }
-    catch (e) { el("pr-public").textContent = e.message; }
-  });
   setInterval(() => { if (!panel.hidden && !el("adminView").hidden && isAdmin() && !document.hidden) load().catch((e) => message(e.message, true)); }, 10_000);
-  return { load, openFromUrl: async () => { const id = new URLSearchParams(location.search).get("periodReport"); if (id) await open(id); } };
+  async function loadPublicReports() {
+    const result = await api("/api/period-reports");
+    return result.reports || [];
+  }
+  return { load, loadPublicReports, open, openFromUrl: async () => { const id = new URLSearchParams(location.search).get("periodReport"); if (id) await open(id); } };
 };

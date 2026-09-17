@@ -18,7 +18,8 @@ const snapshot = Object.freeze({
 test("website report skill keeps its contract in a static system prompt and serializes frozen material", () => {
   const messages = periodReportMessages(snapshot);
 
-  assert.equal(WEBSITE_PERIOD_REPORT_SKILL_VERSION, "2026-09-16.1");
+  assert.equal(WEBSITE_PERIOD_REPORT_SKILL_VERSION, "2026-09-17.1");
+  assert.match(messages[0].content, /月度/);
   assert.equal(messages.length, 2);
   assert.match(messages[0].content, new RegExp(WEBSITE_PERIOD_REPORT_SKILL_VERSION));
   assert.match(messages[0].content, /evidence:\{sourceId,path\}/);
@@ -94,6 +95,25 @@ test("DeepSeek report request rejects unsupported models and missing keys before
     () => requestDeepSeekPeriodReport({ model: "deepseek-chat", snapshot, fetchImpl: async () => null }),
     /DeepSeek API Key 未配置/,
   );
+});
+
+test("external cancellation aborts an in-flight model request and skips an already cancelled request", async () => {
+  const controller = new AbortController();
+  let called = false;
+  const pending = requestDeepSeekPeriodReport({
+    apiKey: "key", model: "deepseek-chat", snapshot, signal: controller.signal, timeoutMs: 20,
+    fetchImpl: (_url, { signal }) => new Promise((_, reject) => {
+      called = true;
+      signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })));
+    }),
+  });
+  controller.abort();
+  await assert.rejects(pending, /已终止/);
+  assert.equal(called, true);
+  await assert.rejects(requestDeepSeekPeriodReport({
+    apiKey: "key", model: "deepseek-chat", snapshot, signal: controller.signal,
+    fetchImpl: async () => { assert.fail("must not call model after cancellation"); },
+  }), /已终止/);
 });
 
 test("period report parser describes empty and invalid model content", () => {

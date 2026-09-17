@@ -6,6 +6,17 @@ import { buildPeriodSnapshot, requiredSummaryPeriods } from "../lib/period-repor
 const department = { id: "alpha", name: "研发部" };
 const period = { kind: "quarter", year: 2026, part: 3 };
 
+test("monthly reports require the exact archived monthly summary and annual goals", () => {
+  const monthly = { kind: "month", year: 2026, part: 8 };
+  const state = fixture();
+  const snapshot = buildPeriodSnapshot(state, department, monthly);
+  assert.deepEqual(snapshot.sources.map((source) => source.type), ["goals", "monthly"]);
+  assert.equal(snapshot.sources[1].recordId, "aug");
+  state.reports.aug.status = "draft";
+  assert.throws(() => buildPeriodSnapshot(state, department, monthly), /2026年8月月度总结/);
+  assert.throws(() => requiredSummaryPeriods({ ...monthly, part: 13 }), /月份/);
+});
+
 function summary(id, summaryType, startDate, endDate, extra = {}) {
   return {
     id,
