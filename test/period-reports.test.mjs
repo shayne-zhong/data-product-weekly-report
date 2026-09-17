@@ -265,6 +265,15 @@ test("period report UI only describes website generation and formal report statu
   assert.match(ui, /季度总结/);
 });
 
+test("retired report worker entrypoints are absent while legacy state remains migratable", async () => {
+  const apiSource = await readFile(new URL("../api/[...path].mjs", import.meta.url), "utf8");
+  const uiSource = await readFile(new URL("../public/period-reports.js", import.meta.url), "utf8");
+  assert.doesNotMatch(apiSource, /report-worker/);
+  assert.doesNotMatch(uiSource, /workbench-report-connection|连接本机设备/);
+  await assert.rejects(readFile(new URL("../scripts/report-worker.mjs", import.meta.url)));
+  await assert.rejects(readFile(new URL("../scripts/install-report-worker.mjs", import.meta.url)));
+});
+
 test("admin prepares before generation, persists generated metadata, and retries a published report as a new job", async () => {
   const state = fixture(); const calls = [];
   const service = serviceApi.createPeriodReportService({
