@@ -605,6 +605,8 @@ body.admin-mode{
                 <div><label for="adminWeeklyArchiveTime">周报（每周日）</label><input id="adminWeeklyArchiveTime" type="time" /></div>
                 <div><label for="adminMonthlyArchiveTime">月报（每月最后一天）</label><input id="adminMonthlyArchiveTime" type="time" /></div>
                 <div><label for="adminQuarterlyArchiveTime">季报（每季度最后一天）</label><input id="adminQuarterlyArchiveTime" type="time" /></div>
+                <div><label for="adminHalfArchiveTime">半年总结（6月30日、12月31日）</label><input id="adminHalfArchiveTime" type="time" /></div>
+                <div><label for="adminYearArchiveTime">年度总结（12月31日）</label><input id="adminYearArchiveTime" type="time" /></div>
               </div>
             </section>
             <section class="panel admin-section" data-admin-panel="api-key" hidden>
@@ -742,6 +744,8 @@ body.admin-mode{
               <option value="weekly">周总结</option>
               <option value="monthly">月总结</option>
               <option value="quarterly">季度总结</option>
+              <option value="half">半年总结</option>
+              <option value="year">年度总结</option>
             </select>
           </div>
           <div>
@@ -970,7 +974,7 @@ body.admin-mode{
     const defaultDepartment = { id: "data-product", name: "数据产品部", enabled: true, modules: [...defaultModules] };
     let departments = [{ ...defaultDepartment, modules: [...defaultModules] }];
     let sessionDurationMinutes = 30;
-    let reportArchiveSettings = { timezone: "Asia/Shanghai", weeklyTime: "20:00", monthlyTime: "20:00", quarterlyTime: "20:00" };
+    let reportArchiveSettings = { timezone: "Asia/Shanghai", weeklyTime: "20:00", monthlyTime: "20:00", quarterlyTime: "20:00", halfTime: "20:00", yearTime: "20:00" };
     const reportTypes = {
       weekly: { label: "周总结", title: "数据产品部周重点工作汇报", dateLabel: "汇报周期" },
       monthly: { label: "月总结", title: "数据产品部月度工作总结", dateLabel: "总结周期" },
@@ -1413,7 +1417,9 @@ body.admin-mode{
         ...(Array.isArray(data.modules) ? data.modules.map((module) => module?.title) : []),
       ].join(" ");
       let inferred = "";
-      if (/quarter|季度|本季|下季/i.test(titles)) inferred = "quarterly";
+      if (/half|半年/i.test(titles)) inferred = "half";
+      else if (/annual|年度|明年/i.test(titles)) inferred = "year";
+      else if (/quarter|季度|本季|下季/i.test(titles)) inferred = "quarterly";
       else if (/month|月度|本月|下月/i.test(titles)) inferred = "monthly";
       const start = normalizeDate(data.startDate || report.startDate);
       const end = normalizeDate(data.endDate || report.endDate);
@@ -1720,6 +1726,22 @@ body.admin-mode{
           })),
         };
       }
+      if (type === "half" || type === "year") {
+        const titles = type === "half"
+          ? ["上年度目标", "上年度进展", "下半年计划"]
+          : ["年度目标", "年度总结", "差距与分析", "明年计划"];
+        return {
+          summaryType: type,
+          title: reportTypes[type].title,
+          startDate: formatDate(startDate),
+          endDate: formatDate(endDate),
+          modules: titles.map((title) => ({
+            title,
+            status: "",
+            sections: [{ title: "内容", items: [""] }],
+          })),
+        };
+      }
       return {
         summaryType: type,
         title: reportTypes[type].title,
@@ -1894,6 +1916,8 @@ body.admin-mode{
       reportTypes.weekly.title = `${departmentName}周重点工作汇报`;
       reportTypes.monthly.title = `${departmentName}月度工作总结`;
       reportTypes.quarterly.title = `${departmentName}季度工作总结`;
+      reportTypes.half.title = `${departmentName}半年工作总结`;
+      reportTypes.year.title = `${departmentName}年度工作总结`;
       modules = normalizeModulesList(department.modules);
       renderModuleFilterOptions();
     }
@@ -1907,6 +1931,8 @@ body.admin-mode{
         weeklyTime: settings.reportArchive?.weeklyTime || "20:00",
         monthlyTime: settings.reportArchive?.monthlyTime || "20:00",
         quarterlyTime: settings.reportArchive?.quarterlyTime || "20:00",
+        halfTime: settings.reportArchive?.halfTime || "20:00",
+        yearTime: settings.reportArchive?.yearTime || "20:00",
       };
       aiSettings = {
         enabled: settings.ai?.enabled === true,
@@ -4043,6 +4069,8 @@ body.admin-mode{
       const month = Number(monthText || 0);
       if (type === "monthly") return month ? `${year}年${month}月总结` : "月总结";
       if (type === "quarterly") return month ? `${year}年Q${Math.ceil(month / 3)}季度总结` : "季度总结";
+      if (type === "half") return month ? `${year}年${month < 7 ? "上半年" : "下半年"}总结` : "半年总结";
+      if (type === "year") return year ? `${year}年度总结` : "年度总结";
       return report.title || "总结";
     }
 
@@ -4273,8 +4301,15 @@ body.admin-mode{
     function renderScheduledTasks() {
       const statusLabels = { never: "从未执行", running: "执行中", success: "成功", failed: "失败" };
       const statusClasses = { never: "status-done", running: "status-processing", success: "status-normal", failed: "status-risk" };
+      const reportTypeLabels = { weekly: "周报", monthly: "月报", quarterly: "季报", half: "半年", year: "年度" };
+      const reportArchiveResult = (task) => {
+        const rows = Object.entries(task.typeCounts || {})
+          .filter(([type]) => reportTypeLabels[type])
+          .map(([type, counts]) => `${reportTypeLabels[type]}：检查 ${Number(counts.checked || 0)} / 归档 ${Number(counts.archived || 0)} / 跳过 ${Number(counts.skipped || 0)}`);
+        return rows.length ? rows.join("；") : `归档 ${Number(task.archivedCount || 0)} 份`;
+      };
       const taskResult = (task) => task.kind === "report-auto-archive"
-        ? `归档 ${Number(task.archivedCount || 0)} 份`
+        ? reportArchiveResult(task)
         : `结转 ${Number(task.rolledTaskCount || 0)} 项 · ${Number(task.completedDepartmentCount || 0)}/${Number(task.departmentCount || 0)} 个部门`;
       $("scheduledTaskList").innerHTML = scheduledTasks.map((task) => `
         <article class="scheduled-task-card ${escapeHtml(task.status || "never")}">
@@ -4676,6 +4711,8 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       $("adminWeeklyArchiveTime").value = adminDraftSettings.reportArchive?.weeklyTime || "20:00";
       $("adminMonthlyArchiveTime").value = adminDraftSettings.reportArchive?.monthlyTime || "20:00";
       $("adminQuarterlyArchiveTime").value = adminDraftSettings.reportArchive?.quarterlyTime || "20:00";
+      $("adminHalfArchiveTime").value = adminDraftSettings.reportArchive?.halfTime || "20:00";
+      $("adminYearArchiveTime").value = adminDraftSettings.reportArchive?.yearTime || "20:00";
       $("adminAiKeyStatus").className = `ai-ready ${ai.configured ? "ok" : "warn"}`;
       $("adminAiKeyStatus").textContent = ai.configured
         ? `${ai.providerLabel || (ai.provider === "kimi" ? "Kimi" : "DeepSeek")} 密钥已配置${ai.apiKeyMask ? ` · ${ai.apiKeyMask}` : ""}`
@@ -4802,6 +4839,8 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
           weeklyTime: $("adminWeeklyArchiveTime").value || "20:00",
           monthlyTime: $("adminMonthlyArchiveTime").value || "20:00",
           quarterlyTime: $("adminQuarterlyArchiveTime").value || "20:00",
+          halfTime: $("adminHalfArchiveTime").value || "20:00",
+          yearTime: $("adminYearArchiveTime").value || "20:00",
         };
       }
       if (section === "api-key") {
@@ -6046,7 +6085,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       }
     });
     $("adminSessionDurationMinutes").addEventListener("input", () => markAdminDirty("login"));
-    ["adminWeeklyArchiveTime", "adminMonthlyArchiveTime", "adminQuarterlyArchiveTime"].forEach((id) => $(id).addEventListener("input", () => markAdminDirty("archive")));
+    ["adminWeeklyArchiveTime", "adminMonthlyArchiveTime", "adminQuarterlyArchiveTime", "adminHalfArchiveTime", "adminYearArchiveTime"].forEach((id) => $(id).addEventListener("input", () => markAdminDirty("archive")));
     $("adminAiApiKey").addEventListener("input", () => markAdminDirty("api-key", "输入了新密钥，保存后生效"));
     $("adminAiTestBtn").addEventListener("click", async () => {
       $("adminAiKeyStatus").className = "ai-ready warn";

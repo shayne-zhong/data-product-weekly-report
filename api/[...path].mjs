@@ -177,7 +177,7 @@ function normalizeDateText(value) {
 }
 
 function validReportSummaryType(value) {
-  return ["weekly", "monthly", "quarterly"].includes(value) ? value : "";
+  return ["weekly", "monthly", "quarterly", "half", "year"].includes(value) ? value : "";
 }
 
 function normalizeModules(list) {
@@ -383,7 +383,9 @@ function resolveReportSummaryType(reportOrData = {}) {
     ...(Array.isArray(data.modules) ? data.modules.map((module) => module?.title) : []),
   ].join(" ");
   let inferred = "";
-  if (/quarter|季度|本季|下季/i.test(titles)) inferred = "quarterly";
+  if (/half|半年/i.test(titles)) inferred = "half";
+  else if (/annual|年度|明年/i.test(titles)) inferred = "year";
+  else if (/quarter|季度|本季|下季/i.test(titles)) inferred = "quarterly";
   else if (/month|月度|本月|下月/i.test(titles)) inferred = "monthly";
   const start = normalizeDateText(data.startDate || reportOrData.startDate);
   const end = normalizeDateText(data.endDate || reportOrData.endDate);
@@ -845,6 +847,8 @@ function canUpdateTask(actor, existing, next, settings) {
 function reportTitleForDepartment(departmentName, summaryType = "weekly") {
   if (summaryType === "monthly") return `${departmentName}月度工作总结`;
   if (summaryType === "quarterly") return `${departmentName}季度工作总结`;
+  if (summaryType === "half") return `${departmentName}半年工作总结`;
+  if (summaryType === "year") return `${departmentName}年度工作总结`;
   return `${departmentName}周重点工作汇报`;
 }
 

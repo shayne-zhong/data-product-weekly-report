@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   archiveDueReports,
@@ -11,19 +12,58 @@ import {
   startReportArchiveExecution,
 } from "../lib/report-auto-archive.mjs";
 
+const reportUiSource = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+const reportApiSource = readFileSync(new URL("../api/[...path].mjs", import.meta.url), "utf8");
+
+test("half-year and annual summaries use explicit structured templates across UI and API", () => {
+  assert.match(reportUiSource, /<option value="half">半年总结<\/option>/);
+  assert.match(reportUiSource, /<option value="year">年度总结<\/option>/);
+  assert.match(reportUiSource, /\["上年度目标", "上年度进展", "下半年计划"\]/);
+  assert.match(reportUiSource, /\["年度目标", "年度总结", "差距与分析", "明年计划"\]/);
+  for (const id of ["adminHalfArchiveTime", "adminYearArchiveTime"]) {
+    assert.match(reportUiSource, new RegExp(`id="${id}"`));
+  }
+  assert.match(reportApiSource, /\["weekly", "monthly", "quarterly", "half", "year"\]/);
+});
+
 test("report archive schedule defaults to 20:00 Asia/Shanghai", () => {
   assert.deepEqual(defaultReportArchiveSchedule(), {
     timezone: "Asia/Shanghai",
     weeklyTime: "20:00",
     monthlyTime: "20:00",
     quarterlyTime: "20:00",
+    halfTime: "20:00",
+    yearTime: "20:00",
   });
   assert.deepEqual(normalizeReportArchiveSchedule({ weeklyTime: "09:30", monthlyTime: "bad" }), {
     timezone: "Asia/Shanghai",
     weeklyTime: "09:30",
     monthlyTime: "20:00",
     quarterlyTime: "20:00",
+    halfTime: "20:00",
+    yearTime: "20:00",
   });
+});
+
+test("archives due half-year and annual summaries and reports per-type counts", () => {
+  const state = {
+    reports: {
+      half: { id: "half", departmentId: "d1", summaryType: "half", status: "draft", data: { endDate: "2026-06-30" } },
+      year: { id: "year", departmentId: "d1", summaryType: "year", status: "editing", data: { endDate: "2026-12-31" } },
+      futureYear: { id: "futureYear", departmentId: "d1", summaryType: "year", status: "draft", data: { endDate: "2027-12-31" } },
+      finalHalf: { id: "finalHalf", departmentId: "d1", summaryType: "half", status: "final", data: { endDate: "2026-06-30" } },
+    },
+    settings: { reportArchive: { halfTime: "19:30", yearTime: "21:00" } },
+  };
+
+  const halfResult = archiveDueReports(state, { triggeredAt: Date.parse("2026-06-30T11:30:00Z") });
+  assert.deepEqual(halfResult.archivedReportIds, ["half"]);
+  assert.deepEqual(halfResult.typeCounts.half, { checked: 2, archived: 1, skipped: 1 });
+  assert.deepEqual(halfResult.typeCounts.year, { checked: 2, archived: 0, skipped: 2 });
+
+  const yearResult = archiveDueReports(state, { triggeredAt: Date.parse("2026-12-31T13:00:00Z") });
+  assert.deepEqual(yearResult.archivedReportIds, ["year"]);
+  assert.deepEqual(yearResult.typeCounts.year, { checked: 2, archived: 1, skipped: 1 });
 });
 
 test("archives due reports at their configured Beijing time and is idempotent", () => {
@@ -98,13 +138,18 @@ test("report archive execution records running success and a safe summary", () =
   startReportArchiveExecution(state, { now: 1000, trigger: "manual:admin" });
   assert.equal(reportArchiveTaskSummary(state, { now: 1001 }).status, "running");
 
-  completeReportArchiveExecution(state, { now: 2000, result: { archivedCount: 2 } });
+  const typeCounts = {
+    weekly: { checked: 3, archived: 2, skipped: 1 },
+    monthly: { checked: 1, archived: 0, skipped: 1 },
+  };
+  completeReportArchiveExecution(state, { now: 2000, result: { archivedCount: 2, typeCounts } });
   const summary = reportArchiveTaskSummary(state, { now: 2001 });
   assert.equal(summary.id, "report-auto-archive");
   assert.equal(summary.status, "success");
   assert.equal(summary.trigger, "manual:admin");
   assert.equal(summary.archivedCount, 2);
-  assert.match(summary.schedule, /周日 20:00.*月末 20:00.*季末 20:00/);
+  assert.deepEqual(summary.typeCounts, typeCounts);
+  assert.match(summary.schedule, /周日 20:00.*月末 20:00.*季末 20:00.*半年末 20:00.*年末 20:00/);
 });
 
 test("report archive execution truncates errors and expires stale running state", () => {
