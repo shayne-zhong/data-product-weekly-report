@@ -715,6 +715,60 @@ test("goal table renders eleven stable columns with accessible pointer resize ha
   assert.match(html, /"actions".*defaultWidth: 120.*minWidth: 100.*maxWidth: 180/);
 });
 
+function goalCompletionRuntime(rows = []) {
+  const elements = { goalsStats: {}, goalsTable: {} };
+  return new Function("goalsRows", "elements", `
+    const normalizeText = value => String(value || "").trim().toLowerCase();
+    const $ = id => elements[id];
+    const goalColumnWidthsKey = "test", goalColumnWidthStorageKey = () => "test";
+    let goalColumnWidths = {};
+    const normalizeGoalColumnWidths = widths => widths;
+    const goalTableColumns = [], goalDeleteMode = false;
+    const goalMatchesFilters = () => true, goalRowId = () => "g";
+    const tasksForGoal = () => [], normalizeGoalLinks = () => [];
+    const summarizeGoalTaskDisplay = () => ({ completedContribution: 0, count: 0 });
+    const escapeHtml = value => String(value), goalTitle = () => "目标";
+    ${linkedTaskFunction("firstNumber")}
+    ${linkedTaskFunction("goalCompletion")}
+    ${linkedTaskFunction("goalStatus")}
+    ${linkedTaskFunction("goalStatusClass")}
+    ${linkedTaskFunction("renderGoalsStats")}
+    ${linkedTaskFunction("renderGoals")}
+    return { goalCompletion, goalStatus, renderGoals, elements };
+  `)(rows, elements);
+}
+
+test("department goal completion allows overachievement and calculates numbers before text matches", () => {
+  const { goalCompletion, goalStatus } = goalCompletionRuntime();
+  for (const [expectedCurrent, target, expected] of [
+    ["80", "100", 80], ["100", "100", 100], ["120", "100", 120],
+    ["150", "100", 150], ["110", "10", 1100], ["120项", "20项", 600],
+    ["1,500", "1,000", 150], ["-20", "100", 0], ["", "100", 0],
+    ["未开始", "100", 0], ["验收通过", "验收通过", 100],
+    ["已验收通过", "验收通过", 100], ["正在推进", "验收通过", 60],
+    ["20", "/", 60], ["20", "0", 100], ["未开始验收", "验收", 100],
+    ["未开始20", "10", 0],
+  ]) {
+    assert.equal(goalCompletion({ expectedCurrent, target }), expected, `${expectedCurrent} / ${target}`);
+  }
+  assert.equal(goalStatus({ expectedCurrent: "150", target: "100" }), "已完成");
+  assert.equal(goalStatus({ expectedCurrent: "150", target: "100", status: "风险" }), "风险");
+});
+
+test("department goal rendering keeps true percentages and average while filling bars at most once", () => {
+  const runtime = goalCompletionRuntime([
+    { expectedCurrent: "150", target: "100" },
+    { expectedCurrent: "80", target: "100" },
+  ]);
+  runtime.renderGoals();
+  assert.match(runtime.elements.goalsTable.innerHTML, /<strong>150%<\/strong>/);
+  assert.match(runtime.elements.goalsTable.innerHTML, /<strong>80%<\/strong>/);
+  assert.match(runtime.elements.goalsTable.innerHTML, /width:100%;background:var\(--green\)/);
+  assert.match(runtime.elements.goalsTable.innerHTML, /width:80%;/);
+  assert.doesNotMatch(runtime.elements.goalsTable.innerHTML, /width:150%/);
+  assert.match(runtime.elements.goalsStats.innerHTML, /平均完成度[\s\S]*115%/);
+});
+
 function overdueMigrationRuntime(tasks, persistTask, setSyncStatus = () => {}) {
   return overdueSaveRuntime(tasks, persistTask, setSyncStatus).blockOverdueTasksForListMode;
 }

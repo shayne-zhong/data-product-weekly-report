@@ -2218,7 +2218,7 @@ body.admin-mode{
                 <td>${escapeHtml(String(row.current || 0))}</td>
                 <td>
                   <div class="goal-progress editable-progress">
-                    <div class="bar"><span style="width:${percent}%;${status === "已完成" ? "background:var(--green)" : ""}"></span></div>
+                    <div class="bar"><span style="width:${Math.min(100, percent)}%;${status === "已完成" ? "background:var(--green)" : ""}"></span></div>
                     <strong>${percent}%</strong>
                   </div>
                   <div class="subtitle">任务贡献：${contribution}</div>
@@ -2394,11 +2394,12 @@ body.admin-mode{
       const targetText = normalizeText(row.target);
       if (!currentText) return 0;
       if (targetText && currentText === targetText) return 100;
-      if (targetText && targetText !== "/" && currentText.includes(targetText)) return 100;
-      if (/暂无|待定|pending|未开始/i.test(currentText)) return 0;
+      const pending = /暂无|待定|pending|未开始/i.test(currentText);
       const current = firstNumber(row.expectedCurrent);
       const target = firstNumber(row.target);
-      if (current !== null && target !== null && target > 0) return Math.max(0, Math.min(100, Math.round((current / target) * 100)));
+      if (!pending && current !== null && target !== null && target > 0) return Math.max(0, Math.round((current / target) * 100));
+      if (targetText && targetText !== "/" && currentText.includes(targetText)) return 100;
+      if (pending) return 0;
       return 60;
     }
 
