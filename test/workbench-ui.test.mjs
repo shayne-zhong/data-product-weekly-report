@@ -4,6 +4,134 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
+function linkedTaskFunction(name) {
+  return html.match(new RegExp(` {4}(?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\r?\\n {4}\\}`))?.[0] || "";
+}
+
+async function linkedDeletionRuntime(apiJson = async () => ({ ok: true }), confirm = () => true) {
+  const handler = html.match(/ {6}if \(event.target.id === "deleteTaskBtn"\) \{[\s\S]*?\r?\n {6}\}/)?.[0];
+  assert.ok(handler);
+  const deleted = { id: "old", status: "已完成", goalLinks: [{ goalId: "g", contribution: 5 }] };
+  const remaining = { id: "current", status: "已完成", goalLinks: [{ goalId: "g", contribution: 2 }] };
+  let refreshedContribution;
+  const messages = [];
+  const run = new Function("env", `
+    const { event, confirm, cancelPendingTaskSave, apiJson, closeTaskModal, renderAll, setSyncStatus } = env;
+    const deletingTaskIds = new Set();
+    let tasks = [env.remaining], goalLinkedTasks = [env.deleted, env.remaining], selectedTaskId = env.deleted.id;
+    const selectedTask = () => goalLinkedTasks.find(task => task.id === selectedTaskId);
+    const renderGoals = () => env.onGoals(goalLinkedTasks.reduce((sum, task) => sum + task.goalLinks[0].contribution, 0));
+    ${linkedTaskFunction("removeDeletedTasks")}
+    return (async () => { await (async () => { ${handler} })(); return { tasks, goalLinkedTasks, selectedTaskId }; })();
+  `);
+  const result = await run({
+    deleted, remaining, event: { target: { id: "deleteTaskBtn" } },
+    cancelPendingTaskSave: async () => {}, apiJson,
+    closeTaskModal: () => {}, renderAll: () => {}, setSyncStatus: text => messages.push(text), confirm,
+    onGoals: value => { refreshedContribution = value; },
+  });
+  return { result, refreshedContribution, messages };
+}
+
+test("linked task deletion clears both caches and recalculates goal contribution", async () => {
+  const { result, refreshedContribution } = await linkedDeletionRuntime();
+  assert.deepEqual(result.goalLinkedTasks.map(task => task.id), ["current"]);
+  assert.equal(refreshedContribution, 2);
+  assert.equal(result.selectedTaskId, "current");
+});
+
+test("linked task deletion failures explain the reason and retain both caches", async () => {
+  const { result: failed, messages, refreshedContribution } = await linkedDeletionRuntime(async () => { throw new Error("无权删除该任务"); });
+  assert.match(messages.at(-1), /删除失败：无权删除该任务/);
+  assert.equal(refreshedContribution, undefined);
+  assert.deepEqual(failed.goalLinkedTasks.map(task => task.id), ["old", "current"]);
+  assert.deepEqual(failed.tasks.map(task => task.id), ["current"]);
+  assert.equal(failed.selectedTaskId, "old");
+  const { result } = await linkedDeletionRuntime(() => { throw new Error("must not delete"); }, () => false);
+  assert.deepEqual(result.goalLinkedTasks.map(task => task.id), ["old", "current"]);
+});
+
+test("historical linked task status edits save by task id and refresh the goal contribution", async () => {
+  const handler = html.slice(html.indexOf('      const statusSelect = event.target.closest'), html.indexOf('      const goalControl = event.target.closest'));
+  const task = { id: "historical", weekId: "old-week", title: "历史任务", status: "已完成", goalLinks: [{ goalId: "g", contribution: 5 }] };
+  const savedRequests = [];
+  const run = new Function("env", `
+    const tasks = [], statuses = ["待开始", "进行中", "阻塞", "已完成"];
+    let goalLinkedTasks = [env.task], selectedTaskId = env.task.id, pending, contribution;
+    const event = { target: { closest: () => ({ dataset: { currentStatus: "已完成" }, value: "进行中" }) } };
+    const $ = () => ({ hidden: false }), renderStats = () => {}, renderBoard = () => {};
+    const normalizeGoalLinks = task => Array.isArray(task) ? task : task.goalLinks;
+    const validGoalLinks = normalizeGoalLinks;
+    const renderGoals = () => { contribution = env.summary(goalLinkedTasks, "g", normalizeGoalLinks).completedContribution; };
+    const scheduleSaveTask = task => { pending = structuredClone(task); }, setSyncStatus = () => {}, requestBlockerReason = () => "";
+    const apiJson = async (url, options) => { env.savedRequests.push({ url, body: JSON.parse(options.body) }); return { task: JSON.parse(options.body).task }; };
+    ${linkedTaskFunction("selectedTask")}
+    ${linkedTaskFunction("applyStatusRules")}
+    ${linkedTaskFunction("patchSelectedTask")}
+    ${linkedTaskFunction("persistTask")}
+    (function () { ${handler} })();
+    return (async () => { await persistTask(pending); return { task: selectedTask(), contribution }; })();
+  `);
+  const result = await run({ task, savedRequests, summary: goalTaskSummaryRuntime() });
+  assert.equal(result.task.status, "进行中");
+  assert.equal(result.contribution, 0);
+  assert.equal(savedRequests[0].url, "/api/task/historical");
+  assert.equal(savedRequests[0].body.task.weekId, "old-week");
+  assert.equal(savedRequests[0].body.task.status, "进行中");
+});
+
+test("task save failures retain pending edits and display the permission reason", async () => {
+  const messages = [];
+  const runtime = overdueSaveRuntime([], async () => { throw new Error("无权修改该任务"); }, text => messages.push(text));
+  runtime.scheduleSaveTask({ id: "old", status: "进行中" });
+  await assert.rejects(runtime.flushPendingTaskSave("old"), /无权修改/);
+  assert.match(messages.at(-1), /无权修改该任务/);
+  assert.ok(!messages.includes("已同步"));
+  await assert.rejects(runtime.flushPendingTaskSave("old"), /无权修改/);
+});
+
+test("locating a historical linked task flushes edits, switches week and clears filters", async () => {
+  const source = linkedTaskFunction("locateGoalLinkedTask");
+  assert.ok(source, "missing linked task location action");
+  const nodes = new Map();
+  const calls = [];
+  const messages = [];
+  const run = new Function("env", `
+    let tasks = [], selectedTaskId = "", taskSearchQuery = "hidden", taskModuleFilter = "other", onlyMyTasks = true, taskViewMode = "quadrant";
+    const { $, findTaskById, flushPendingTaskSave, closeGoalTaskModal, setView, renderBoard, saveTaskViewPreferences, setSyncStatus, openTaskModal } = env;
+    const taskWeekText = () => "历史周";
+    const loadWeek = async id => { env.calls.push(id); tasks = [{ id: "old", weekId: id, status: "已完成" }]; };
+    ${source}
+    return (async () => { await locateGoalLinkedTask("old"); return { selectedTaskId, taskSearchQuery, taskModuleFilter, onlyMyTasks, taskViewMode }; })();
+  `);
+  const result = await run({
+    calls, $: id => { if (!nodes.has(id)) nodes.set(id, { classList: { toggle() {} } }); return nodes.get(id); },
+    findTaskById: () => ({ id: "old", weekId: "historical" }),
+    flushPendingTaskSave: async () => calls.push("flush"), closeGoalTaskModal: () => {},
+    setView: view => calls.push(view), renderBoard: () => {}, saveTaskViewPreferences: () => {},
+    openTaskModal: async id => calls.push(`detail:${id}`), setSyncStatus: text => messages.push(text),
+  });
+  assert.deepEqual(calls, ["flush", "historical", "tasks", "detail:old"]);
+  assert.deepEqual(result, { selectedTaskId: "old", taskSearchQuery: "", taskModuleFilter: "all", onlyMyTasks: false, taskViewMode: "list" });
+  assert.equal(nodes.get("taskSearch").value, "");
+  assert.equal(nodes.get("moduleFilter").value, "all");
+  assert.deepEqual(messages, ["已定位到 历史周"]);
+});
+
+test("a located completed task stays visible beyond the latest five", () => {
+  const source = linkedTaskFunction("renderStatusBoard");
+  const board = {};
+  const tasks = Array.from({ length: 7 }, (_, i) => ({ id: `done-${i}`, status: "已完成", completedAt: 10 - i }));
+  new Function("tasks", "board", `
+    const batchMode = false, statuses = ["已完成"], selectedTaskId = "done-6";
+    const $ = () => board, taskMatchesFilters = () => true, renderTaskCard = task => '<article>' + task.id + '</article>';
+    ${source}; renderStatusBoard();
+  `)(tasks, board);
+  assert.match(board.innerHTML, /<article>done-6<\/article>/);
+  assert.match(board.innerHTML, /<article>done-0<\/article>/);
+  assert.doesNotMatch(board.innerHTML, /<article>done-5<\/article>/);
+});
+
 test("task cards surface the latest progress while keeping descriptions compact", () => {
   const source = html.match(/ {4}function renderTaskCard\(task\) \{[\s\S]*?\r?\n {4}\}/)?.[0] || "";
   assert.match(source, /当前进展/);
@@ -1184,7 +1312,7 @@ test("a failed pending edit remains pending and prevents an overdue overwrite", 
   assert.equal(attempts.length, 1);
   assert.equal(attempts[0].description, "不能丢失");
   assert.equal(tasks[0].status, "进行中");
-  assert.ok(messages.includes("同步失败"));
+  assert.ok(messages.includes("同步失败：offline"));
   assert.match(html, /pendingTaskSaves\.set\(task\.id/);
 });
 

@@ -2254,6 +2254,38 @@ body.admin-mode{
       ].map(([label, value, tone]) => `<div class="summary-card"><div class="label">${label}</div><div class="value ${tone}">${value}</div></div>`).join("");
     }
 
+    function taskWeekText(task) {
+      const week = weeks.find((item) => item.id === task.weekId);
+      return week ? `${weekLabel(week)}（${week.startDate}～${week.endDate}）` : (task.weekId || "未记录所属周");
+    }
+
+    async function locateGoalLinkedTask(taskId) {
+      const task = findTaskById(taskId);
+      if (!task?.weekId) return setSyncStatus("待办未记录所属周，无法定位", "warn");
+      try {
+        await flushPendingTaskSave();
+        await loadWeek(task.weekId);
+        if (!tasks.some((item) => item.id === taskId)) return setSyncStatus("该待办已删除或无权访问，请刷新关联列表", "warn");
+        taskSearchQuery = "";
+        taskModuleFilter = "all";
+        onlyMyTasks = false;
+        $("taskSearch").value = "";
+        $("moduleFilter").value = "all";
+        $("myTasksBtn").classList.toggle("active", false);
+        $("myTasksBtn").textContent = "只看我的";
+        taskViewMode = "list";
+        saveTaskViewPreferences();
+        selectedTaskId = taskId;
+        closeGoalTaskModal();
+        setView("tasks");
+        renderBoard();
+        await openTaskModal(taskId);
+        setSyncStatus(`已定位到 ${taskWeekText(task)}`, "ok");
+      } catch (error) {
+        setSyncStatus(`定位失败：${error.message || "请稍后重试"}`, "warn");
+      }
+    }
+
     function openGoalTaskModal(goalId) {
       const goalIndex = goalsRows.findIndex((goal, index) => goalRowId(goal, index) === goalId);
       const goal = goalsRows[goalIndex] || {};
@@ -2263,12 +2295,13 @@ body.admin-mode{
       const contributionForTask = (task) => goalLinkForTask(task).contribution;
       const total = linkedTaskSummary.completedContribution;
       $("goalTaskModalTitle").textContent = `${goalTitle(goal, goalIndex)} · 关联待办事项详情`;
-      $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联待办，已完成贡献数 ${total}${goalUnitById(goalId) || ""}；本页仅供查看。`;
+      $("goalTaskModalSummary").textContent = `共 ${rows.length} 个关联待办，已完成贡献数 ${total}${goalUnitById(goalId) || ""}；包含历史周待办，可打开详情编辑或定位到部门待办。`;
       $("goalTaskList").innerHTML = rows.map((task) => `
         <div class="history-row" style="grid-template-columns:minmax(220px,1fr) 90px 110px minmax(180px,auto);">
           <div>
             <strong>${escapeHtml(task.title || "未命名任务")}</strong>
             <div class="subtitle">${escapeHtml(task.module || "")} · ${escapeHtml(task.owner || "未指定")}</div>
+            <div class="subtitle">所属周：${escapeHtml(taskWeekText(task))}</div>
             <div class="subtitle">贡献说明：${escapeHtml(goalLinkForTask(task).note || "无")}</div>
           </div>
           <span class="status-pill ${task.status === "已完成" ? "status-done" : task.status === "阻塞" ? "status-late" : "status-normal"}">${escapeHtml(task.status || "")}</span>
@@ -2276,6 +2309,7 @@ body.admin-mode{
           <div class="row-actions">
             ${task.artifact ? `<button class="btn small ghost" data-view-task-artifact="${escapeHtml(task.id)}">📎 ${escapeHtml(task.artifact.originalName || "查看产物")}</button>` : `<span class="subtitle">暂无产物</span>`}
             <button class="btn small ghost" data-open-linked-task="${escapeHtml(task.id)}">打开待办详情</button>
+            <button class="btn small ghost" data-locate-linked-task="${escapeHtml(task.id)}">在部门待办中定位</button>
           </div>
         </div>
       `).join("") || `<div class="history-row" style="grid-template-columns:1fr;"><span>暂无关联待办</span></div>`;
@@ -3124,6 +3158,8 @@ body.admin-mode{
         const rows = status === "已完成"
           ? [...allRows].sort((a, b) => (b.completedAt || b.updatedAt || 0) - (a.completedAt || a.updatedAt || 0)).slice(0, 5)
           : allRows;
+        const selectedCompletedTask = status === "已完成" ? allRows.find((task) => task.id === selectedTaskId) : null;
+        if (selectedCompletedTask && !rows.some((task) => task.id === selectedCompletedTask.id)) rows.push(selectedCompletedTask);
         const dotColor = status === "进行中" ? "#315efb" : status === "阻塞" ? "#e5484d" : status === "已完成" ? "#16a36a" : "#98a2b3";
         return `
           <section class="column" data-drop-status="${status}">
@@ -3228,6 +3264,7 @@ body.admin-mode{
       const taskAccounts = taskEditorAccounts(task);
       const ownerUsername = task.ownerUsername || taskAccounts.find((account) => account.name === task.owner)?.username || "";
       $("taskDetail").innerHTML = `
+        <div class="subtitle" style="margin-bottom:10px;">所属周：${escapeHtml(taskWeekText(task))}</div>
         <div class="form-grid task-detail-form">
           <div class="field-full"><label>任务标题</label><input data-task-field="title" value="${escapeHtml(task.title)}" /></div>
           <div><label>所属模块</label><select data-task-field="module">${taskModules.map((item) => `<option ${item === normalizeModule(task.module) ? "selected" : ""}>${item}</option>`).join("")}</select></div>
@@ -3351,6 +3388,14 @@ body.admin-mode{
       $("taskModal").hidden = true;
     }
 
+    function removeDeletedTasks(ids) {
+      const deletedIds = new Set(ids);
+      tasks = tasks.filter((task) => !deletedIds.has(task.id));
+      goalLinkedTasks = goalLinkedTasks.filter((task) => !deletedIds.has(task.id));
+      if (deletedIds.has(selectedTaskId)) selectedTaskId = tasks[0]?.id || "";
+      renderGoals();
+    }
+
     function patchSelectedTask(patch) {
       const task = selectedTask();
       if (!task) return;
@@ -3440,7 +3485,7 @@ body.admin-mode{
             setSyncStatus("已同步", "ok");
           } catch (error) {
             if (!state.task) state.task = pendingTask;
-            setSyncStatus("同步失败", "warn");
+            setSyncStatus(`同步失败：${error.message || "请稍后重试"}`, "warn");
             throw error;
           }
         }
@@ -5034,6 +5079,12 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
         return;
       }
 
+      const locateLinkedTaskBtn = event.target.closest("[data-locate-linked-task]");
+      if (locateLinkedTaskBtn) {
+        await locateGoalLinkedTask(locateLinkedTaskBtn.dataset.locateLinkedTask);
+        return;
+      }
+
       const viewGoalTasksBtn = event.target.closest("[data-view-goal-tasks]");
       if (viewGoalTasksBtn) {
         openGoalTaskModal(viewGoalTasksBtn.dataset.viewGoalTasks);
@@ -5106,7 +5157,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
           ids.forEach((id) => deletingTaskIds.delete(id));
           throw error;
         }
-        tasks = tasks.filter((task) => !selectedTaskIds.has(task.id));
+        removeDeletedTasks(ids);
         selectedTaskIds.clear();
         selectedTaskId = tasks[0]?.id || "";
         batchMode = false;
@@ -5160,12 +5211,12 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
           await apiJson(`/api/task/${encodeURIComponent(task.id)}`, { method: "DELETE" });
         } catch (error) {
           deletingTaskIds.delete(task.id);
-          throw error;
+          return setSyncStatus(`删除失败：${error.message || "请稍后重试"}`, "warn");
         }
-        tasks = tasks.filter((item) => item.id !== task.id);
-        selectedTaskId = tasks[0]?.id || "";
+        removeDeletedTasks([task.id]);
         closeTaskModal();
         renderAll();
+        setSyncStatus("任务已删除，目标贡献已更新", "ok");
       }
     });
 
