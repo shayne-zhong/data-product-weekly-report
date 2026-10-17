@@ -208,6 +208,7 @@ body.admin-mode{
 .admin-mode #adminDepartmentManagementBody>.admin-list-guide,.admin-mode #adminMemberManagementBody>.admin-list-guide,.admin-mode #adminDepartmentsList,.admin-mode #adminAccountsList{display:none}
 .admin-record-filters{display:flex;gap:16px;align-items:end;flex-wrap:wrap;margin-bottom:20px}.admin-record-filters label{display:grid;gap:6px;font-size:12px;color:#606266}.admin-record-filters input,.admin-record-filters select{padding:0 12px;border:1px solid #dcdfe6;height:36px;border-radius:4px}.admin-record-filters input{width:240px}.admin-record-table{width:100%;border-collapse:collapse;min-width:640px}.admin-record-table th{height:44px;background:#fafafa;color:#606266;font-size:12px;font-weight:500}.admin-record-table td{height:48px}.admin-record-table th,.admin-record-table td{padding:8px 12px;text-align:left;border-bottom:1px solid #ebeef5}.admin-record-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.admin-record-table tbody tr:hover{background:#fafafa}.admin-record-table .record-view{border:0;background:transparent;color:#2563eb;cursor:pointer}.admin-record-footer{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}.admin-record-footer span:first-child{margin-right:auto;color:#606266}.admin-record-mask{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.28)}.admin-record-drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100vw);z-index:101;display:flex;flex-direction:column;background:#fff;box-shadow:-8px 0 32px rgba(0,0,0,.12)}.admin-record-drawer[hidden],.admin-record-mask[hidden]{display:none!important}.admin-record-head,.admin-record-foot{padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #ebeef5}.admin-record-head h3{margin:0}.admin-record-foot{border-bottom:0;border-top:1px solid #ebeef5;justify-content:flex-end}.admin-record-body{padding:24px;overflow:auto;flex:1}.admin-mode .admin-record-body #adminDepartmentsList,.admin-mode .admin-record-body #adminAccountsList{display:block;border:0;overflow:visible}.admin-mode .admin-record-body .admin-row{min-width:0;display:grid;grid-template-columns:1fr!important;gap:16px;padding:0;border:0}.admin-mode .admin-record-body .admin-row[hidden]{display:none!important}.admin-record-field{display:grid;gap:6px;color:#606266;font-size:12px}.admin-record-field select[multiple]{height:112px!important}.admin-record-field>input,.admin-record-field>select{font-size:14px}.admin-record-error{color:#b91c1c;padding:0 24px}.admin-record-help{color:#6e7076;font-size:12px;margin:0 0 20px}
 @media(max-width:900px){.admin-mode .topbar{padding-inline:16px}.admin-mode .brand{min-width:auto}.admin-mode .admin-list-guide{display:none}.admin-mode .admin-row,.admin-mode #adminAccountsList .admin-row.role,.admin-mode #leaderAccountsList .admin-row.role{min-width:0;grid-template-columns:1fr}.admin-mode .scheduled-task-card{grid-template-columns:1fr}}
+.admin-record-table td:last-child{white-space:nowrap}.admin-record-table .record-view+.record-view{margin-left:12px}.admin-record-table .record-delete{color:#b91c1c}.admin-record-table .record-view:disabled{color:#a8abb2;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -1066,6 +1067,7 @@ body.admin-mode{
     let adminOverview = null;
     const adminListFilters = { departments: { query: "", enabled: "all", page: 1, size: 20 }, members: { query: "", enabled: "all", page: 1, size: 20 } };
     let adminRecordEditor = null;
+    let adminMemberActionPending = false;
     let adminLastSectionByGroup = { ...adminGroupDefaults };
     let leaderAccounts = [];
     let leaderModules = [];
@@ -4520,8 +4522,48 @@ body.admin-mode{
             const enabled = `<span class="status-pill ${record.enabled !== false ? "status-normal" : "status-done"}">${record.enabled !== false ? "启用" : "停用"}</span>`;
             const role = record.username && adminDraftSettings.departments.some((department) => department.leaderUsername === record.username) ? "部门负责人" : record.role === "module_leader" ? "模块负责人" : "普通用户";
             const cells = isDepartment ? `<td><strong>${escapeHtml(record.name)}</strong></td><td>${escapeHtml(record.leaderName)}</td><td>${escapeHtml((record.modules || []).join("、"))}</td><td>${enabled}</td><td class="numeric">${adminDraftSettings.accounts.filter((account) => account.departmentId === record.id).length}</td>` : `<td><strong>${escapeHtml(record.name || "未命名")}</strong><div class="subtitle">${escapeHtml(record.username || "尚未设置账号")}</div></td><td>${escapeHtml(record.departmentName)}</td><td>${role}</td><td>${escapeHtml((record.managedModules || []).join("、") || "—")}</td><td>${enabled}</td>`;
-            return `<tr>${cells}<td><button class="record-view" data-admin-edit-section="${section}" data-admin-edit-index="${index}">查看</button></td></tr>`;
+            const isLeader = !isDepartment && adminDraftSettings.departments.some((department) => department.leaderUsername === record.username);
+            const memberActions = isDepartment ? "" : `<button class="record-view" data-admin-member-action="toggle" data-admin-member-index="${index}" ${adminMemberActionPending ? "disabled" : ""}>${record.enabled !== false ? "停用" : "启用"}</button><button class="record-view record-delete" data-admin-member-action="delete" data-admin-member-index="${index}" ${adminMemberActionPending || isLeader || adminDraftSettings.accounts.length <= 1 ? "disabled" : ""} title="${isLeader ? "请先在部门管理中更换或解除负责人" : adminDraftSettings.accounts.length <= 1 ? "至少保留一个账号" : "删除账号，保留历史任务和周报"}">删除</button>`;
+            return `<tr>${cells}<td><button class="record-view" data-admin-edit-section="${section}" data-admin-edit-index="${index}" ${adminMemberActionPending ? "disabled" : ""}>查看</button>${memberActions}</td></tr>`;
           }).join("") || `<tr><td colspan="6"><div class="admin-empty">${records.length ? "没有匹配的记录，请调整筛选条件。" : "暂无记录，请新增。"}</div></td></tr>`}</tbody></table></div><div class="admin-record-footer"><span>共 ${result.total} 条</span><label>每页 <select data-admin-page-size="${section}" aria-label="每页记录数">${[10,20,50].map((size) => `<option ${size === filter.size ? "selected" : ""}>${size}</option>`).join("")}</select> 条</label><button class="ghost-btn" data-admin-page="${section}" data-page-delta="-1" ${result.page === 1 ? "disabled" : ""}>上一页</button><span>${result.page} / ${result.pages} 页</span><button class="ghost-btn" data-admin-page="${section}" data-page-delta="1" ${result.page === result.pages ? "disabled" : ""}>下一页</button></div>`;
+      }
+    }
+
+    async function updateAdminMember(index, action) {
+      if (adminRole !== "admin" || adminMemberActionPending || adminRecordEditor) return;
+      if (action !== "delete" && action !== "toggle") return;
+      if (adminDirtySections.has("members") || adminDirtySections.has("departments")) {
+        throw new Error("请先保存或撤销成员管理、部门管理中的未保存修改。");
+      }
+      const account = adminDraftSettings.accounts[index];
+      if (!account) return;
+      if (action === "delete") {
+        if (adminDraftSettings.accounts.length <= 1) throw new Error("至少保留一个账号。");
+        if (adminDraftSettings.departments.some((department) => department.leaderUsername === account.username)) {
+          throw new Error("请先在部门管理中更换或解除负责人，再删除账号。");
+        }
+      }
+      const label = action === "delete" ? "删除" : account.enabled !== false ? "停用" : "启用";
+      const message = action === "delete"
+        ? `确认删除账号“${account.name}（${account.username}）”？该账号将无法登录，历史任务和周报会保留。`
+        : `确认${label}账号“${account.name}（${account.username}）”？${label === "停用" ? "该账号现有登录将立即失效。" : "该账号可重新登录。"}`;
+      if (!confirm(message)) return;
+      const snapshot = structuredClone(adminDraftSettings.accounts);
+      adminMemberActionPending = true;
+      if (action === "delete") adminDraftSettings.accounts.splice(index, 1);
+      else account.enabled = account.enabled === false;
+      markAdminDirty("members");
+      renderAdminRecordTables();
+      try {
+        await saveAdminSettings("members");
+        setSyncStatus(`已${label}账号 ${account.username}`, "ok");
+      } catch (error) {
+        adminDraftSettings.accounts = snapshot;
+        adminDirtySections.delete("members");
+        throw error;
+      } finally {
+        adminMemberActionPending = false;
+        renderAdmin();
       }
     }
 
@@ -6023,6 +6065,16 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
     $("adminShell").addEventListener("click", async (event) => {
       if (event.target.closest("#adminNavMask")) { $("adminShell").classList.remove("nav-open"); return; }
       if (event.target.closest("[data-admin-back]")) { $("backFromAdminBtn").click(); return; }
+      const memberAction = event.target.closest("[data-admin-member-action]");
+      if (memberAction) {
+        if (memberAction.disabled) return;
+        try {
+          await updateAdminMember(Number(memberAction.dataset.adminMemberIndex), memberAction.dataset.adminMemberAction);
+        } catch (error) {
+          setSyncStatus(error.message || "账号操作失败，请重试。", "warn");
+        }
+        return;
+      }
       const edit = event.target.closest("[data-admin-edit-section]");
       if (edit) return openAdminRecordEditor(edit.dataset.adminEditSection, Number(edit.dataset.adminEditIndex));
       const resetFilter = event.target.closest("[data-admin-filter-reset]");

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
 
 import handler from "../api/[...path].mjs";
 
@@ -228,6 +230,17 @@ test("disabling an account invalidates its session and blocks future login", asy
   });
   assert.equal(blockedLogin.statusCode, 403);
   assert.equal(blockedLogin.body.error, "账号已被停用");
+
+  const enabled = await saveSettings({
+    accounts: disabled.body.settings.accounts.map((account) =>
+      account.username === username ? { ...account, enabled: true } : account,
+    ),
+  });
+  assert.equal(enabled.statusCode, 200);
+  assert.equal((await api("/weeks", { token: loggedIn.body.token })).statusCode, 401);
+  assert.equal((await api("/auth/login", {
+    method: "POST", body: { username, password: "12345678" },
+  })).statusCode, 200);
 });
 
 test("a department leader logs in through /admin/login with their member credentials", async () => {
@@ -527,4 +540,188 @@ test("reassigning the same username's leadership to a different department inval
 
   const staleCheck = await api("/admin/leader/accounts", { adminToken: token, includeSyncKey: false });
   assert.equal(staleCheck.statusCode, 401);
+});
+
+test("admin member deletion preserves history and permanently revokes existing sessions", async () => {
+  const leader = await setupLeader("deletehistory");
+  const username = uniqueUsername("deletedmember");
+  const current = await api("/settings", { admin: true });
+  const account = { username, name: "待删除成员", departmentId: leader.departmentId };
+  assert.equal((await saveSettings({ accounts: [...current.body.settings.accounts, account] })).statusCode, 200);
+  const registered = await api("/auth/register", { method: "POST", body: { username, password: "12345678" } });
+  assert.equal(registered.statusCode, 201);
+  const loggedIn = await api("/auth/login", { method: "POST", body: { username, password: "12345678" } });
+  assert.equal(loggedIn.statusCode, 200);
+  const token = loggedIn.body.token;
+  const week = await api("/weeks", {
+    method: "POST", token, body: { startDate: "2026-10-12", endDate: "2026-10-18" },
+  });
+  assert.equal(week.statusCode, 201);
+  const task = await api(`/week/${week.body.week.id}/tasks`, {
+    method: "POST", token, body: { task: { title: "账号删除后仍保留的任务" } },
+  });
+  assert.equal(task.statusCode, 201);
+  const report = await api("/reports", {
+    method: "POST", token,
+    body: { data: { startDate: "2026-10-12", endDate: "2026-10-18", modules: [], summaryType: "weekly" } },
+  });
+  assert.equal(report.statusCode, 201);
+  const beforeReport = await api(`/report/${report.body.report.id}`, { token });
+  const settings = await api("/settings", { admin: true });
+  const body = { accounts: settings.body.settings.accounts.filter((item) => item.username !== username) };
+  assert.equal((await api("/admin/settings", { method: "PATCH", body, includeSyncKey: false })).statusCode, 401);
+  assert.equal((await api("/settings", { method: "PATCH", body, token })).statusCode, 401);
+  const leaderAdminToken = await leaderToken(leader.username, leader.password);
+  assert.equal((await api("/admin/settings", {
+    method: "PATCH", body, adminToken: leaderAdminToken,
+  })).statusCode, 404);
+  const deleted = await saveSettings(body);
+  assert.equal(deleted.statusCode, 200);
+  assert.equal(deleted.body.settings.accounts.some((item) => item.username === username), false);
+  assert.equal((await api("/weeks", { token })).statusCode, 401);
+  assert.equal((await api("/auth/login", {
+    method: "POST", body: { username, password: "12345678" },
+  })).statusCode, 403);
+
+  const leaderLogin = await api("/auth/login", {
+    method: "POST", body: { username: leader.username, password: leader.password },
+  });
+  const tasks = await api(`/week/${week.body.week.id}/tasks`, { token: leaderLogin.body.token });
+  assert.deepEqual(tasks.body.tasks.find((item) => item.id === task.body.task.id), task.body.task);
+  const afterReport = await api(`/report/${report.body.report.id}`, { token: leaderLogin.body.token });
+  assert.deepEqual(afterReport.body.report, beforeReport.body.report);
+
+  assert.equal((await saveSettings({ accounts: [...deleted.body.settings.accounts, account] })).statusCode, 200);
+  assert.equal((await api("/weeks", { token })).statusCode, 401);
+  const freshLogin = await api("/auth/login", { method: "POST", body: { username, password: "12345678" } });
+  assert.equal(freshLogin.statusCode, 200);
+  assert.equal(freshLogin.body.user.id, registered.body.user.id);
+});
+
+test("admin cannot delete the current department leader or the last account", async () => {
+  const leader = await setupLeader("deleteguard");
+  const current = await api("/settings", { admin: true });
+  const accounts = current.body.settings.accounts.filter((account) => account.username !== leader.username);
+  const rejected = await saveSettings({ accounts });
+  assert.equal(rejected.statusCode, 400);
+  assert.match(rejected.body.error, /负责人/);
+  assert.equal((await saveSettings({ accounts: [] })).statusCode, 400);
+  const after = await api("/settings", { admin: true });
+  assert.deepEqual(after.body.settings.accounts, current.body.settings.accounts);
+  assert.equal((await saveSettings({ departments: current.body.settings.departments.map((department) =>
+    department.id === leader.departmentId ? { ...department, leaderUsername: "" } : department,
+  ) })).statusCode, 200);
+  assert.equal((await saveSettings({ accounts })).statusCode, 200);
+});
+
+test("global admin disabling a leader also permanently revokes the leader's admin token", async () => {
+  const leader = await setupLeader("leaderdisabled");
+  const token = await leaderToken(leader.username, leader.password);
+  const current = await api("/settings", { admin: true });
+  const disabled = await saveSettings({ accounts: current.body.settings.accounts.map((account) =>
+    account.username === leader.username ? { ...account, enabled: false } : account,
+  ) });
+  assert.equal(disabled.statusCode, 200);
+  assert.equal((await api("/admin/leader/accounts", { adminToken: token })).statusCode, 401);
+  const enabled = await saveSettings({ accounts: disabled.body.settings.accounts.map((account) =>
+    account.username === leader.username ? { ...account, enabled: true } : account,
+  ) });
+  assert.equal(enabled.statusCode, 200);
+  assert.equal((await api("/admin/leader/accounts", { adminToken: token })).statusCode, 401);
+  const freshToken = await leaderToken(leader.username, leader.password);
+  assert.equal((await api("/admin/leader/accounts", { adminToken: freshToken })).statusCode, 200);
+});
+
+function memberUiContext({ fail = false, confirm = true } = {}) {
+  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  const names = ["renderAdminRecordTables", "updateAdminMember"];
+  const source = names.map((name) => {
+    const start = html.search(new RegExp(`    (?:async )?function ${name}\\(`));
+    assert.notEqual(start, -1, `${name} exists`);
+    const rest = html.slice(start + 1);
+    const end = rest.search(/\n    (?:async )?function /);
+    return html.slice(start, end < 0 ? html.length : start + 1 + end);
+  }).join("\n");
+  const elements = {};
+  const context = vm.createContext({
+    structuredClone,
+    adminRole: "admin", adminMemberActionPending: false,
+    adminDirtySections: new Set(), adminRecordEditor: null,
+    adminListFilters: { departments: {}, members: {} },
+    adminDraftSettings: {
+      departments: [{ id: "dp", name: "部门", leaderUsername: "leader", modules: [] }],
+      accounts: [
+        { username: "leader", name: "负责人", departmentId: "dp", enabled: true },
+        { username: "member", name: "成员", departmentId: "dp", enabled: true },
+      ],
+    },
+    calls: [], confirmations: [],
+    $: (id) => elements[id] ||= {},
+    escapeHtml: (value) => String(value),
+    adminFilteredPage: (records) => ({ rows: records.map((record, index) => ({ record, index })), total: records.length, page: 1, pages: 1 }),
+    confirm: (message) => { context.confirmations.push(message); return confirm; },
+    markAdminDirty: (section) => context.adminDirtySections.add(section),
+    renderAdmin: () => {}, setSyncStatus: () => {},
+    saveAdminSettings: async (section) => {
+      context.calls.push(section);
+      if (fail) throw new Error("保存失败");
+      context.adminDirtySections.delete(section);
+    },
+  });
+  vm.runInContext(source, context);
+  return { context, elements };
+}
+
+test("member list exposes delete and state actions and respects filtered record indices", () => {
+  const { context, elements } = memberUiContext();
+  context.adminFilteredPage = (records) => ({ rows: [{ record: records[1] || records[0], index: 1 }], total: 1, page: 1, pages: 1 });
+  context.renderAdminRecordTables();
+  assert.match(elements.adminMembersTable.innerHTML, /data-admin-member-action="delete"/);
+  assert.match(elements.adminMembersTable.innerHTML, /data-admin-member-action="toggle"/);
+  assert.match(elements.adminMembersTable.innerHTML, /data-admin-member-index="1"/);
+  assert.doesNotMatch(elements.adminDepartmentsTable.innerHTML, /data-admin-member-action/);
+});
+
+test("member list saves confirmed changes, cancels cleanly, and restores failed changes", async () => {
+  for (const action of ["toggle", "delete"]) {
+    const { context } = memberUiContext();
+    await context.updateAdminMember(1, action);
+    assert.deepEqual([...context.calls], ["members"]);
+    assert.equal(context.confirmations.length, 1);
+    assert.equal(context.adminMemberActionPending, false);
+    assert.equal(action === "delete" ? context.adminDraftSettings.accounts.length === 1 : context.adminDraftSettings.accounts[1].enabled === false, true);
+    const cancelled = memberUiContext({ confirm: false }).context;
+    const original = JSON.stringify(cancelled.adminDraftSettings);
+    await cancelled.updateAdminMember(1, action);
+    assert.equal(JSON.stringify(cancelled.adminDraftSettings), original);
+    assert.equal(cancelled.calls.length, 0);
+    const failed = memberUiContext({ fail: true }).context;
+    await assert.rejects(failed.updateAdminMember(1, action), /保存失败/);
+    assert.equal(JSON.stringify(failed.adminDraftSettings), original);
+    assert.equal(failed.adminMemberActionPending, false);
+    assert.equal(failed.adminDirtySections.size, 0);
+  }
+});
+
+test("member actions guard leaders, last account, drafts, permission, and duplicate submission", async () => {
+  const { context } = memberUiContext();
+  await assert.rejects(context.updateAdminMember(0, "delete"), /负责人/);
+  context.adminDraftSettings.accounts.splice(0, 1);
+  await assert.rejects(context.updateAdminMember(0, "delete"), /至少保留/);
+  for (const section of ["members", "departments"]) {
+    context.adminDirtySections.add(section);
+    await assert.rejects(context.updateAdminMember(0, "toggle"), /保存|撤销/);
+    context.adminDirtySections.clear();
+  }
+  context.adminRole = "leader";
+  await context.updateAdminMember(0, "toggle");
+  assert.equal(context.calls.length, 0);
+  context.adminRole = "admin";
+  let finish;
+  context.saveAdminSettings = () => new Promise((resolve) => { finish = resolve; });
+  const pending = context.updateAdminMember(0, "toggle");
+  await context.updateAdminMember(0, "toggle");
+  assert.equal(context.adminDraftSettings.accounts[0].enabled, false);
+  finish();
+  await pending;
 });

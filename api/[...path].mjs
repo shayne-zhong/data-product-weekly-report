@@ -1514,6 +1514,15 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   const accounts = Object.hasOwn(body, "accounts")
     ? normalizeAccounts(body.accounts, departments[0].id)
     : current.accounts;
+  if (!accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
+  const removedLeader = current.departments.find(
+    (department) =>
+      department.leaderUsername &&
+      !accounts.some((account) => account.username === department.leaderUsername),
+  );
+  if (removedLeader) {
+    return json(res, { error: `请先更换或解除部门“${removedLeader.name}”的负责人，再删除账号` }, 400);
+  }
   if (accounts.some((account) => !departments.some((department) => department.id === account.departmentId))) {
     return json(res, { error: "成员账号必须关联有效部门" }, 400);
   }
@@ -1526,7 +1535,10 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     const leaderUsername = stillValid ? department.leaderUsername : "";
     const previous = current.departments.find((item) => item.id === department.id);
     const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
-    return { ...department, leaderUsername, leaderAssignedAt: leaderChanged ? now : previous?.leaderAssignedAt || 0 };
+    const leaderDisabled = leaderUsername && accounts.some(
+      (account) => account.username === leaderUsername && account.enabled === false,
+    ) && current.accounts.some((account) => account.username === leaderUsername && account.enabled !== false);
+    return { ...department, leaderUsername, leaderAssignedAt: leaderChanged || leaderDisabled ? now : previous?.leaderAssignedAt || 0 };
   });
   const invalidModuleLeader = accounts.find((account) => {
     if (account.role !== "module_leader") return false;
@@ -1568,8 +1580,13 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     next.ai.enabled = false;
   }
   if (!next.modules.length) return json(res, { error: "至少保留一个项目类型" }, 400);
-  if (!next.accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
   state.settings = { ...next, updatedAt: now };
+  const enabledUsernames = new Set(
+    accounts.filter((account) => account.enabled !== false).map((account) => account.username),
+  );
+  for (const [token, session] of Object.entries(state.sessions || {})) {
+    if (!enabledUsernames.has(session.username)) delete state.sessions[token];
+  }
   await saveState(state);
   return json(res, { settings: publicSettings(state, { admin: true }) });
 }
@@ -1603,7 +1620,10 @@ function bearerToken(req) {
 
 function resolveLeaderDepartment(state, username) {
   const settings = getSettings(state);
-  return settings.departments.find((department) => department.leaderUsername === username) || null;
+  const account = settings.accounts.find((item) => item.username === username && item.enabled !== false);
+  return account
+    ? settings.departments.find((department) => department.leaderUsername === username && department.id === account.departmentId) || null
+    : null;
 }
 
 async function resetUserPassword(req, res, state, username, now, actor = { role: "admin" }) {
