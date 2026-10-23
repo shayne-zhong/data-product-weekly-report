@@ -1165,6 +1165,9 @@ async function handleTask(req, res, state, parts, now, actor) {
       ...body.task,
       ...owner,
       artifact: existing.artifact || null,
+      contributesToAnnualGoal: Object.hasOwn(body.task || {}, "contributesToAnnualGoal")
+        ? body.task.contributesToAnnualGoal !== false
+        : existing.contributesToAnnualGoal !== false,
       id: existing.id,
       weekId: existing.weekId,
       departmentId: existing.departmentId,
@@ -1176,8 +1179,9 @@ async function handleTask(req, res, state, parts, now, actor) {
     }
     if (!canUpdateTask(actor, existing, merged, settings)) return json(res, { error: "无权修改该任务" }, 403);
     const task =
-      body.task?.status && body.task.status !== existing.status
-        ? applyTaskStatus(merged, body.task.status, { blocker: body.task.blocker, now })
+      (body.task?.status && body.task.status !== existing.status) ||
+      (merged.status === "已完成" && Object.hasOwn(body.task || {}, "contributesToAnnualGoal"))
+        ? applyTaskStatus(merged, merged.status, { blocker: body.task.blocker, now })
         : merged;
     task.updatedBy = actor;
     state.tasks[task.id] = task;

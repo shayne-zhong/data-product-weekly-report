@@ -8,6 +8,37 @@ function linkedTaskFunction(name) {
   return html.match(new RegExp(` {4}(?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\r?\\n {4}\\}`))?.[0] || "";
 }
 
+test("task contribution selector defaults to linked goals and displays saved opt-out", () => {
+  const render = new Function(`
+    const normalizeGoalLinks = () => [], goalOptions = () => '<option value="">请选择</option>';
+    const escapeHtml = value => String(value);
+    ${linkedTaskFunction("renderTaskGoalLinksEditor")}
+    return renderTaskGoalLinksEditor;
+  `)();
+  assert.match(render({}), /value="true" selected/);
+  const optedOut = render({ contributesToAnnualGoal: false });
+  assert.match(optedOut, /value="false" selected/);
+  assert.match(optedOut, /未贡献年度指标/);
+  assert.doesNotMatch(optedOut, /data-goal-link-field=/);
+});
+
+test("frontend completion and contribution totals honor explicit opt-out with stale links", () => {
+  const runtime = new Function(`
+    const statuses = ["待开始", "进行中", "阻塞", "已完成"], goalUnitById = () => "项";
+    ${linkedTaskFunction("normalizeGoalLinks")}
+    ${linkedTaskFunction("validGoalLinks")}
+    ${linkedTaskFunction("taskGoalContribution")}
+    ${linkedTaskFunction("applyStatusRules")}
+    return { applyStatusRules, normalizeGoalLinks, taskGoalContribution };
+  `)();
+  assert.throws(() => runtime.applyStatusRules({}, "已完成"), /年度指标/);
+  const unlinked = { contributesToAnnualGoal: false };
+  assert.equal(runtime.applyStatusRules(unlinked, "已完成").status, "已完成");
+  const stale = { ...unlinked, goalId: "g", goalContribution: 8, goalLinks: [{ goalId: "g", contribution: 8 }] };
+  assert.deepEqual(runtime.normalizeGoalLinks(stale), []);
+  assert.equal(runtime.taskGoalContribution(stale), 0);
+});
+
 async function linkedDeletionRuntime(apiJson = async () => ({ ok: true }), confirm = () => true) {
   const handler = html.match(/ {6}if \(event.target.id === "deleteTaskBtn"\) \{[\s\S]*?\r?\n {6}\}/)?.[0];
   assert.ok(handler);

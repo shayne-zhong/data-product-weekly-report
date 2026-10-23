@@ -39,6 +39,32 @@ test("buildWeekId joins ISO start and end dates", () => {
   assert.equal(buildWeekId("2026-06-15", "2026-06-21"), "2026-06-15_2026-06-21");
 });
 
+test("annual goal contribution defaults on and only explicit false permits unlinked completion", () => {
+  for (const value of [undefined, true, "false", 0, null]) {
+    const task = buildEmptyTask({ contributesToAnnualGoal: value });
+    assert.equal(task.contributesToAnnualGoal, true);
+    assert.throws(() => applyTaskStatus(task, "已完成"), /年度指标/);
+  }
+  const task = buildEmptyTask({ contributesToAnnualGoal: false, carryToNextWeek: true });
+  assert.equal(task.contributesToAnnualGoal, false);
+  const done = applyTaskStatus(task, "已完成", { now: 3000 });
+  assert.equal(done.status, "已完成");
+  assert.equal(done.progress, 100);
+  assert.equal(done.completedAt, 3000);
+  assert.equal(done.carryToNextWeek, false);
+  assert.equal(applyTaskStatus(done, "进行中").contributesToAnnualGoal, false);
+});
+
+test("tasks explicitly not contributing never count retained or legacy goal links", () => {
+  const optedOut = {
+    status: "已完成", contributesToAnnualGoal: false,
+    goalLinks: [{ goalId: "g1", contribution: 99 }], goalId: "g2", goalContribution: 88,
+  };
+  assert.deepEqual(completedGoalContributionById([optedOut]), {});
+  assert.deepEqual(completedGoalContributionById([{ ...optedOut, goalLinks: [] }]), {});
+  assert.deepEqual(completedGoalContributionById([{ ...optedOut, contributesToAnnualGoal: true }]), { g1: 99 });
+});
+
 test("task status order and week labels follow PRD rules", () => {
   assert.deepEqual(taskStatuses, ["待开始", "进行中", "阻塞", "已完成"]);
   assert.equal(weekDisplayLabel("2026-06-01"), "6月第1周");

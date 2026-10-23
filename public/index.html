@@ -1465,8 +1465,9 @@ body.admin-mode{
       if (!statuses.includes(nextStatus)) throw new Error("无效任务状态");
       const blocker = String(options.blocker ?? task.blocker ?? "").trim();
       if (nextStatus === "阻塞" && !blocker) throw new Error("进入阻塞状态必须填写阻塞原因");
-      const links = validGoalLinks(options.goalLinks || task);
-      if (nextStatus === "已完成" && !links.length) {
+      const contributesToAnnualGoal = task.contributesToAnnualGoal !== false;
+      const links = contributesToAnnualGoal ? validGoalLinks(options.goalLinks || task) : [];
+      if (nextStatus === "已完成" && contributesToAnnualGoal && !links.length) {
         throw new Error("完成任务前必须至少关联1个年度指标并填写贡献数");
       }
       const patch = { status: nextStatus, updatedAt: Date.now() };
@@ -1475,10 +1476,12 @@ body.admin-mode{
         patch.completedAt = task.completedAt || Date.now();
         patch.carryToNextWeek = false;
         patch.progress = 100;
-        patch.goalLinks = normalizeGoalLinks(links);
-        patch.goalId = links[0]?.goalId || "";
-        patch.goalContribution = links[0]?.contribution || 0;
-        patch.goalContributionUnit = links[0]?.unit || "";
+        if (contributesToAnnualGoal) {
+          patch.goalLinks = normalizeGoalLinks(links);
+          patch.goalId = links[0]?.goalId || "";
+          patch.goalContribution = links[0]?.contribution || 0;
+          patch.goalContributionUnit = links[0]?.unit || "";
+        }
       }
       if (task.status === "已完成" && nextStatus !== "已完成") patch.completedAt = "";
       return patch;
@@ -1555,6 +1558,7 @@ body.admin-mode{
     }
 
     function normalizeGoalLinks(taskOrLinks = {}) {
+      if (taskOrLinks.contributesToAnnualGoal === false) return [];
       const source = Array.isArray(taskOrLinks) ? taskOrLinks : taskOrLinks.goalLinks;
       let links = Array.isArray(source) ? source : [];
       if (!links.length && !Array.isArray(taskOrLinks) && (taskOrLinks.goalId || taskOrLinks.annualGoalId)) {
@@ -1617,6 +1621,7 @@ body.admin-mode{
     }
 
     function taskGoalContribution(task) {
+      if (task.contributesToAnnualGoal === false) return 0;
       const links = normalizeGoalLinks(task);
       return links.length ? links.reduce((sum, link) => sum + link.contribution, 0) : Math.max(0, Number(task.goalContribution ?? task.annualGoalContribution ?? 0) || 0);
     }
@@ -3219,9 +3224,21 @@ body.admin-mode{
     }
 
     function renderTaskGoalLinksEditor(task) {
+      const contributesToAnnualGoal = task.contributesToAnnualGoal !== false;
+      const contributionSelector = `
+        <div class="field-full">
+          <label>年度指标贡献</label>
+          <select data-task-goal-contribution>
+            <option value="true" ${contributesToAnnualGoal ? "selected" : ""}>关联年度指标</option>
+            <option value="false" ${!contributesToAnnualGoal ? "selected" : ""}>未贡献年度指标</option>
+          </select>
+          ${!contributesToAnnualGoal ? '<div class="goal-link-tip">无需填写指标即可完成任务，不计入年度指标贡献。</div>' : ""}
+        </div>
+      `;
+      if (!contributesToAnnualGoal) return contributionSelector;
       const links = normalizeGoalLinks(task);
       const rows = links.length ? links : [{ goalId: "", contribution: 0, unit: "", note: "" }];
-      return `
+      return `${contributionSelector}
         <div class="field-full">
           <label>关联年度指标（最多3个）</label>
           <div class="goal-links-editor">
@@ -5338,6 +5355,13 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
     });
 
     document.addEventListener("change", (event) => {
+      const contributionSelect = event.target.closest("[data-task-goal-contribution]");
+      if (contributionSelect) {
+        patchSelectedTask({ contributesToAnnualGoal: contributionSelect.value !== "false" });
+        renderTaskDetail();
+        return;
+      }
+
       const goalLinkSelect = event.target.closest("[data-goal-link-field='goalId']");
       if (goalLinkSelect) {
         updateSelectedGoalLink(Number(goalLinkSelect.dataset.goalLinkIndex), "goalId", goalLinkSelect.value, { rerender: true });

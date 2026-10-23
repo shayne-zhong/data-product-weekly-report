@@ -50,6 +50,55 @@ async function login(usernameValue, password = "12345678") {
   return response.body.token;
 }
 
+test("task opt-out persists across API reads and completion while linked mode stays required", async () => {
+  const admin = await api("/admin/login", { method: "POST", body: { username: "Admin", password: "888888" } });
+  const adminToken = admin.body.token;
+  const settings = (await api("/admin/settings", { adminToken })).body.settings;
+  const department = settings.departments[0];
+  const account = { username: username("optionalgoal"), name: "无需指标测试", departmentId: department.id, role: "member" };
+  const saved = await api("/admin/settings", {
+    method: "PATCH", adminToken, body: { accounts: [...settings.accounts, account] },
+  });
+  assert.equal(saved.statusCode, 200);
+  assert.equal((await api("/auth/register", {
+    method: "POST", body: { username: account.username, password: "12345678", displayName: account.name },
+  })).statusCode, 201);
+  const token = await login(account.username);
+  const week = await api("/weeks", {
+    method: "POST", token, body: { startDate: "2096-05-07", endDate: "2096-05-13" },
+  });
+  assert.equal(week.statusCode, 201);
+  const route = `/week/${encodeURIComponent(week.body.week.id)}/tasks`;
+  const created = await api(route, { method: "POST", token, body: { task: { title: "无需贡献", contributesToAnnualGoal: false } } });
+  assert.equal(created.statusCode, 201);
+  assert.equal(created.body.task.contributesToAnnualGoal, false);
+  const taskRoute = `/task/${encodeURIComponent(created.body.task.id)}`;
+  const done = await api(taskRoute, { method: "POST", token, body: { task: { status: "已完成" } } });
+  assert.equal(done.statusCode, 200);
+  assert.equal(done.body.task.progress, 100);
+  const reloaded = (await api(route, { token })).body.tasks.find(task => task.id === created.body.task.id);
+  assert.equal(reloaded.contributesToAnnualGoal, false);
+  assert.equal(reloaded.status, "已完成");
+  const invalid = await api(taskRoute, { method: "POST", token, body: { task: { contributesToAnnualGoal: true } } });
+  assert.ok(invalid.statusCode >= 400);
+  assert.match(invalid.body.error, /年度指标/);
+  const stillOptedOut = (await api(route, { token })).body.tasks.find(task => task.id === created.body.task.id);
+  assert.equal(stillOptedOut.contributesToAnnualGoal, false);
+  const linked = await api(taskRoute, {
+    method: "POST", token,
+    body: { task: { contributesToAnnualGoal: true, goalLinks: [{ goalId: "test-goal", contribution: 2 }] } },
+  });
+  assert.equal(linked.statusCode, 200);
+  assert.equal(linked.body.task.contributesToAnnualGoal, true);
+  const defaultTask = await api(route, { method: "POST", token, body: { task: { title: "默认关联" } } });
+  assert.equal(defaultTask.body.task.contributesToAnnualGoal, true);
+  const rejected = await api(`/task/${encodeURIComponent(defaultTask.body.task.id)}`, {
+    method: "POST", token, body: { task: { status: "已完成" } },
+  });
+  assert.ok(rejected.statusCode >= 400);
+  assert.match(rejected.body.error, /年度指标/);
+});
+
 test("task lists respect ordinary, module-leader, and department-leader scopes", async () => {
   const adminLogin = await api("/admin/login", { method: "POST", body: { username: "Admin", password: "888888" } });
   assert.equal(adminLogin.statusCode, 200);
