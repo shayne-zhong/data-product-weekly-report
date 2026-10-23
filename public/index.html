@@ -1350,7 +1350,7 @@ body.admin-mode{
       start.setDate(date.getDate() - day + 1);
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
-      const iso = (d) => d.toISOString().slice(0, 10);
+      const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       return { startDate: iso(start), endDate: iso(end), id: `${iso(start)}_${iso(end)}` };
     }
 
@@ -1441,6 +1441,12 @@ body.admin-mode{
       if (!week?.startDate) return "本周";
       const [, month] = week.startDate.split("-");
       return `${Number(month)}月第${weekOfMonthByMonday(week.startDate)}周`;
+    }
+
+    function weekOptionLabel(week) {
+      if (!week?.startDate) return "本周";
+      const [year] = week.startDate.split("-");
+      return `${year}年${weekLabel(week)}（${displayDate(week.startDate)}～${displayDate(week.endDate)}）`;
     }
 
     function todayLabel() {
@@ -3013,7 +3019,7 @@ body.admin-mode{
 
     function renderWeekControls() {
       $("weekHeadline").textContent = `${displayDate(currentWeek?.startDate || weekRange().startDate)} — ${displayDate(currentWeek?.endDate || weekRange().endDate)} · ${weekLabel(currentWeek || weekRange())} · 今天 ${displayDate(todayIso())}`;
-      $("weekSelect").innerHTML = weeks.map((week) => `<option value="${week.id}" ${week.id === currentWeek?.id ? "selected" : ""}>${weekLabel(week)}</option>`).join("");
+      $("weekSelect").innerHTML = weeks.map((week) => `<option value="${week.id}" ${week.id === currentWeek?.id ? "selected" : ""}>${escapeHtml(weekOptionLabel(week))}</option>`).join("");
       $("weekStart").value = displayDate(currentWeek?.startDate || weekRange().startDate);
       $("weekEnd").value = displayDate(currentWeek?.endDate || weekRange().endDate);
     }

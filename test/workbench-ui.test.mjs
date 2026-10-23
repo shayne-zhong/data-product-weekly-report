@@ -1,12 +1,76 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 
 const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
 
 function linkedTaskFunction(name) {
   return html.match(new RegExp(` {4}(?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?\\r?\\n {4}\\}`))?.[0] || "";
 }
+
+test("week ranges follow the local calendar at midnight, week boundaries and year boundaries", () => {
+  const source = `
+    ${linkedTaskFunction("weekRange")}
+    const dates = [
+      [2026, 9, 23, 0], [2026, 9, 23, 7], [2026, 9, 23, 8], [2026, 9, 23, 23],
+      [2026, 9, 19, 0], [2026, 9, 25, 23], [2026, 9, 18, 0], [2026, 9, 26, 0],
+      [2025, 11, 31, 0], [2026, 0, 4, 23],
+    ];
+    console.log(JSON.stringify(dates.map(parts => weekRange(new Date(...parts)))));
+  `;
+  const expectedStarts = [
+    "2026-10-19", "2026-10-19", "2026-10-19", "2026-10-19",
+    "2026-10-19", "2026-10-19", "2026-10-12", "2026-10-26",
+    "2025-12-29", "2025-12-29",
+  ];
+  const expectedEnds = [
+    "2026-10-25", "2026-10-25", "2026-10-25", "2026-10-25",
+    "2026-10-25", "2026-10-25", "2026-10-18", "2026-11-01",
+    "2026-01-04", "2026-01-04",
+  ];
+  for (const timezone of ["Asia/Shanghai", "America/Los_Angeles", "UTC"]) {
+    const output = execFileSync(process.execPath, ["-e", source], { env: { ...process.env, TZ: timezone }, encoding: "utf8" });
+    const ranges = JSON.parse(output);
+    assert.deepEqual(ranges.map(range => range.startDate), expectedStarts, timezone);
+    assert.deepEqual(ranges.map(range => range.endDate), expectedEnds, timezone);
+    assert.deepEqual(ranges.map(range => range.id), expectedStarts.map((start, index) => `${start}_${expectedEnds[index]}`), timezone);
+  }
+});
+
+test("week dropdown distinguishes years and date ranges while preserving week selection", () => {
+  const weeks = [
+    { startDate: "2025-10-20", endDate: "2025-10-26" },
+    { startDate: "2026-10-19", endDate: "2026-10-25" },
+    { startDate: "2026-10-19", endDate: "2026-10-24" },
+    { startDate: "2026-10-20", endDate: "2026-10-26" },
+  ].map(week => ({ ...week, id: `${week.startDate}_${week.endDate}` }));
+  const render = new Function("weeks", `
+    const nodes = {}, $ = id => nodes[id] ||= {}, todayIso = () => "2026-10-23";
+    const escapeHtml = value => String(value);
+    let currentWeek;
+    ${linkedTaskFunction("displayDate")}
+    ${linkedTaskFunction("weekOfMonthByMonday")}
+    ${linkedTaskFunction("weekLabel")}
+    ${linkedTaskFunction("weekOptionLabel")}
+    ${linkedTaskFunction("renderWeekControls")}
+    return week => { currentWeek = week; renderWeekControls(); return nodes; };
+  `)(weeks);
+  for (const week of weeks) {
+    const nodes = render(week);
+    const options = [...nodes.weekSelect.innerHTML.matchAll(/<option value="([^"]+)"([^>]*)>([^<]+)<\/option>/g)];
+    assert.deepEqual(options.map(option => option[1]), weeks.map(item => item.id));
+    assert.equal(new Set(options.map(option => option[3])).size, weeks.length);
+    assert.deepEqual(options.filter(option => option[2].includes("selected")).map(option => option[1]), [week.id]);
+    for (let index = 0; index < weeks.length; index++) {
+      assert.ok(options[index][3].includes(`${weeks[index].startDate.slice(0, 4)}年`));
+      assert.ok(options[index][3].includes(weeks[index].startDate.replaceAll("-", "/")));
+      assert.ok(options[index][3].includes(weeks[index].endDate.replaceAll("-", "/")));
+    }
+    assert.equal(nodes.weekStart.value, week.startDate.replaceAll("-", "/"));
+    assert.equal(nodes.weekEnd.value, week.endDate.replaceAll("-", "/"));
+  }
+});
 
 test("task contribution selector defaults to linked goals and displays saved opt-out", () => {
   const render = new Function(`
