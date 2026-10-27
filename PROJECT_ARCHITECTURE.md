@@ -15,7 +15,7 @@
 - `public/dashboard-host.js`：后台父页面的授权请求桥，校验消息来源窗口、同源和操作白名单；后台凭证不发送到驾驶舱页。`public/dashboard-import.js`：将 UTF-8 CSV/JSON 转为统一导入对象，空模板位于 `public/dashboard-templates/`。
 - `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api` 和精确路径 `/wecom/callback`、托管静态资源，并在直接运行时负责两个后台任务的启动补偿与白天小时调度。
 - `/healthz` 的 `features.departmentDashboard: 1` 标记当前进程已加载驾驶舱后端，用于区分静态文件更新与后台进程实际发布，不包含凭证或业务数据。
-- `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
+- `api/[...path].mjs`：统一后端 API 处理器；`api/index.js` 为 Vercel 标准 JavaScript 适配入口，直接复用同一处理器。`vercel.json` 将 `/api/:path*` 转为 `/api/index?path=:path*`，避免带方括号的函数匹配与入口识别问题。
 - `scripts/build.mjs`：校验内联脚本，生成 `build` 目录和构建清单。
 
 常用命令：`npm.cmd start`、`npm.cmd test`、`npm.cmd run build`、`npm.cmd run lint`、`npm.cmd run format:check`。

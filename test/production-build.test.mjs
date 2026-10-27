@@ -23,3 +23,11 @@ test("production build contains the runnable service", async () => {
   await assert.rejects(access(new URL("../build/scripts/report-worker.mjs", import.meta.url)));
   await assert.rejects(access(new URL("../build/scripts/install-report-worker.mjs", import.meta.url)));
 });
+
+test("Vercel JavaScript entry reuses the Node API handler", async () => {
+  const [{ default: vercelHandler }, { default: nodeHandler }] = await Promise.all([
+    import("../api/index.js"),
+    import("../api/[...path].mjs"),
+  ]);
+  assert.equal(vercelHandler, nodeHandler);
+});

@@ -6,11 +6,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/api/[...path].mjs"
+      "destination": "/api/index?path=:path*"
     }
   ],
   "functions": {
-    "api/**/*.mjs": {
+    "api/index.js": {
       "maxDuration": 10
     }
   }
