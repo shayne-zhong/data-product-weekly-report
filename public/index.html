@@ -210,6 +210,13 @@ body.admin-mode{
 @media(max-width:900px){.admin-mode .topbar{padding-inline:16px}.admin-mode .brand{min-width:auto}.admin-mode .admin-list-guide{display:none}.admin-mode .admin-row,.admin-mode #adminAccountsList .admin-row.role,.admin-mode #leaderAccountsList .admin-row.role{min-width:0;grid-template-columns:1fr}.admin-mode .scheduled-task-card{grid-template-columns:1fr}}
 .admin-record-table td:last-child{white-space:nowrap}.admin-record-table .record-view+.record-view{margin-left:12px}.admin-record-table .record-delete{color:#b91c1c}.admin-record-table .record-view:disabled{color:#a8abb2;cursor:not-allowed}
 </style>
+  <style>
+    .admin-shell.dashboard-home{display:block}
+    .admin-shell.dashboard-home>.admin-sidebar,.admin-shell.dashboard-home .admin-tabs{display:none}
+    .admin-shell.dashboard-home .admin-content{padding:0}
+    .admin-shell.dashboard-home .admin-workspace{height:calc(100vh - 64px);overflow:hidden}
+    #departmentDashboardFrame{display:block;width:100%;height:calc(100vh - 64px);border:0;background:#f4f6fa}
+  </style>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -520,9 +527,7 @@ body.admin-mode{
             <div class="admin-tabs" id="adminTabs" role="tablist"><button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航">☰</button></div>
             <div class="admin-content">
             <section class="admin-section" data-admin-panel="overview">
-              <div class="admin-overview-head"><div><h3>管理概览</h3><p class="subtitle">优先处理影响组织配置和系统运行的问题。</p></div><button class="ghost-btn" id="reloadAdminOverviewBtn">刷新数据</button></div>
-              <div class="admin-metrics" id="adminOverviewMetrics" aria-live="polite"></div>
-              <div class="admin-overview-grid"><section class="admin-overview-card"><h4>待处理事项</h4><div class="admin-pending-list" id="adminPendingList"></div></section><section class="admin-overview-card"><h4>系统状态</h4><div id="adminSystemHealth" class="admin-pending-list"></div></section></div>
+              <iframe id="departmentDashboardFrame" src="/admin-dashboard.html" title="部门经营总览"></iframe>
             </section>
         <div class="settings-center">
           <div class="settings-editor">
@@ -969,6 +974,7 @@ body.admin-mode{
   </div>
 
   <script src="/period-reports.js"></script>
+  <script src="/dashboard-host.js"></script>
   <script>
     const defaultModules = ["AI+X项目", "AI应用项目", "数据治理与经营分析", "财经共享"];
     let modules = [...defaultModules];
@@ -1051,7 +1057,7 @@ body.admin-mode{
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
     const adminSectionMeta = {
       "period-reports": { label: "总结报告", icon: "i-tasks", group: "组织管理" },
-      overview: { label: "管理概览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
+      overview: { label: "部门经营总览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
       login: { label: "保持登录", icon: "i-clock", group: "规则配置" }, archive: { label: "归档设置", icon: "i-archive", group: "规则配置" },
       "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" }, workbuddy: { label: "企微待办", icon: "i-tasks", group: "系统运维" },
     };
@@ -1065,6 +1071,7 @@ body.admin-mode{
     let adminActiveSection = "overview";
     let adminOpenTabs = ["overview"];
     let adminOverview = null;
+    let adminDashboardHost = null;
     const adminListFilters = { departments: { query: "", enabled: "all", page: 1, size: 20 }, members: { query: "", enabled: "all", page: 1, size: 20 } };
     let adminRecordEditor = null;
     let adminMemberActionPending = false;
@@ -4666,24 +4673,22 @@ body.admin-mode{
     }
 
     async function loadAdminOverview() {
-      adminOverview = await apiJson("/api/admin/overview", { headers: adminRequestHeaders() });
+      if (!adminDashboardHost) {
+        adminDashboardHost = window.DepartmentDashboardHost.create({
+          frame: $("departmentDashboardFrame"),
+          isAuthorized: () => adminAuthed && Number(adminSession.expiresAt) > Date.now(),
+          request: apiJson,
+          headers: adminRequestHeaders,
+          sections: adminVisibleSections,
+          openSection: openAdminSection,
+        });
+      }
+      adminOverview = await adminDashboardHost.load();
       renderAdminOverview();
     }
 
     function renderAdminOverview() {
-      if (!adminOverview) {
-        $("adminOverviewMetrics").innerHTML = `<div class="admin-empty">正在读取真实数据…</div>`;
-        $("adminPendingList").innerHTML = `<div class="admin-empty">正在检查…</div>`;
-        $("adminSystemHealth").innerHTML = `<div class="admin-empty">正在检查…</div>`;
-        return;
-      }
-      const metrics = adminOverview.metrics || {};
-      const values = [["部门", metrics.departments], ["启用成员", metrics.activeMembers], ["全部任务完成率", metrics.completionRate == null ? "—" : `${metrics.completionRate}%`], ["累计已归档总结", metrics.archivedReports]];
-      $("adminOverviewMetrics").innerHTML = values.map(([label, value]) => `<article class="admin-metric"><span>${label}</span><strong>${value ?? "—"}</strong></article>`).join("");
-      $("adminPendingList").innerHTML = (adminOverview.pending || []).map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.label)}</span><button class="ghost-btn" data-admin-jump="${escapeHtml(item.page)}">处理</button></div>`).join("") || `<div class="admin-empty">当前没有待处理事项</div>`;
-      const scheduled = adminOverview.scheduled || [];
-      const statusLabels = { success: "成功", failed: "失败", running: "执行中", never: "尚未执行", idle: "尚未执行" };
-      $("adminSystemHealth").innerHTML = (scheduled.map((item) => `<div class="admin-pending-item"><span>${escapeHtml(item.name)}</span><span class="status-pill ${item.status === "failed" ? "status-late" : item.status === "running" ? "status-processing" : "status-done"}">${escapeHtml(statusLabels[item.status] || "尚未执行")}</span></div>`).join("") || `<div class="admin-empty">当前角色无系统运行信息</div>`) + `<p class="subtitle">更新时间：${escapeHtml(new Date(adminOverview.updatedAt || Date.now()).toLocaleString())}</p>`;
+      $("adminShell").classList.toggle("dashboard-home", adminAuthed && adminActiveSection === "overview");
     }
 
     function renderAdminShellNavigation() {
@@ -4707,7 +4712,7 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       const group = adminNavigation.find((item) => item.sections.includes(section));
       if (group) { adminActiveGroup = group.id; adminLastSectionByGroup[group.id] = section; }
       $("adminShell").classList.remove("nav-open");
-      if (section === "overview") await loadAdminOverview().catch((error) => { adminOverview = { metrics: {}, pending: [{ label: error.message || "概览读取失败", page: "overview" }] }; renderAdminOverview(); });
+      if (section === "overview") await loadAdminOverview().catch((error) => { adminDashboardHost?.error(error); renderAdminOverview(); });
       if (section === "scheduled-tasks") await loadScheduledTasks().catch((error) => setSyncStatus(error.message || "定时任务状态读取失败", "warn"));
       if (section === "period-reports") await periodReportUi.load().catch((error) => setSyncStatus(error.message || "经营报告读取失败", "warn"));
       renderAdmin();
@@ -5782,6 +5787,9 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
         });
+        adminDashboardHost?.destroy();
+        adminDashboardHost = null;
+        adminOverview = null;
         adminSession = session;
         adminSessionToken = session.token;
         adminAuthed = true;
@@ -6171,10 +6179,6 @@ return `<div class="admin-side-group">${group ? `<div class="admin-side-label">$
       const controls = [...$("adminRecordDrawer").querySelectorAll("button:not(:disabled),input:not(:disabled),select:not(:disabled)")].filter((node) => node.getClientRects().length);
       if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); }
       else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
-    });
-    $("reloadAdminOverviewBtn").addEventListener("click", async () => {
-      try { await loadAdminOverview(); setSyncStatus("管理概览已刷新", "ok"); }
-      catch (error) { setSyncStatus(error.message || "管理概览读取失败", "warn"); }
     });
     document.addEventListener("click", (event) => {
       if (event.target.closest("#adminTopNav")) return;

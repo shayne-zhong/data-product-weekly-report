@@ -11,7 +11,10 @@
 ## 运行与构建入口
 
 - `public/index.html`：单页应用入口，包含结构、样式、状态和交互。
+- `public/admin-dashboard.html`、`public/admin-dashboard.css`、`public/admin-dashboard.js`：后台默认首页驾驶舱，采用确认的深色侧栏版式；通过可信同源嵌入页隔离样式，缺数灰显，不含模拟经营数据。
+- `public/dashboard-host.js`：后台父页面的授权请求桥，校验消息来源窗口、同源和操作白名单；后台凭证不发送到驾驶舱页。`public/dashboard-import.js`：将 UTF-8 CSV/JSON 转为统一导入对象，空模板位于 `public/dashboard-templates/`。
 - `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api` 和精确路径 `/wecom/callback`、托管静态资源，并在直接运行时负责两个后台任务的启动补偿与白天小时调度。
+- `/healthz` 的 `features.departmentDashboard: 1` 标记当前进程已加载驾驶舱后端，用于区分静态文件更新与后台进程实际发布，不包含凭证或业务数据。
 - `api/[...path].mjs`：统一后端 API 处理器及 Vercel Functions 入口。
 - `scripts/build.mjs`：校验内联脚本，生成 `build` 目录和构建清单。
 
@@ -32,6 +35,7 @@
 - WorkBuddy 企微待办：`lib/open-task-sync.mjs` 负责秒级严格递增时间戳、增量投影、负责人解析和映射变化对账；负责人优先按本部门网站账号精确解析，历史任务仅允许按本部门唯一同名账号兜底。`lib/workbuddy-auth.mjs` 负责 Bearer Token、通讯录映射、OAuth state 和身份解析；`lib/workbuddy-config.mjs` 负责环境变量与后台加密配置的优先级、安全投影和校验；`lib/workbuddy-sync-log.mjs` 负责双源日志脱敏、幂等、游标查询及 30 天/5000 条保留；统一 API 负责部门过滤、完成规则复用、会话创建和管理员运维接口。
 - 周任务结转：`lib/weekly-rollover.mjs` 负责北京时间周窗口、按部门持久化防重和任务复制；`server.mjs` 是唯一自动调度器，提供启动补偿及北京时间 08:00–20:00 的整点小时检查，浏览器加载周数据不触发结转。
 - 持久化：`lib/state-store.mjs`、`test/state-store.test.mjs`、`test/persistence-api.test.mjs`。
+- 部门驾驶舱：`lib/department-dashboard.mjs` 负责授权部门、北京时间期间、真实账号/任务/目标贡献聚合、指标观测、时效、来源去重、导入预检和确认；`state.dashboard.departments` 保存部门观测、版本、防重索引与最近50条导入审计，不改原任务/目标。统一 API 提供 `GET /api/admin/dashboard`、`POST /api/admin/dashboard/imports/preview`、`POST /api/admin/dashboard/imports`；导入请求体上限1 MB，服务端再次验证预检哈希和版本。外部自动拉取尚未启用。
 - 配置：`lib/runtime-config.mjs`、`test/runtime-config.test.mjs`。
 - 鉴权安全：`lib/admin-session.mjs`、`lib/login-throttle.mjs`、`lib/password-hash.mjs`、`lib/encrypted-secret.mjs`。
 - 待办产物：`lib/task-artifact-service.mjs`、`lib/artifact-core.mjs`、`lib/artifact-store.mjs`、`lib/artifact-preview.mjs`、`lib/multipart-file.mjs`。
@@ -62,6 +66,7 @@ WorkBuddy 仅通过内网 Node 服务访问 `GET /api/open/tasks?updated_since=`
 - 周报：周报 UI → 报告 API → `test/report-api.test.mjs`。
 - 经营报告：后台 UI → `admin/period-reports` → 网站后台 DeepSeek 任务 → `period-reports` 受限预览 → `test/period-reports.test.mjs`。
 - 登录管理：鉴权 UI → 鉴权 API → 管理员和安全模块。
+- 后台首页与外部供数：`public/index.html` 概览挂载 → `public/dashboard-host.js` 同源请求桥 → `admin/dashboard` → `lib/department-dashboard.mjs` → `test/department-dashboard.test.mjs`、`test/department-dashboard-api.test.mjs`、`test/department-dashboard-ui.test.mjs`；供数契约与操作指南见 `docs/department-dashboard-api.md`、`docs/department-dashboard-rollout.md`。
 - WorkBuddy 企微集成：`lib/open-task-sync.mjs`、`lib/workbuddy-auth.mjs`、`lib/workbuddy-config.mjs`、`lib/workbuddy-sync-log.mjs` → `api/[...path].mjs` 的 `open`/`wecom`/`admin/workbuddy` 路由 → `public/index.html` 后台运维界面与 `server.mjs` 内网回调转发 → 对应 WorkBuddy 测试。
 - 部署持久化：运行入口和平台适配 → `lib/state-store.mjs` → 生产测试。
 - 构建：`scripts/build.mjs` → `package.json` → `test/production-build.test.mjs`。

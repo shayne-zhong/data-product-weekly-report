@@ -1185,11 +1185,13 @@ test("admin editable lists retain compact column guidance inside the new workspa
   assert.match(html, /id="adminReloadBtn">放弃更改/);
 });
 
-test("admin overview is the fixed default and reads scoped real data", () => {
+test("admin overview is the fixed default and mounts the authenticated scoped dashboard", () => {
   assert.match(html, /data-admin-panel="overview"/);
   assert.match(html, /adminActiveSection = "overview"/);
-  assert.match(html, /apiJson\("\/api\/admin\/overview"/);
-  assert.match(html, /metrics\.completionRate == null \? "—"/);
+  assert.match(html, /id="departmentDashboardFrame" src="\/admin-dashboard\.html"/);
+  assert.match(html, /window\.DepartmentDashboardHost\.create/);
+  assert.match(html, /headers: adminRequestHeaders/);
+  assert.match(html, /isAuthorized: \(\) => adminAuthed/);
 });
 
 test("scheduled task actions use the due-only catch-up wording and remain separately confirmed", () => {

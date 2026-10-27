@@ -11,6 +11,11 @@ import { issueAdminToken, verifyAdminToken } from "../lib/admin-session.mjs";
 import { decryptSecret, encryptSecret } from "../lib/encrypted-secret.mjs";
 import { createStateStore } from "../lib/state-store.mjs";
 import {
+  buildDepartmentDashboard,
+  previewDashboardImport,
+  commitDashboardImport,
+} from "../lib/department-dashboard.mjs";
+import {
   beginPeriodJob,
   createPeriodReportService,
   failPeriodJob,
@@ -1521,8 +1526,7 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
   if (!accounts.length) return json(res, { error: "至少保留一个账号" }, 400);
   const removedLeader = current.departments.find(
     (department) =>
-      department.leaderUsername &&
-      !accounts.some((account) => account.username === department.leaderUsername),
+      department.leaderUsername && !accounts.some((account) => account.username === department.leaderUsername),
   );
   if (removedLeader) {
     return json(res, { error: `请先更换或解除部门“${removedLeader.name}”的负责人，再删除账号` }, 400);
@@ -1539,10 +1543,15 @@ async function handleSettings(req, res, state, now, { adminAuthorized = false } 
     const leaderUsername = stillValid ? department.leaderUsername : "";
     const previous = current.departments.find((item) => item.id === department.id);
     const leaderChanged = (previous?.leaderUsername || "") !== leaderUsername;
-    const leaderDisabled = leaderUsername && accounts.some(
-      (account) => account.username === leaderUsername && account.enabled === false,
-    ) && current.accounts.some((account) => account.username === leaderUsername && account.enabled !== false);
-    return { ...department, leaderUsername, leaderAssignedAt: leaderChanged || leaderDisabled ? now : previous?.leaderAssignedAt || 0 };
+    const leaderDisabled =
+      leaderUsername &&
+      accounts.some((account) => account.username === leaderUsername && account.enabled === false) &&
+      current.accounts.some((account) => account.username === leaderUsername && account.enabled !== false);
+    return {
+      ...department,
+      leaderUsername,
+      leaderAssignedAt: leaderChanged || leaderDisabled ? now : previous?.leaderAssignedAt || 0,
+    };
   });
   const invalidModuleLeader = accounts.find((account) => {
     if (account.role !== "module_leader") return false;
@@ -1626,7 +1635,9 @@ function resolveLeaderDepartment(state, username) {
   const settings = getSettings(state);
   const account = settings.accounts.find((item) => item.username === username && item.enabled !== false);
   return account
-    ? settings.departments.find((department) => department.leaderUsername === username && department.id === account.departmentId) || null
+    ? settings.departments.find(
+        (department) => department.leaderUsername === username && department.id === account.departmentId,
+      ) || null
     : null;
 }
 
@@ -1915,6 +1926,66 @@ async function handleWorkbuddyMappingUpdate(req, res, state, username, now, admi
   });
 }
 
+async function readDashboardBody(req) {
+  const limit = 1024 * 1024;
+  const tooLarge = () =>
+    Object.assign(new Error("导入请求不能超过 1 MB，请拆分真实数据批次。"), {
+      statusCode: 413,
+      code: "DASHBOARD_BODY_TOO_LARGE",
+    });
+  if (req.body && typeof req.body === "object") {
+    if (Buffer.byteLength(JSON.stringify(req.body), "utf8") > limit) throw tooLarge();
+    return req.body;
+  }
+  let text;
+  if (typeof req.body === "string") {
+    if (Buffer.byteLength(req.body, "utf8") > limit) throw tooLarge();
+    text = req.body;
+  } else {
+    const chunks = [];
+    let bytes = 0;
+    const stream = req.iterator ? req.iterator({ destroyOnReturn: false }) : req;
+    for await (const chunk of stream) {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += buffer.length;
+      if (bytes > limit) {
+        req.resume?.();
+        throw tooLarge();
+      }
+      chunks.push(buffer);
+    }
+    text = Buffer.concat(chunks).toString("utf8");
+  }
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    throw Object.assign(new Error("导入请求不是有效 JSON。"), { statusCode: 400, code: "DASHBOARD_INVALID_JSON" });
+  }
+}
+
+async function handleDepartmentDashboard(req, res, state, parts, now, actor) {
+  try {
+    if (req.method === "GET" && parts.length === 2) {
+      return json(res, buildDepartmentDashboard(state, actor, req.query, now));
+    }
+    if (req.method === "POST" && parts[2] === "imports") {
+      const input = await readDashboardBody(req);
+      if (parts.length === 4 && parts[3] === "preview") {
+        return json(res, previewDashboardImport(state, actor, input, now));
+      }
+      if (parts.length === 3) {
+        const result = commitDashboardImport(state, actor, input, now);
+        if (!result.duplicate) await saveState(state);
+        return json(res, result);
+      }
+    }
+    return methodNotAllowed(res);
+  } catch (error) {
+    if (!Number.isInteger(error.statusCode)) throw error;
+    return json(res, { error: error.message, code: error.code || "DASHBOARD_INVALID_REQUEST" }, error.statusCode);
+  }
+}
+
 async function handleAdmin(req, res, state, parts, now, release = () => {}) {
   const action = parts[1] || "";
   if (action === "login") {
@@ -1999,6 +2070,8 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     if (!department || !department.enabled || stale) {
       return json(res, { error: "负责人身份已失效，请重新登录" }, 401);
     }
+    if (action === "dashboard")
+      return handleDepartmentDashboard(req, res, state, parts, now, { role: "leader", departmentId: department.id });
     if (action === "period-reports")
       return periodReports.admin(req, res, state, parts, now, {
         username: decoded.username,
@@ -2013,6 +2086,7 @@ async function handleAdmin(req, res, state, parts, now, release = () => {}) {
     return handleLeaderAdmin(req, res, state, parts, now, { username: decoded.username, department });
   }
 
+  if (action === "dashboard") return handleDepartmentDashboard(req, res, state, parts, now, { role: "admin" });
   if (action === "period-reports") return periodReports.admin(req, res, state, parts, now, decoded);
   if (action === "workbuddy") {
     if (parts.length === 2 && req.method === "GET") {

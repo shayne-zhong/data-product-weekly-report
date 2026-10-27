@@ -127,7 +127,11 @@ test("production server serves health, UI, and protected API", async () => {
   try {
     const healthResponse = await fetch(`${origin}/healthz`);
     assert.equal(healthResponse.status, 200);
-    assert.deepEqual(await healthResponse.json(), { status: "ok", version: "test-version" });
+    assert.deepEqual(await healthResponse.json(), {
+      status: "ok",
+      version: "test-version",
+      features: { departmentDashboard: 1 },
+    });
 
     const home = await fetch(origin);
     assert.equal(home.status, 200);

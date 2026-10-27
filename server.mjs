@@ -104,7 +104,8 @@ export function createProductionServer({
   return createServer(async (req, res) => {
     try {
       const url = new URL(req.url || "/", "http://localhost");
-      if (url.pathname === "/healthz") return sendJson(res, { status: "ok", version: deploymentVersion });
+      if (url.pathname === "/healthz")
+        return sendJson(res, { status: "ok", version: deploymentVersion, features: { departmentDashboard: 1 } });
       if (url.pathname === "/wecom/callback") {
         req.query = { path: ["wecom", "callback"] };
         for (const [key, value] of url.searchParams) req.query[key] = value;

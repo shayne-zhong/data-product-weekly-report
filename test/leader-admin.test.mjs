@@ -639,7 +639,7 @@ function memberUiContext({ fail = false, confirm = true } = {}) {
     const start = html.search(new RegExp(`    (?:async )?function ${name}\\(`));
     assert.notEqual(start, -1, `${name} exists`);
     const rest = html.slice(start + 1);
-    const end = rest.search(/\n    (?:async )?function /);
+    const end = rest.search(/\n {4}(?:async )?function /);
     return html.slice(start, end < 0 ? html.length : start + 1 + end);
   }).join("\n");
   const elements = {};
