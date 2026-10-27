@@ -5,7 +5,7 @@ const channel = "department-dashboard-v1";
 const pending = new Map();
 const colors = ["#5c83df", "#1aa2a0", "#8376d8", "#e7a967", "#df6879", "#8d9cae"];
 const dimensionNames = ["完整性", "准确性", "一致性", "及时性", "唯一性", "有效性"];
-const state = { data: null, selectedMetric: "report_visits", search: "", page: 1, error: "", sections: [], preview: null, drawerFocus: null, importGeneration: 0 };
+const state = { data: null, selectedMetric: "report_visits", search: "", page: 1, error: "", preview: null, drawerFocus: null, importGeneration: 0 };
 const labels = { available: "已获取", partial: "部分覆盖", stale: "已过期", missing: "未获取", not_applicable: "不适用" };
 const names = { report_visits: "报表访问次数", data_ai_calls: "数据AI调用次数", report_count: "BI报表数量", report_active_rate: "报表活跃率", business_users: "业务有效用户数", data_coverage: "数据覆盖率", metric_count: "企业指标总数", warehouse_table_count: "数仓有效表数", service_api_count: "数据服务接口", quality_pass_rate: "六性质量通过率", token_total: "Token消耗", token_input: "输入Token", token_output: "输出Token", ai_app_count: "已上线AI应用", ai_active_app_count: "活跃AI应用", ai_talent_count: "已评估AI人才", hr_employees: "HR在职员工", employee_goal_rate: "员工指标达成", employee_key_task_rate: "重点任务达成" };
 const ways = {
@@ -151,8 +151,6 @@ function render() {
   const available = d?.metrics.filter(m => m.value != null && m.status === "available").length || 0, limited = d?.metrics.filter(m => m.status === "partial" || m.status === "stale").length || 0;
   $("readiness").innerHTML = [["已获取完整指标", d ? available : "—"], ["部分覆盖 / 过期", d ? limited : "—"], ["已接入外部来源", d ? d.sources.length : "—"], ["网站启用账号", d ? d.operations.activeAccounts : "—"]].map(([label, value]) => `<div><div class="tiny">${label}</div><div class="metric ${!d || state.error ? "gray-value" : ""}">${value}</div></div>`).join("");
   $("dataBoundary").textContent = `真实零值与缺数分别展示。${d ? "当前部门：" + d.context.departmentName + "；网站内部数据已读取，外部数据仍须按来源逐项接入。" : "尚未获取真实业务值。"}`;
-  $("envTitle").textContent = state.error ? "刷新失败 · 保留旧值" : d ? "真实来源模式" : "等待真实数据";
-  $("envText").textContent = d ? `部门 ${d.context.departmentName}；外部来源 ${d.sources.length} 个。` : "未接入指标灰显，不使用模拟数字。";
   $("riskSummary").textContent = d ? `任务记录：阻塞 ${d.operations.blockedTasks} 条，逾期 ${d.operations.overdueTasks} 条，未归属 ${d.operations.unassignedTasks} 条。缺数不代表业务正常或异常。` : "风险判断只基于已获取的任务记录，不推测未接入的业务表现。";
   $("dataKpis").innerHTML = ["report_visits", "data_ai_calls", "report_count", "report_active_rate", "business_users"].map(id => kpi(id, id === state.selectedMetric)).join("");
   $("metricChartTitle").textContent = (names[state.selectedMetric] || "年度指标") + " · 真实期间记录";
@@ -219,7 +217,7 @@ window.addEventListener("message", event => {
   const m = event.data;
   if (m.type === "data" && m.payload?.context && Array.isArray(m.payload.metrics)) {
     const previousDepartment = state.data?.context.departmentId;
-    state.data = m.payload; state.sections = m.allowedSections || []; state.error = "";
+    state.data = m.payload; state.error = "";
     if (previousDepartment !== state.data.context.departmentId) { state.search = ""; state.page = 1; $("personSearch").value = ""; }
     $("dataError").hidden = true; render();
   } else if (m.type === "error") showError(m.error || "读取失败");
@@ -234,14 +232,11 @@ $("refreshButton").onclick = refresh; ["departmentSelect", "yearSelect", "period
 $("drawerClose").onclick = closeDrawer; $("overlay").onclick = closeDrawer; $("importButton").onclick = importDrawer; $("guideButton").onclick = guideDrawer;
 $("methodButton").onclick = () => { openDrawer("指标口径与边界", "真实数据、缺口与来源分开展示", '<p class="status-note">流量按统计期累计，存量按截止日快照，比例需分子分母。年度目标不按季度或月度自动摊分；同一指标跨来源不相加。网站目标的任务贡献与经营实测分开。</p><p class="status-note">部分覆盖不等于全部门，过期保留灰色旧值，缺历史不补曲线。当前人才范围是所选部门，附件中的集团人才和模拟组织不作为真实业务数据。</p><p class="status-note">网站任务按所属周与查询期间相交筛选，展示其当前状态，跨周结转记录尚未去重。网站账号不能替代 HR 编制；每日 AI 配额不能换算 Token。</p>'); };
 $("metricDetails").onclick = () => showMetric(state.selectedMetric);
-$("settingsButton").onclick = () => { const section = ["members", "period-reports", "departments"].find(x => state.sections.includes(x)); if (section) send({ type: "navigate", section }); else showError("当前身份没有可切换的后台配置入口。"); };
-const mobileSettings = document.createElement("button"); mobileSettings.className = "btn mobile-config"; mobileSettings.textContent = "后台配置"; mobileSettings.onclick = () => $("settingsButton").click(); document.querySelector(".right-tools").append(mobileSettings);
-document.querySelectorAll(".nav-link").forEach(b => b.setAttribute("aria-label", b.querySelector("span")?.textContent || b.textContent));
 $("personSearch").oninput = e => { state.search = e.target.value; state.page = 1; renderPeopleRows(); };
 $("prevPage").onclick = () => { state.page--; renderPeopleRows(); }; $("nextPage").onclick = () => { state.page++; renderPeopleRows(); };
 $("exportButton").onclick = () => { if (!state.data) return; const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: "application/json;charset=utf-8" }), url = URL.createObjectURL(blob), a = document.createElement("a"); a.href = url; a.download = `部门总览-${state.data.context.departmentId}-${state.data.context.year}-${state.data.context.period}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
 document.addEventListener("click", event => {
-  const jump = event.target.closest("[data-jump]"); if (jump) { document.getElementById(jump.dataset.jump)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); document.querySelectorAll(".nav-link[data-jump]").forEach(b => b.classList.toggle("active", b.dataset.jump === jump.dataset.jump)); }
+  const jump = event.target.closest("[data-jump]"); if (jump) { document.getElementById(jump.dataset.jump)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); }
   const selected = event.target.closest("[data-select-metric]"); if (selected) { if (["report_visits", "data_ai_calls", "report_count", "report_active_rate", "business_users"].includes(selected.dataset.selectMetric)) { state.selectedMetric = selected.dataset.selectMetric; render(); } else showMetric(selected.dataset.selectMetric); }
   const detail = event.target.closest("[data-metric]"); if (detail) showMetric(detail.dataset.metric);
   const person = event.target.closest("[data-person]"); if (person) personDrawer(person.dataset.person);

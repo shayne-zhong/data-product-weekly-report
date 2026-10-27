@@ -3,20 +3,6 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>部门经营总览</title><link rel="stylesheet" href="/admin-dashboard.css"></head>
 <body>
 <div class="layout" id="dashboardLayout">
-  <aside class="sidebar" aria-label="驾驶舱导航">
-    <div class="brand"><div class="brand-line"><div class="brand-mark">D</div><div><div class="brand-title">东鹏 · 数智管理台</div><div class="brand-sub">DATA & AI COMMAND</div></div></div></div>
-    <div class="nav-label">部门驾驶舱</div>
-    <button class="nav-link active" data-jump="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>部门经营总览</span></button>
-    <button class="nav-link" data-jump="data"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v13c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg><span>数据运营与资产</span></button>
-    <button class="nav-link" data-jump="quality"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="m12 3 8 4v6c0 5-8 8-8 8s-8-3-8-8V7zM8 12l3 3 5-6"/></svg><span>数据质量六性</span><span class="nav-small">6D</span></button>
-    <div class="nav-label">专项管理</div>
-    <button class="nav-link" data-jump="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="3"/><path d="M9 2v3m6-3v3M9 19v3m6-3v3M2 9h3m-3 6h3m14-6h3m-3 6h3M9 12h6m-3-3v6"/></svg><span>AI应用与Token</span></button>
-    <button class="nav-link" data-jump="talent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></svg><span>AI人才梯队</span></button>
-    <button class="nav-link" data-jump="people"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 4h18v16H3zM7 9h10M7 13h7M7 17h5"/></svg><span>员工与任务执行</span></button>
-    <button class="nav-link" data-jump="sources"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg><span>来源与接入状态</span></button>
-    <button class="nav-link settings-link" id="settingsButton"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 7h16M4 17h16M9 4v6M15 14v6"/></svg><span>后台管理配置</span></button>
-    <div class="side-bottom"><div class="env-card"><span class="env-dot" id="envDot"></span><strong id="envTitle">等待真实数据</strong><div style="margin-top:6px" id="envText">未接入指标灰显<br>不使用模拟数字</div></div></div>
-  </aside>
   <div class="main">
     <header class="topbar"><div class="crumb"><span>管理驾驶舱</span><span>/</span><strong id="scopeLabel">部门经营总览</strong></div><div class="right-tools"><select class="select" id="departmentSelect" aria-label="选择部门"><option value="">读取部门中</option></select><select class="select" id="yearSelect" aria-label="选择年份"></select><select class="select" id="periodSelect" aria-label="选择期间"><option value="ytd">年度累计至今</option><option value="full">全年</option><option value="q1">第一季度</option><option value="q2">第二季度</option><option value="q3">第三季度</option><option value="q4">第四季度</option><option value="m01">1 月</option><option value="m02">2 月</option><option value="m03">3 月</option><option value="m04">4 月</option><option value="m05">5 月</option><option value="m06">6 月</option><option value="m07">7 月</option><option value="m08">8 月</option><option value="m09">9 月</option><option value="m10">10 月</option><option value="m11">11 月</option><option value="m12">12 月</option></select><button class="btn" id="refreshButton">刷新数据</button><button class="btn primary" id="importButton">导入数据</button></div></header>
     <div class="content">

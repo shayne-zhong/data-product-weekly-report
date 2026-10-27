@@ -11,7 +11,7 @@
 ## 运行与构建入口
 
 - `public/index.html`：单页应用入口，包含结构、样式、状态和交互。
-- `public/admin-dashboard.html`、`public/admin-dashboard.css`、`public/admin-dashboard.js`：后台默认首页驾驶舱，采用确认的深色侧栏版式；通过可信同源嵌入页隔离样式，缺数灰显，不含模拟经营数据。
+- `public/admin-dashboard.html`、`public/admin-dashboard.css`、`public/admin-dashboard.js`：后台默认经营总览内容页，统一使用父页面原有左侧分组导航与页签，子页面不再提供独立侧栏；通过可信同源嵌入页隔离样式，缺数灰显，不含模拟经营数据。
 - `public/dashboard-host.js`：后台父页面的授权请求桥，校验消息来源窗口、同源和操作白名单；后台凭证不发送到驾驶舱页。`public/dashboard-import.js`：将 UTF-8 CSV/JSON 转为统一导入对象，空模板位于 `public/dashboard-templates/`。
 - `server.mjs`：Node 生产入口，提供 `/healthz`、转发 `/api` 和精确路径 `/wecom/callback`、托管静态资源，并在直接运行时负责两个后台任务的启动补偿与白天小时调度。
 - `/healthz` 的 `features.departmentDashboard: 1` 标记当前进程已加载驾驶舱后端，用于区分静态文件更新与后台进程实际发布，不包含凭证或业务数据。
