@@ -124,6 +124,56 @@ test("empty external values stay missing, operation and people scopes are safe",
   assert.doesNotMatch(JSON.stringify(r), /SECRET|OTHER/);
   assert.equal(buildDepartmentDashboard(s, leader, { period: "m02", year: 2026 }, NOW).operations.tasks, 0);
 });
+test("annual aliases preserve provenance, textual targets and exact external measurements", () => {
+  const s = state();
+  s.goalsByDepartment.a.rows = [
+    { id: "g", name: "报表访问次数3W", target: "60000+", unit: "次" },
+    { id: "agent", name: "AI智能体上线数量50个", target: "50个" },
+    { id: "core", name: "集团核心指标线上化80个", target: "80" },
+  ];
+  const metric = (query, id) => buildDepartmentDashboard(s, leader, { year: 2026, ...query }, NOW).metrics.find(m => m.id === id);
+  const visits = metric({ period: "ytd" }, "report_visits");
+  assert.equal(visits.value, 3);
+  assert.equal(visits.status, "annual_goal");
+  assert.equal(visits.annualGoal.title, "报表访问次数3W");
+  assert.equal(visits.targetText, "60000+");
+  assert.equal(visits.target, undefined);
+  assert.equal(visits.source.mode, "annual_goal");
+  assert.match(visits.reason, /不按查询周期/);
+  assert.equal(metric({ period: "full" }, "ai_app_count").targetText, "50个");
+  assert.equal(metric({ period: "full" }, "metric_count").annualGoal.title, "集团核心指标线上化80个");
+  assert.equal(metric({ period: "m01" }, "report_visits").value, null);
+  assert.equal(metric({ period: "q1" }, "report_visits").value, null);
+  assert.equal(metric({ period: "m01" }, "report_visits").targetText, "60000+");
+  commit(s);
+  const external = metric({ period: "m01" }, "report_visits");
+  assert.equal(external.value, 0);
+  assert.equal(external.source.mode, "import");
+  assert.equal(external.annualGoal.current, 3);
+  assert.equal(buildDepartmentDashboard(s, admin, { departmentId: "b", year: 2026 }, NOW).metrics.find(m => m.id === "report_visits").value, null);
+  assert.equal(buildDepartmentDashboard(s, leader, { year: 2025 }, NOW).metrics.find(m => m.id === "report_visits").value, null);
+  assert.equal(s.goalsByDepartment.a.rows[0].target, "60000+");
+});
+
+test("ambiguous, incompatible and unrelated annual goals are not guessed", () => {
+  const s = state();
+  const visits = () => buildDepartmentDashboard(s, leader, { year: 2026 }, NOW).metrics.find(m => m.id === "report_visits");
+  s.goalsByDepartment.a.rows = [
+    { id: "g", name: "报表访问次数3W", target: "60000+" },
+    { id: "other", name: "报表访问量", target: "80" },
+  ];
+  assert.equal(visits().value, null);
+  assert.equal(visits().annualGoal, undefined);
+  s.goalsByDepartment.a.rows = [{ id: "g", name: "报表访问次数3W", unit: "%", target: "30%" }];
+  assert.equal(visits().annualGoal, undefined);
+  s.goalsByDepartment.a.rows = [{ id: "g", name: "报表访问次数同比增长率", target: "30%" }];
+  assert.equal(visits().value, null);
+  s.goalsByDepartment.a.rows = [{ id: "g", name: "报表活跃率", target: "50%", unit: "%" }];
+  const ratio = buildDepartmentDashboard(s, leader, { year: 2026 }, NOW).metrics.find(m => m.id === "report_active_rate");
+  assert.equal(ratio.value, null);
+  assert.equal(ratio.targetText, "50%");
+});
+
 test("preview is immutable and canonical, commit is durable and idempotent", () => {
   const s = state(),
     before = structuredClone(s);

@@ -525,7 +525,7 @@ body.admin-mode{
             <div class="admin-tabs" id="adminTabs" role="tablist"><button class="ghost-btn admin-mobile-nav" id="adminMobileNavBtn" aria-label="打开后台导航">☰</button></div>
             <div class="admin-content">
             <section class="admin-section" data-admin-panel="overview">
-              <iframe id="departmentDashboardFrame" src="/admin-dashboard.html" title="部门经营总览"></iframe>
+              <iframe id="departmentDashboardFrame" src="/admin-dashboard.html" title="数据总览"></iframe>
             </section>
         <div class="settings-center">
           <div class="settings-editor">
@@ -1055,7 +1055,7 @@ body.admin-mode{
     const adminGroupDefaults = { organization: "departments", rules: "login", operations: "api-key" };
     const adminSectionMeta = {
       "period-reports": { label: "总结报告", icon: "i-tasks", group: "组织管理" },
-      overview: { label: "部门经营总览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
+      overview: { label: "数据总览", icon: "i-dashboard", group: "" }, departments: { label: "部门管理", icon: "i-building", group: "组织管理" }, members: { label: "成员管理", icon: "i-users", group: "组织管理" },
       login: { label: "保持登录", icon: "i-clock", group: "规则配置" }, archive: { label: "归档设置", icon: "i-archive", group: "规则配置" },
       "api-key": { label: "API 密钥", icon: "i-key", group: "系统运维" }, "scheduled-tasks": { label: "定时任务", icon: "i-tasks", group: "系统运维" }, workbuddy: { label: "企微待办", icon: "i-tasks", group: "系统运维" },
     };

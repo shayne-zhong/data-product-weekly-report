@@ -6,7 +6,7 @@ const pending = new Map();
 const colors = ["#5c83df", "#1aa2a0", "#8376d8", "#e7a967", "#df6879", "#8d9cae"];
 const dimensionNames = ["完整性", "准确性", "一致性", "及时性", "唯一性", "有效性"];
 const state = { data: null, selectedMetric: "report_visits", search: "", page: 1, error: "", preview: null, drawerFocus: null, importGeneration: 0 };
-const labels = { available: "已获取", partial: "部分覆盖", stale: "已过期", missing: "未获取", not_applicable: "不适用" };
+const labels = { available: "已获取", partial: "部分覆盖", stale: "已过期", missing: "未获取", not_applicable: "不适用", annual_goal: "年度指标完成" };
 const names = { report_visits: "报表访问次数", data_ai_calls: "数据AI调用次数", report_count: "BI报表数量", report_active_rate: "报表活跃率", business_users: "业务有效用户数", data_coverage: "数据覆盖率", metric_count: "企业指标总数", warehouse_table_count: "数仓有效表数", service_api_count: "数据服务接口", quality_pass_rate: "六性质量通过率", token_total: "Token消耗", token_input: "输入Token", token_output: "输出Token", ai_app_count: "已上线AI应用", ai_active_app_count: "活跃AI应用", ai_talent_count: "已评估AI人才", hr_employees: "HR在职员工", employee_goal_rate: "员工指标达成", employee_key_task_rate: "重点任务达成" };
 const ways = {
   report_visits: "由 BI 平台提供有效访问日志的去重汇总，剔除健康检查与重试。",
@@ -49,6 +49,14 @@ function request(action, body) {
   });
 }
 function filters() { return { departmentId: $("departmentSelect").value, year: $("yearSelect").value, period: $("periodSelect").value }; }
+function showDashboardView() {
+  const sources = window.location.hash === "#sources";
+  ["data", "assets", "quality", "ai", "talent"].forEach(id => { $(id).hidden = sources; });
+  $("sources").hidden = !sources;
+  $("backToOverview").hidden = !sources;
+  $("sourcesButton").hidden = sources;
+  $("scopeLabel").textContent = sources ? "数据来源 · 接入与时效" : "数据总览";
+}
 async function refresh() {
   $("refreshButton").disabled = true;
   try { await request("load", filters()); } catch (error) { showError(error.message); }
@@ -58,12 +66,16 @@ function showError(message) { state.error = message; $("dataError").textContent 
 function empty(title, sub = "未获取的数据保留灰色，不以 0 或示例值补齐。") { return `<div class="empty-chart"><strong>${esc(title)}</strong><small>${esc(sub)}</small></div>`; }
 function kpi(id, selected = false) {
   const m = metric(id), has = m.value != null;
-  const target = m.target == null ? "年度目标未配置" : `年度目标 ${fmt(m.target)} ${unit(m)}`;
+  const target = m.targetText != null ? `年度目标 ${m.targetText}` : m.target == null ? "年度目标未配置" : `年度目标 ${fmt(m.target)} ${unit(m)}`;
   const progress = has && m.target > 0 ? Math.min(100, m.value / m.target * 100) : null;
-  return `<button class="card kpi ${selected ? "active" : ""}" data-select-metric="${id}" aria-pressed="${selected}"><div class="status-row"><span class="tiny" style="margin-right:auto">${esc(names[id] || m.label)}</span>${statusTag(m)}</div><div class="metric ${valueClass(m)}">${fmt(m.value)}<small style="font-size:11px;font-weight:400;margin-left:5px">${has ? esc(unit(m)) : ""}</small></div><div class="tiny">${esc(target)}</div><div class="progress">${progress == null ? "" : `<span style="display:block;height:100%;width:${progress}%;background:${m.status === "stale" || state.error ? "#bac2cf" : "#5c83df"}"></span>`}</div><div class="source-line">${esc(sourceName(m))} · ${m.asOf ? esc(when(m.asOf)) : "无统计截止"}</div></button>`;
+  return `<button class="card kpi ${selected ? "active" : ""}" data-select-metric="${id}" aria-pressed="${selected}"><div class="status-row"><span class="tiny" style="margin-right:auto">${esc(m.status === "annual_goal" ? m.annualGoal.title : names[id] || m.label)}</span>${statusTag(m)}</div><div class="metric ${valueClass(m)}">${fmt(m.value)}<small style="font-size:11px;font-weight:400;margin-left:5px">${has ? esc(unit(m)) : ""}</small></div><div class="tiny">${esc(target)}</div><div class="progress">${progress == null ? "" : `<span style="display:block;height:100%;width:${progress}%;background:${m.status === "stale" || state.error ? "#bac2cf" : "#5c83df"}"></span>`}</div><div class="source-line">${esc(sourceName(m))} · ${m.source?.mode === "annual_goal" ? "年度台账当前累计，不按所选期间切分" : m.asOf ? esc(when(m.asOf)) : "无统计截止"}</div></button>`;
+}
+function annualGoalFacts(m) {
+  const g = m.annualGoal;
+  return g ? `<dt>关联年度指标</dt><dd>${esc(g.title)}</dd><dt>年度目标原文</dt><dd>${esc(g.annualTarget ?? "未配置")}</dd><dt>年度当前完成</dt><dd>${fmt(g.current)} ${esc(g.unit)} · 任务贡献</dd><dt>年度范围</dt><dd>${esc(g.scopeNote)}</dd>` : "";
 }
 function observationFacts(m, id) {
-  return `<dl><dt>指标</dt><dd>${esc(names[id] || m.label || id)}</dd><dt>当前值</dt><dd>${fmt(m.value)} ${m.value == null ? "" : esc(unit(m))}</dd><dt>状态</dt><dd>${esc(labels[m.status] || m.status)}${state.error && m.value != null ? "；刷新失败，保留旧值" : ""}</dd><dt>来源</dt><dd>${esc(sourceName(m))}</dd><dt>方式</dt><dd>${m.source?.mode === "import" ? "人工导入；刷新仅重读网站已保存数据" : "未接入"}</dd><dt>统计范围</dt><dd>${esc(state.data?.context.departmentName || "未知")} · ${esc(state.data?.context.startDate || "未知")} 至 ${esc(state.data?.context.endDate || "未知")}</dd><dt>业务截止</dt><dd>${esc(when(m.asOf))}</dd><dt>入库时间</dt><dd>${esc(when(m.receivedAt))}</dd><dt>覆盖</dt><dd>${m.coverage === "complete" ? "来源声明完整覆盖" : m.coverage === "partial" ? "仅部分覆盖，不能代表部门总量" : "未知"}</dd>${m.numerator == null ? "" : `<dt>计算</dt><dd>${fmt(m.numerator)} / ${fmt(m.denominator)}${m.denominator === 0 ? "（分母为零，不适用）" : ""}</dd>`}<dt>原因 / 边界</dt><dd>${esc(m.reason || "按来源原始统计口径展示，不自动补齐缺口。")}</dd><dt>获取方式</dt><dd>${esc(ways[id] || "请按统一数据契约提供真实来源。")}</dd></dl>`;
+  return `<dl><dt>指标</dt><dd>${esc(names[id] || m.label || id)}</dd><dt>当前值</dt><dd>${fmt(m.value)} ${m.value == null ? "" : esc(unit(m))}</dd><dt>状态</dt><dd>${esc(labels[m.status] || m.status)}${state.error && m.value != null ? "；刷新失败，保留旧值" : ""}</dd><dt>来源</dt><dd>${esc(sourceName(m))}</dd><dt>方式</dt><dd>${m.source?.mode === "annual_goal" ? "年度指标的已完成任务贡献，非外部实测" : m.source?.mode === "import" ? "人工导入；刷新仅重读网站已保存数据" : "未接入"}</dd><dt>统计范围</dt><dd>${esc(state.data?.context.departmentName || "未知")} · ${esc(state.data?.context.startDate || "未知")} 至 ${esc(state.data?.context.endDate || "未知")}</dd><dt>业务截止</dt><dd>${esc(when(m.asOf))}</dd><dt>入库时间</dt><dd>${esc(when(m.receivedAt))}</dd><dt>覆盖</dt><dd>${m.coverage === "complete" ? "来源声明完整覆盖" : m.coverage === "partial" ? "仅部分覆盖，不能代表部门总量" : "未知"}</dd>${m.numerator == null ? "" : `<dt>计算</dt><dd>${fmt(m.numerator)} / ${fmt(m.denominator)}${m.denominator === 0 ? "（分母为零，不适用）" : ""}</dd>`}<dt>原因 / 边界</dt><dd>${esc(m.reason || "按来源原始统计口径展示，不自动补齐缺口。")}</dd><dt>获取方式</dt><dd>${esc(ways[id] || "请按统一数据契约提供真实来源。")}</dd>${annualGoalFacts(m)}</dl>`;
 }
 function openDrawer(title, sub, html) {
   state.drawerFocus = document.activeElement;
@@ -139,7 +151,7 @@ function render() {
   const d = state.data;
   if (d) {
     const c = d.context;
-    $("scopeLabel").textContent = c.departmentName; $("pageTitle").textContent = c.departmentName + " · 经营管理总览";
+    $("pageTitle").textContent = c.departmentName + " · 数据总览";
     $("yearEyebrow").textContent = "MANAGEMENT OVERVIEW / " + c.year;
     $("asOf").textContent = "网站响应 " + when(d.fetchedAt);
     $("periodLabel").textContent = "统计期间 " + c.startDate + " 至 " + c.endDate;
@@ -168,7 +180,7 @@ function render() {
   distribution("ai_app_count", "platform", "platformAppBars", "应用平台分类未接入"); distribution("token_total", "platform", "platformTokenBars", "渠道用量未接入");
   const talent = metric("ai_talent_count"); $("talentTotal").innerHTML = `<div class="metric ${valueClass(talent)}">${fmt(talent.value)} <small style="font-size:12px;font-weight:400">${talent.value == null ? "" : "人"}</small></div>${statusTag(talent)}`;
   distribution("ai_talent_count", "talent_level", "talentLevels", "能力评估与层级待接入"); distribution("ai_talent_count", "domain", "talentDomains", "人才领域分布待接入");
-  renderPeople(); renderSources();
+  renderPeople(); renderSources(); showDashboardView();
 }
 
 function importDrawer() {
@@ -227,6 +239,9 @@ window.addEventListener("message", event => {
   }
 });
 const currentYear = Number(new Intl.DateTimeFormat("en", { timeZone: "Asia/Shanghai", year: "numeric" }).format(new Date()));
+window.addEventListener("hashchange", () => { showDashboardView(); window.scrollTo(0, 0); });
+$("sourcesButton").onclick = () => { window.location.hash = "sources"; };
+$("backToOverview").onclick = () => { window.location.hash = "overview"; };
 $("yearSelect").innerHTML = Array.from({ length: currentYear - 2019 + 1 }, (_, i) => currentYear + 1 - i).map(y => `<option value="${y}">${y} 年</option>`).join(""); $("yearSelect").value = String(currentYear);
 $("refreshButton").onclick = refresh; ["departmentSelect", "yearSelect", "periodSelect"].forEach(id => $(id).onchange = refresh);
 $("drawerClose").onclick = closeDrawer; $("overlay").onclick = closeDrawer; $("importButton").onclick = importDrawer; $("guideButton").onclick = guideDrawer;
